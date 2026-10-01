@@ -69,3 +69,6 @@ Testing/
 .cache/
 
 tickets
+
+# Local agent conversation and research records
+.agents/

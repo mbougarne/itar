@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  repository:
+    name: Repository checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      core: ${{ steps.detect.outputs.core }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Validate workflows
+        env:
+          ACTIONLINT_VERSION: 1.7.11
+          ACTIONLINT_SHA256: 900919a84f2229bac68ca9cd4103ea297abc35e9689ebb842c6e34a3d1b01b0a
+        run: |
+          archive="${RUNNER_TEMP}/actionlint.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            --output "$archive"
+          printf '%s  %s\n' "$ACTIONLINT_SHA256" "$archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          "${RUNNER_TEMP}/actionlint" -color
+      - name: Check tracked whitespace
+        run: git diff --check "$(git hash-object -t tree /dev/null)" HEAD
+      - name: Detect the independent core build
+        id: detect
+        run: |
+          if [[ -f core/CMakeLists.txt ]]; then
+            echo 'core=true' >> "$GITHUB_OUTPUT"
+            echo 'C++20 configure, build, and CTest jobs are enabled.' >> "$GITHUB_STEP_SUMMARY"
+          elif git ls-files core | grep -E '\.(c|cc|cpp|cxx|h|hh|hpp|hxx)$' > /dev/null; then
+            echo '::error::Core sources require core/CMakeLists.txt and registered CTest tests.'
+            exit 1
+          else
+            echo 'core=false' >> "$GITHUB_OUTPUT"
+            echo 'C++ checks are NOT RUN: core/CMakeLists.txt does not exist yet. Only repository checks ran.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  core:
+    name: C++20 / ${{ matrix.name }}
+    needs: repository
+    if: needs.repository.outputs.core == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: GCC / Linux
+            os: ubuntu-24.04
+            cc: gcc-13
+            cxx: g++-13
+            build_type: Release
+            flags: ''
+          - name: Clang / ASan + UBSan
+            os: ubuntu-24.04
+            cc: clang-18
+            cxx: clang++-18
+            build_type: Debug
+            flags: -fsanitize=address,undefined -fno-omit-frame-pointer
+          - name: Apple Clang / macOS
+            os: macos-15
+            cc: clang
+            cxx: clang++
+            build_type: Release
+            flags: ''
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+      CXXFLAGS: ${{ matrix.flags }}
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Record tools
+        run: |
+          cmake --version
+          "$CXX" --version
+      - name: Configure C++20 core
+        run: >-
+          cmake -S core -B build/core
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_CXX_STANDARD=20
+          -DCMAKE_CXX_STANDARD_REQUIRED=ON
+          -DCMAKE_CXX_EXTENSIONS=OFF
+          -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build/core --parallel 2
+      - name: Run tests (zero tests is a failure)
+        run: ctest --test-dir build/core --output-on-failure --no-tests=error --timeout 60
+
+  required:
+    name: Required checks
+    needs: [repository, core]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      REPOSITORY_RESULT: ${{ needs.repository.result }}
+      CORE_ENABLED: ${{ needs.repository.outputs.core }}
+      CORE_RESULT: ${{ needs.core.result }}
+    steps:
+      - name: Require all applicable checks to pass
+        run: |
+          if [[ "$REPOSITORY_RESULT" != success ]]; then
+            echo '::error::Repository checks did not succeed.'
+            exit 1
+          fi
+          if [[ "$CORE_ENABLED" == true && "$CORE_RESULT" != success ]]; then
+            echo '::error::The enabled C++ matrix did not succeed.'
+            exit 1
+          fi
