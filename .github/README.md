@@ -19,10 +19,10 @@ are needed. Dependabot proposes weekly updates to GitHub Actions pins.
   ruleset after the first hosted run. Repository settings are not changed by
   committing these files.
 
-The checkout currently contains no engine, RN package, or native build projects.
-A green run at this stage means repository checks passed, not that the planned
-library builds or any device is supported. Local ignored tickets and architecture
-notes are not required by the workflow and remain unchanged.
+The checkout contains an independent core library build and minimal harness,
+but no engine behavior, RN package, or native build projects. A green run checks
+the portable build/harness and repository, not device support. Local ignored
+tickets and architecture notes are not required by the workflow.
 
 ## C++20 build contract
 
@@ -41,7 +41,7 @@ Compiler/CMake versions are printed in each run. Runner image labels do not pin
 every installed tool version. This matrix validates the portable engine; macOS
 compilation does not validate Swift bindings, UIKit, or tvOS.
 
-Reproduce the unsanitized core checks once the build entry point exists:
+Reproduce the unsanitized core checks:
 
 ```sh
 cmake -S core -B build/core -DCMAKE_BUILD_TYPE=Release \
@@ -63,9 +63,9 @@ scripts or `continue-on-error` to conceal missing integration checks.
 | Android / Kotlin / JNI | Pin the chosen JDK, SDK and NDK; use the committed Gradle wrapper to build the RN consumer and run its available lint/unit-test tasks, including the C++ binding. |
 | Apple TV / Swift / Objective-C++ glue | Pin a compatible Xcode and dependency setup; build the actual consumer workspace/scheme for a tvOS simulator without distribution signing, and run available tests. An iOS or macOS build is not a substitute. |
 
-The initial toolchain, RN shell, Android binding, and Apple binding work correspond
-to local tickets ITAR-0002, ITAR-0004, ITAR-0007, and ITAR-0014. Their build commands
-and version choices do not exist yet, so no passing native jobs are fabricated.
+The [candidate toolchain record](../docs/probe-toolchains.md) covers ITAR-0002.
+The RN shell, Android binding, and Apple binding remain ITAR-0004, ITAR-0007,
+and ITAR-0014 work; native build entry points and passing jobs do not exist yet.
 Device focus, accessibility, loading stability, and performance evidence remains
 separate from hosted builds and belongs in the PR's verification section.
 

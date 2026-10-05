@@ -1,0 +1,18 @@
+cmake_minimum_required(VERSION 3.20)
+project(itar_core LANGUAGES CXX)
+
+add_library(itar_core STATIC src/build.cpp)
+add_library(itar::core ALIAS itar_core)
+target_compile_features(itar_core PUBLIC cxx_std_20)
+target_include_directories(itar_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+set_target_properties(itar_core PROPERTIES CXX_EXTENSIONS OFF)
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(itar_core_harness tests/harness.cpp)
+  target_link_libraries(itar_core_harness PRIVATE itar::core)
+  set_target_properties(itar_core_harness PROPERTIES CXX_EXTENSIONS OFF)
+  add_test(NAME core.harness COMMAND itar_core_harness)
+  add_test(NAME core.harness_failure COMMAND itar_core_harness --fail)
+  set_tests_properties(core.harness_failure PROPERTIES WILL_FAIL TRUE)
+endif()
