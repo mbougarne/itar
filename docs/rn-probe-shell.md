@@ -24,12 +24,17 @@ npm run native:generate
 npm run start -w itar-probe
 ```
 
-The generator uses CLI 20.0.0 and TV template 0.83.0-0. Its welcome banner can
+The generator uses CLI 20.2.0 and TV template 0.83.0-0. Its welcome banner can
 name a newer upstream RN release; installed RN is the pinned TV alias 0.83.0-0,
 verified by the workspace test. Android/iOS trees are generated and ignored;
 the script refuses to overwrite either existing tree. Preserve native edits
-before removing these disposable trees to regenerate. Only Android dependency
-paths are adapted for workspace hoisting; the upstream Podfile resolves via Node.
+before removing these disposable trees to regenerate. Android dependency paths are adapted for workspace hoisting; the upstream
+Podfile resolves via Node. The generator also changes the exact fmt/RCT-Folly
+podspec pins from fmt 11.0.2 to 11.2.0 for Apple Clang 21, rejecting unexpected
+pins. Hermes uses a Pods-relative compiler path so its podspec checksum does
+not vary by checkout directory. Neither adaptation changes C++ source or checks.
+The generated AppDelegate uses a scene-owned window for SDK 27. After a fresh
+`npm ci`, regenerate the disposable native trees before installing pods.
 Native bridges belong to ITAR-0007/0014. Generated native projects are not yet
 committed consumer build entry points or release artifacts.
 
@@ -54,23 +59,36 @@ Native Pod/Gradle resolution and physical acceptance remain separate gates.
 Workspace build, strict typecheck, lint, two consumer-resolution tests and Metro
 Android and tvOS bundles passed on Node 22.14.0. The test proves the consumer resolves the
 local package and the TV fork rather than the registry's `itar` or mobile RN.
-No physical Android TV, Fire TV or Apple TV was connected. A tvOS 27 simulator
-is available; availability alone is not a probe result.
+No physical Android TV, Fire TV or Apple TV was connected. The Apple TV 4K
+(3rd generation) tvOS 27 simulator rendered the package label and A/B/D screen.
 
-Security audit remains blocked: after the compatible Babel 7.29.7 update,
-`npm audit --audit-level=high` reports 25 high and 8 moderate dependency findings
-(including propagated advisories). [braces](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)
-and [sprintf-js](https://github.com/advisories/GHSA-hp3w-g68c-fv3c) have no published
-patched release; [fast-xml-parser](https://github.com/advisories/GHSA-gh4j-gqv2-49f6)
-requires a major-version change from the CLI's dependency. No audit exception or
-forced runtime upgrade is applied. CI preserves the failing security gate; this
-draft cannot be accepted until a compatible upstream fix is verified.
+Security audit remains blocked: CLI 20.2.0 is within the official CLI 20/RN 0.83
+[compatibility range](https://github.com/react-native-community/cli/tree/v20.2.0#compatibility).
+It resolves fast-xml-parser to 5.11.2 (patched >=5.7.0), clearing
+[GHSA-gh4j-gqv2-49f6](https://github.com/advisories/GHSA-gh4j-gqv2-49f6).
+The runtime stays RN TV 0.83.0-0 / React 19.2.0. The remaining two advisory roots
+produce 27 high and 5 moderate findings, including dependent-package propagation:
+
+- [braces / CVE-2026-93687](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm):
+  installed/latest 3.0.3 is affected (<=3.0.3); no published patched version.
+  CLI config-android -> fast-glob 3.3.3 -> micromatch 4.0.8 -> braces is one path;
+  Metro/Jest also depend on it. Upstream [fix PR 78](https://github.com/micromatch/braces/pull/78)
+  is unmerged; vendoring it would require separate review and validation.
+- [sprintf-js / CVE-2026-97058](https://github.com/advisories/GHSA-hp3w-g68c-fv3c):
+  installed 1.0.3 and latest 1.1.3 are affected (<=1.1.3); no published patch.
+  RN TV -> babel-jest 29.7.0 -> babel-plugin-istanbul 6.1.1 ->
+  @istanbuljs/load-nyc-config 1.1.0 -> js-yaml 3.15.2 -> argparse 1.0.10 is a path.
+  Forcing a new YAML/Babel/RN major would exceed the supported scoped repair.
+
+`npm audit fix --dry-run` still reports both roots and suggests a breaking RN TV
+upgrade. No audit exception, unmerged source patch or forced major override is
+applied. CI keeps its failing audit gate pending a compatible published fix.
 
 Review scope: this cohesive shell exceeds the 250-line target because it includes
 workspace configuration, the consumer, generation, verification and CI together;
 it remains below 500 authored lines. Lockfiles are counted separately.
 
-### Native build attempts
+### Native build validation
 
 Android: Zulu JDK 17.0.14, Gradle 9.0.0, Kotlin 2.1.20, AGP 8.12.0,
 SDK/build-tools 36/36.0.0, NDK 27.1.12297006. The generated app selected installed
@@ -90,7 +108,7 @@ installed or launched; no emulator/device focus behavior was exercised.
 Apple: CocoaPods installation passed (78 pods) with Xcode 27.0/27A266a,
 tvOS SDK 27.0, Ruby 3.4.2, Bundler 2.6.9, CocoaPods 1.16.2 and xcodeproj 1.27.0.
 An empty task-local `NETRC` directory avoided unrelated local configuration.
-The attempted build was:
+The consumer build command is:
 
 ```sh
 xcodebuild -workspace apps/probe/ios/ItarProbe.xcworkspace -scheme ItarProbe \
@@ -99,12 +117,21 @@ xcodebuild -workspace apps/probe/ios/ItarProbe.xcworkspace -scheme ItarProbe \
   -derivedDataPath /tmp/itar-probe-derived -jobs 2 CODE_SIGNING_ALLOWED=NO build
 ```
 
-Failed compiling upstream `fmt` 11.0.2: `FMT_STRING` calls in `format-inl.h`
-are rejected as nonconstant `consteval` expressions by Apple Clang 21. No compiler
-check was disabled, SDK downgraded or vendored dependency patched to hide this
-failure. tvOS launch remains blocked pending a validated compatible dependency
-combination in ITAR-0014. CocoaPods resolution and Metro bundling are not native
-build success. Neither build attempt exercised an Itar binding.
+The original fmt 11.0.2 fails in `format-inl.h` with nonconstant `FMT_STRING`
+expressions under Apple Clang 21 ([upstream issue](https://github.com/fmtlib/fmt/issues/4740)).
+[fmt 11.2.0](https://github.com/fmtlib/fmt/releases/tag/11.2.0), same major,
+passes the isolated C++20/tvOS 27 compile. `FMT_USE_CONSTEVAL == 1` is asserted;
+a valid format compiles and an invalid `{:d}` applied to text is still rejected.
+The generator and Pod lock select 11.2.0 without disabling checks. The full
+Debug tvOS simulator consumer build passes for arm64 and x86_64. Fresh CocoaPods
+deployment installation passes with the portable Hermes checksum in two paths.
+The unadapted template exits at launch because SDK 27 requires the
+[scene lifecycle](https://developer.apple.com/documentation/uikit/transitioning-to-the-uikit-scene-based-life-cycle).
+The generated scene delegate fixes this; installation/launch and screenshot
+inspection pass on tvOS 27 (24J360), with readers off and no remote-input probe.
+For a prebuilt Debug app, use `xcrun simctl install <UUID> <ItarProbe.app>`, then
+`xcrun simctl launch <UUID> org.reactjs.native.example.ItarProbe -RCT_jsLocation localhost:8096`
+with the documented Metro server. No Itar binding, native focus or reader acceptance ran.
 
 Ruby security: bundler-audit 0.9.3 initially found three concurrent-ruby 1.3.3
 advisories. Updating to 1.3.7 clears the audit against ruby-advisory-db revision

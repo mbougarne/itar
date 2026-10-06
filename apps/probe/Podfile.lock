@@ -3,7 +3,7 @@ PODS:
   - DoubleConversion (1.1.6)
   - fast_float (8.0.0)
   - FBLazyVector (0.83.0-0)
-  - fmt (11.0.2)
+  - fmt (11.2.0)
   - glog (0.3.5)
   - hermes-engine (0.14.0):
     - hermes-engine/Pre-built (= 0.14.0)
@@ -12,20 +12,20 @@ PODS:
     - boost
     - DoubleConversion
     - fast_float (= 8.0.0)
-    - fmt (= 11.0.2)
+    - fmt (= 11.2.0)
     - glog
     - RCT-Folly/Default (= 2024.11.18.00)
   - RCT-Folly/Default (2024.11.18.00):
     - boost
     - DoubleConversion
     - fast_float (= 8.0.0)
-    - fmt (= 11.0.2)
+    - fmt (= 11.2.0)
     - glog
   - RCT-Folly/Fabric (2024.11.18.00):
     - boost
     - DoubleConversion
     - fast_float (= 8.0.0)
-    - fmt (= 11.0.2)
+    - fmt (= 11.2.0)
     - glog
   - RCTDeprecation (0.83.0-0)
   - RCTRequired (0.83.0-0)
@@ -2698,10 +2698,10 @@ SPEC CHECKSUMS:
   DoubleConversion: bdf45fbd16fa0d48ad8d8a56e6dc9cb1309d20e4
   fast_float: e5fcbcd2323e2174e3c40b371b8d5ffa5b0adfef
   FBLazyVector: d5832d4eba2d6e2bc1eda519f0a14c540ae5d6e9
-  fmt: c358e29b79c2957a8958c4169de5ad5cdd458216
+  fmt: 93c1ed640bc1bb28c1f3dd3ae91709900e5027fb
   glog: 2777ae82f2611bf0a9ed50bcd30b0eea7e7b7f05
-  hermes-engine: 797c39bfa163f94f373f23cce63d335c75f63c3e
-  RCT-Folly: 3fc78fcbfe96ce79e811d19ad0d5e4c70c812c8c
+  hermes-engine: a5c1494a665350f9116429e789a84f000a31d7fe
+  RCT-Folly: 7c80efecb701a3b9fbf92139b9501fe4ba3d6926
   RCTDeprecation: f83cf0a38288a4c19e0271700ac9e0d1aaed0448
   RCTRequired: d0cd82d923dd8fa934f467e9e59c286fcb69db8c
   RCTSwiftUI: 03fd743c13d8266ff7b66416e16771410c484edc
