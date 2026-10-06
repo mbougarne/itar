@@ -1,0 +1,16 @@
+{
+  "name": "itar-probe",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "react-native start --port 8096",
+    "android": "react-native run-android --port 8096",
+    "tvos": "react-native run-ios --port 8096 --scheme ItarProbe",
+    "bundle": "react-native bundle --entry-file index.js --platform android --dev false --bundle-output ../../build/probe.android.js --max-workers 2"
+  },
+  "dependencies": {
+    "itar": "0.0.0",
+    "react": "19.2.0",
+    "react-native": "npm:react-native-tvos@0.83.0-0"
+  }
+}
