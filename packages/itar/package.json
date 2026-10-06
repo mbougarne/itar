@@ -1,0 +1,20 @@
+{
+  "name": "itar",
+  "version": "0.0.0",
+  "private": true,
+  "description": "React Native TV focus package; foundation shell only",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "react-native": "src/index.ts",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "peerDependencies": {
+    "react": "19.2.0",
+    "react-native": "0.83.0-0"
+  }
+}
