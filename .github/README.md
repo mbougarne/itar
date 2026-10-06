@@ -20,8 +20,10 @@ are needed. Dependabot proposes weekly updates to GitHub Actions pins.
   committing these files.
 
 The checkout contains an independent core library build and minimal harness,
-but no engine behavior, RN package, or native build projects. A green run checks
-the portable build/harness and repository, not device support. Local ignored
+and a private RN workspace/reference shell. The RN job runs a frozen install,
+package build, typecheck, lint, consumer tests, Metro bundle and security audit.
+Required checks also requires that job. Native projects remain generated probe
+inputs; native builds and device acceptance are not established by these jobs. Local ignored
 tickets and architecture notes are not required by the workflow.
 
 ## C++20 build contract
@@ -64,8 +66,8 @@ scripts or `continue-on-error` to conceal missing integration checks.
 | Apple TV / Swift / Objective-C++ glue | Pin a compatible Xcode and dependency setup; build the actual consumer workspace/scheme for a tvOS simulator without distribution signing, and run available tests. An iOS or macOS build is not a substitute. |
 
 The [candidate toolchain record](../docs/probe-toolchains.md) covers ITAR-0002.
-The RN shell, Android binding, and Apple binding remain ITAR-0004, ITAR-0007,
-and ITAR-0014 work; native build entry points and passing jobs do not exist yet.
+The [RN shell](../docs/rn-probe-shell.md) is ITAR-0004 work. Android and Apple
+binding builds remain ITAR-0007 and ITAR-0014; hosted native jobs do not exist yet.
 Device focus, accessibility, loading stability, and performance evidence remains
 separate from hosted builds and belongs in the PR's verification section.
 

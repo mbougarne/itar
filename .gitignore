@@ -72,3 +72,12 @@ tickets
 
 # Local agent conversation and research records
 .agents/
+
+
+# RN probe workspace and reproducible native shells
+node_modules/
+packages/itar/lib/
+apps/probe/android/
+apps/probe/ios/
+.bundle/
+vendor/bundle/

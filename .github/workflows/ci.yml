@@ -111,15 +111,33 @@ jobs:
       - name: Run tests (zero tests is a failure)
         run: ctest --test-dir build/core --output-on-failure --no-tests=error --timeout 60
 
+  javascript:
+    name: RN workspace
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.14.0
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build && npm run typecheck && npm run lint && npm test
+      - run: mkdir -p build && npm run bundle -w itar-probe
+      - run: npm audit --audit-level=high
+
   required:
     name: Required checks
-    needs: [repository, core]
+    needs: [repository, core, javascript]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       REPOSITORY_RESULT: ${{ needs.repository.result }}
       CORE_ENABLED: ${{ needs.repository.outputs.core }}
+      JAVASCRIPT_RESULT: ${{ needs.javascript.result }}
       CORE_RESULT: ${{ needs.core.result }}
     steps:
       - name: Require all applicable checks to pass
@@ -130,5 +148,9 @@ jobs:
           fi
           if [[ "$CORE_ENABLED" == true && "$CORE_RESULT" != success ]]; then
             echo '::error::The enabled C++ matrix did not succeed.'
+            exit 1
+          fi
+          if [[ "$JAVASCRIPT_RESULT" != success ]]; then
+            echo '::error::RN workspace checks did not succeed.'
             exit 1
           fi

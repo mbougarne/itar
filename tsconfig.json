@@ -1,0 +1,13 @@
+{
+  "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "types": [
+      "react"
+    ],
+    "strict": true
+  },
+  "include": [
+    "apps/probe/App.tsx",
+    "packages/itar/src/**/*.ts"
+  ]
+}

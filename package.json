@@ -1,0 +1,36 @@
+{
+  "name": "itar-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "packageManager": "npm@10.9.2",
+  "engines": {
+    "node": "22.14.0",
+    "npm": "10.9.2"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint apps packages scripts --ext .js,.cjs,.ts,.tsx",
+    "test": "node --test scripts/workspace.test.cjs",
+    "build": "npm run build -w itar",
+    "native:generate": "node scripts/generate-probe.cjs"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/runtime": "7.28.2",
+    "@react-native-community/cli": "20.0.0",
+    "@react-native-community/cli-platform-android": "20.0.0",
+    "@react-native-community/cli-platform-ios": "20.0.0",
+    "@react-native/babel-preset": "0.83.0",
+    "@react-native/eslint-config": "0.83.0",
+    "@react-native/metro-config": "0.83.0",
+    "@react-native/typescript-config": "0.83.0",
+    "@types/react": "19.2.0",
+    "eslint": "8.57.1",
+    "prettier": "2.8.8",
+    "typescript": "5.8.3"
+  }
+}
