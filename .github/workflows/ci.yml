@@ -128,15 +128,32 @@ jobs:
       - run: mkdir -p build && npm run bundle -w itar-probe
       - run: npm audit --audit-level=high
 
+  ruby-security:
+    name: Ruby dependency audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1
+        with:
+          ruby-version: 3.3.6
+          bundler: 2.6.9
+          bundler-cache: true
+      - run: gem install bundler-audit -v 0.9.3 --no-document
+      - run: bundler-audit check --update
+
   required:
     name: Required checks
-    needs: [repository, core, javascript]
+    needs: [repository, core, javascript, ruby-security]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       REPOSITORY_RESULT: ${{ needs.repository.result }}
       CORE_ENABLED: ${{ needs.repository.outputs.core }}
+      RUBY_RESULT: ${{ needs.ruby-security.result }}
       JAVASCRIPT_RESULT: ${{ needs.javascript.result }}
       CORE_RESULT: ${{ needs.core.result }}
     steps:
@@ -152,5 +169,9 @@ jobs:
           fi
           if [[ "$JAVASCRIPT_RESULT" != success ]]; then
             echo '::error::RN workspace checks did not succeed.'
+            exit 1
+          fi
+          if [[ "$RUBY_RESULT" != success ]]; then
+            echo '::error::Ruby dependency checks did not succeed.'
             exit 1
           fi
