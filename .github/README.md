@@ -22,7 +22,8 @@ are needed. Dependabot proposes weekly updates to GitHub Actions pins.
 The checkout contains an independent core library build and minimal harness,
 and a private RN workspace/reference shell. The RN job runs a frozen install,
 package build, typecheck, lint, consumer tests, Metro bundle and security audit.
-Required checks also requires that job. Native projects remain generated probe
+Required checks also requires that job and the Ruby lockfile audit. The Ruby
+job uses Ruby 3.3.6/Bundler 2.6.9 with a frozen install and bundler-audit 0.9.3. Native projects remain generated probe
 inputs; native builds and device acceptance are not established by these jobs. Local ignored
 tickets and architecture notes are not required by the workflow.
 
