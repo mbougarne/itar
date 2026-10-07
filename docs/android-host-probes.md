@@ -84,7 +84,7 @@ button is available; native activation and the later JS callback are separate.
 
 ## Evidence and decision
 
-See the adjacent run record once validation completes. Keep the shared native
+See [the dated emulator run](android-probe-run-2026-10-07.md). Keep the shared native
 probe report fields for each new run, including revision, environment, reader,
 touch mode, captures and separate prevention/recovery verdicts. Android emulation
 cannot stand in for Fire OS, TalkBack or VoiceView. Native logs cannot establish
