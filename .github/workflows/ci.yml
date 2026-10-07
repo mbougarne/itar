@@ -131,8 +131,6 @@ jobs:
     name: Android probe build
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    env:
-      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -143,8 +141,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit
       - run: npm run native:generate
+      - name: Select installed JDK 17
+        run: echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
       - name: Install pinned native tools
-        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          cmdline-tools-version: '12266719'
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.1.12297006 cmake;3.22.1'
       - name: Compile consumer, JNI, instrumentation and lint
         working-directory: apps/probe/android
         run: ./gradlew assembleDebug assembleAndroidTest lintDebug --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a
