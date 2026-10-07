@@ -123,10 +123,31 @@ jobs:
         with:
           node-version: 22.14.0
           cache: npm
-      - run: npm ci --ignore-scripts
+      - run: npm ci --ignore-scripts --no-audit
       - run: npm run build && npm run typecheck && npm run lint && npm test
       - run: mkdir -p build && npm run bundle -w itar-probe
-      - run: npm audit --audit-level=high
+
+  android:
+    name: Android probe build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.14.0
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit
+      - run: npm run native:generate
+      - name: Install pinned native tools
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+      - name: Compile consumer, JNI, instrumentation and lint
+        working-directory: apps/probe/android
+        run: ./gradlew assembleDebug assembleAndroidTest lintDebug --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a
 
   ruby-security:
     name: Ruby dependency audit
@@ -146,13 +167,14 @@ jobs:
 
   required:
     name: Required checks
-    needs: [repository, core, javascript, ruby-security]
+    needs: [repository, core, javascript, android, ruby-security]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       REPOSITORY_RESULT: ${{ needs.repository.result }}
       CORE_ENABLED: ${{ needs.repository.outputs.core }}
+      ANDROID_RESULT: ${{ needs.android.result }}
       RUBY_RESULT: ${{ needs.ruby-security.result }}
       JAVASCRIPT_RESULT: ${{ needs.javascript.result }}
       CORE_RESULT: ${{ needs.core.result }}
@@ -173,5 +195,9 @@ jobs:
           fi
           if [[ "$RUBY_RESULT" != success ]]; then
             echo '::error::Ruby dependency checks did not succeed.'
+            exit 1
+          fi
+          if [[ "$ANDROID_RESULT" != success ]]; then
+            echo '::error::Android probe build did not succeed.'
             exit 1
           fi

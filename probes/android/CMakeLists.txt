@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.20)
+project(itar_android_probe LANGUAGES CXX)
+add_library(itar_host_probe SHARED src/main/cpp/connection.cpp ../../core/src/probe_surface.cpp)
+target_include_directories(itar_host_probe PRIVATE ../../core/include)
+target_compile_features(itar_host_probe PRIVATE cxx_std_20)
+set_target_properties(itar_host_probe PROPERTIES CXX_EXTENSIONS OFF)

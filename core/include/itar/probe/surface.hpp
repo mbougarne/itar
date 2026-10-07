@@ -11,30 +11,38 @@ struct SurfaceLifetime {
   std::uint64_t value{};
   bool operator==(const SurfaceLifetime&) const = default;
 };
+
 struct OccurrenceId {
   std::uint64_t value{};
   bool operator==(const OccurrenceId&) const = default;
 };
+
 struct MountHandle {
   std::uint32_t slot{};
   std::uint32_t generation{};
   bool operator==(const MountHandle&) const = default;
 };
+
 struct Target {
   OccurrenceId occurrence;
   MountHandle mount;
   bool operator==(const Target&) const = default;
 };
+
 enum class Direction { up, down, left, right };
+
 enum class FocusState { managed, unmanaged, absent, unknown };
+
 struct Observation {
   FocusState state{FocusState::unknown};
   Target target{};  // Meaningful only for managed input focus.
 };
+
 enum class Status {
   proposed, boundary, unmanaged, absent, unknown, unavailable,
   stale_surface, disposed, invalid
 };
+
 struct Result {
   Status status;
   SurfaceLifetime surface;

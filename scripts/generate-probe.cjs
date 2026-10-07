@@ -1,4 +1,4 @@
-// Generated native shells are disposable; authored bridge work belongs to later tickets.
+// Generated native shells are disposable; probe sources live under probes/.
 const {execFileSync} = require('node:child_process');
 const {cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} = require('node:fs');
 const {tmpdir} = require('node:os');
@@ -74,6 +74,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {`],
   }
   writeFileSync(delegateFile, delegateSource);
   // The published template assumes app-local dependencies; npm workspaces hoist them.
+  require('./wire-android-probe.cjs')(root);
   const settings = path.join(app, 'android/settings.gradle');
   writeFileSync(settings, readFileSync(settings, 'utf8').replaceAll('../node_modules/', '../../../node_modules/'));
   const gradle = path.join(app, 'android/app/build.gradle');

@@ -82,7 +82,9 @@ produce 27 high and 5 moderate findings, including dependent-package propagation
 
 `npm audit fix --dry-run` still reports both roots and suggests a breaking RN TV
 upgrade. No audit exception, unmerged source patch or forced major override is
-applied. CI keeps its failing audit gate pending a compatible published fix.
+applied. At the user’s request, npm auditing now runs manually outside Actions using
+`npm audit --audit-level=high`; preserve its output and failure status. The RN
+build/test job and Ruby audit remain required. This does not resolve these advisories.
 
 Review scope: this cohesive shell exceeds the 250-line target because it includes
 workspace configuration, the consumer, generation, verification and CI together;
