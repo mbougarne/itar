@@ -106,6 +106,11 @@ class HostProbeTest : ActivityInstrumentationTestCase2<MainActivity>(MainActivit
         assertEquals(Color.BLUE, root.a.currentTextColor)
         assertFalse(root.a.isFocusable)
         assertTrue(root.alias(root.a).startsWith("unmanaged"))
+        root.a.performClick()
+        assertFalse(root.events.any { it.contains("native activation=") })
+        root.dispose()
+        root.unrelated.performClick()
+        assertFalse(root.events.any { it.contains("native activation=") })
     }
     fun testRemovalAndPretransfer() = scene { root ->
         root.a.requestFocus()

@@ -67,6 +67,8 @@ class ProbeRoot(context: Context) : LinearLayout(context) {
         control("Failed presentation") { showDialog(fail = true) }
         addView(ScrollView(context).apply { addView(controls) }, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         for (button in listOf(a, b, unrelated)) button.setOnClickListener {
+            if (dispatcher.closed || !button.isAttachedToWindow || !button.isEnabled ||
+                (button === a && !live[1]) || (button === b && !live[2])) return@setOnClickListener
             record("native activation=${alias(button)}")
             val react = context as? ReactContext
             if (react != null && id != View.NO_ID) {
@@ -175,6 +177,7 @@ class ProbeRoot(context: Context) : LinearLayout(context) {
         dispatcher.close()
         a.resetStyle()
         b.resetStyle()
+        unrelated.resetStyle()
         dialogs.close()
     }
 }

@@ -15,6 +15,11 @@ SDK 36, NDK 27.1.12297006 and native CMake 3.22.1.
 Local Node 22.22.1/npm 10.9.4 differ from the pinned CI 22.14.0/10.9.2.
 No dependency or lockfile version was changed.
 
+Follow-up validation of the activation-lifetime guard in the commit introducing
+this paragraph: native build/lint pass and 10/10 instrumentation tests pass in
+6.992 seconds. Recycled and disposed targets reject programmatic activation;
+these deterministic assertions do not establish screen-reader activation behavior.
+
 ## Actual results
 
 - `assembleDebug assembleAndroidTest lintDebug`: pass. Probe lint: zero errors,
