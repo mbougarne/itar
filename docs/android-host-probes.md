@@ -93,7 +93,7 @@ visible feedback or speech without corresponding capture.
 ITAR-0013 decision: **unresolved** pending the complete host/reader matrix. Do not
 promote these hooks to production solely from compilation or deterministic tests.
 The next gate is physical Android TV/TalkBack and separate Fire OS/VoiceView runs,
-including nested native controls, busy JS, delayed destinations, disappearance,
+including nested native controls, repeated busy-JS runs, delayed destinations, disappearance,
 modal background eligibility and restoration. Native styles/accessibility remain
 mandatory. ITAR-0006 must retain this evidence gap; the frozen architecture is
 unchanged. RN interop promotion/codegen belongs to the production adapter work.

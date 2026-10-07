@@ -39,6 +39,16 @@ No dependency or lockfile version was changed.
   no exception or forced major upgrade was applied. Actions no longer executes
   npm audit, including implicit install auditing; other checks remain required.
 
+A separate live RN P01 run observed JS busy-start at emulator log time
+13:34:40.867 and busy-end at 13:34:42.867. During that interval, native Down/Up
+moved B → A → B, each with one probe-owned dispatch and confirmed host focus.
+Native key-capture to focus-callback deltas were 0.340 ms and 0.126 ms; the idle
+sample was 0.920 ms and 0.159 ms. These single emulator samples establish native
+execution during that bounded JS stall, **not** a latency benchmark or
+input-to-visible-feedback measurement. Native style callbacks ran in the same
+interval; synchronized video and reader speech were not captured. Log wall time
+was used only to bracket the JS interval; deltas use native monotonic nanoseconds.
+
 Representative observed P05 sequence (native capture order):
 `entry B → callback B → injected disable B → callback A → return A`.
 The host returned acceptance, but confirmation was false because B was invalid
@@ -64,7 +74,7 @@ presentation and physical modal behavior remain unresolved.
 | Ticket | Disposition |
 | --- | --- |
 | ITAR-0007 | Binding/build/lifetime subset verified on the named emulator; Fire OS unrun. |
-| ITAR-0008 | Mounted native movement/query subset verified; nested controls and timed busy-JS matrix remain open. |
+| ITAR-0008 | Mounted native movement/query subset verified; nested controls and reader/nested-control busy-JS matrix remains open. |
 | ITAR-0009 | Seven disappearance variants/pretransfer exercised; visible/speech prevention unresolved. |
 | ITAR-0010 | Fake-host and emulator inline callbacks, stale confirmation and disposal verified. |
 | ITAR-0011 | Native color/reset subset verified; TalkBack speech/activation and VoiceView unrun. |
@@ -73,7 +83,7 @@ presentation and physical modal behavior remain unresolved.
 
 All seven tickets remain **In Progress** in local ticket/index records. The user
 requested one grouped draft; this does not waive acceptance. No physical Android
-TV, Fire TV/Fire OS, TalkBack or VoiceView pass is claimed. Full busy-JS timing,
+TV, Fire TV/Fire OS, TalkBack or VoiceView pass is claimed. Repeated/end-to-end busy-JS timing,
 reader navigation/activation/loading, nested scroll/text/player ownership,
 retention deadlines, cancellation and production package integration are not
 established by these tests. ITAR-0006 receives this limited result; production
