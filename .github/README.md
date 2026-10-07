@@ -21,8 +21,10 @@ are needed. Dependabot proposes weekly updates to GitHub Actions pins.
 
 The checkout contains an independent core library build and minimal harness,
 and a private RN workspace/reference shell. The RN job runs a frozen install,
-package build, typecheck, lint, consumer tests, Metro bundle and security audit.
-Required checks also requires that job and the Ruby lockfile audit. The Ruby
+package build, typecheck, lint, consumer tests and Metro bundle. JavaScript auditing is manual: run
+`npm audit --audit-level=high` outside Actions and retain its full output and exit
+status. Known advisories remain documented in [the shell record](../docs/rn-probe-shell.md).
+Required checks also requires that job, the Android probe build and the Ruby lockfile audit. The Ruby
 job uses Ruby 3.3.6/Bundler 2.6.9 with a frozen install and bundler-audit 0.9.3. Native projects remain generated probe
 inputs; native builds and device acceptance are not established by these jobs. Local ignored
 tickets and architecture notes are not required by the workflow.
@@ -68,7 +70,8 @@ scripts or `continue-on-error` to conceal missing integration checks.
 
 The [candidate toolchain record](../docs/probe-toolchains.md) covers ITAR-0002.
 The [RN shell](../docs/rn-probe-shell.md) is ITAR-0004 work. Android and Apple
-binding builds remain ITAR-0007 and ITAR-0014; hosted native jobs do not exist yet.
+binding builds are covered by the Android probe job (ITAR-0007); Apple binding
+builds remain ITAR-0014. See [Android probe commands](../docs/android-host-probes.md).
 Device focus, accessibility, loading stability, and performance evidence remains
 separate from hosted builds and belongs in the PR's verification section.
 
