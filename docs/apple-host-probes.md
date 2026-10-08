@@ -27,10 +27,16 @@ xcodebuild -workspace apps/probe/ios/ItarProbe.xcworkspace \
   -scheme ItarAppleTests -configuration Debug \
   -destination 'platform=tvOS Simulator,id=<your-owned-simulator>' \
   -derivedDataPath /tmp/itar-apple-derived -jobs 2 \
-  CODE_SIGNING_ALLOWED=NO test-without-building
+  -collect-test-diagnostics never CODE_SIGNING_ALLOWED=NO test-without-building
 ```
 
-The Ruby script adds only the optional hosted XCTest target and scheme, once.
+The Ruby script adds the optional `ItarAppleTests` hosted target and
+`ItarRemoteTests` UI target once. The latter requires Metro on isolated port 8104:
+run `npm exec -- react-native start --port 8104 --max-workers 2` from `apps/probe`,
+then use the same xcodebuild command with `-scheme ItarRemoteTests test`
+and `-collect-test-diagnostics never`.
+It launches RN with that port and tests actual simulator remote button presses.
+`-itar-constrained YES` enables the optional A/B directional scope boundary.
 Use `ItarProbe` for the ordinary RN app. Preserve useful generated projects and
 Pods for manual testing; do not delete someone else's native edits to regenerate.
 Select a task-owned Metro port for manual RN runs, passing the same port to
@@ -73,7 +79,7 @@ focus is queried independently. The fixture does not synthesize speech.
 | Ticket | Implemented fixture | Remaining gate |
 | --- | --- | --- |
 | 0014 | C facade, Swift ownership, RN registration, portable facade regression tests | Consumer native results recorded below; physical link/run remains separate |
-| 0015 | A/B/D, guide to B, read-only proposal logging, opt-in A/B boundary, preferences and actual callbacks | Remote clicks/swipes/repeat/momentum, nested scrolling/native controls, JS-load input |
+| 0015 | A/B/D, guide to B, read-only proposal logging, opt-in A/B boundary, preferences and actual callbacks | Physical clicks/swipes/repeat/momentum, nested scrolling/native controls, clock-correlated JS-load input |
 | 0016 | Remove/hide/disable/clip/reuse/replace/all, intermediate callbacks, generation reset | Complete device variant matrix, video and speech |
 | 0017 | Bounded guard, inline fake host, invalidation, redirect observation, callback disposal | Device timing and additional deferred callbacks |
 | 0018 | Configurable native border, current base restoration, native button effects, independent semantic activation | VoiceOver navigation/exploration/speech, reduced motion and busy-JS visual capture |
@@ -122,7 +128,13 @@ xcodeproj 1.27.0. No external remote; accessibility reader off.
 - RN build, typecheck, lint, workspace tests (2/2), Apple Metro bundle: passed.
 - CocoaPods: 79 pods resolved, including the local probe pod; lockfile generated
   by CocoaPods 1.16.2 from the podspec and generated Podfile.
-- Native build and simulator host execution: pending at this checkpoint.
+- Debug arm64 tvOS simulator build and unsigned `appletvos` device-target link:
+  passed. The latter is compilation/linking only, not installation or device use.
+- tvOS 27.0 (24J360) and tvOS 18.5 (22L572), Apple TV 4K third-generation 1080p:
+  hosted UIKit suite 12/12 and RN remote suite 2/2 passed on each runtime.
+  Reader off; input is `XCUIRemote` button presses, not a physical Siri Remote.
+- Manual npm audit exits nonzero: baseline 27 high/5 moderate findings remain
+  rooted in braces/sprintf-js. No JS audit was added to GitHub Actions.
 - Physical Apple TV/iOS, VoiceOver, audible speech and remote gesture acceptance:
   not run. iOS runtime support is not established by a shared UIKit source file.
 
@@ -130,3 +142,58 @@ Per-ticket commits keep authored slices independently reviewable. The phase is
 one PR by explicit request; each implementation slice stays under 250 lines
 before evidence/fixes, and each remains below the 500-line ceiling. Podfile.lock
 is generated separately; native projects, Pods and derived data are not tracked.
+
+### Observations and limitations
+
+Implementation revision: `610ac6a61e09a7ea9f8fb48aac2367cf80b93e73` (final
+safety follow-up); earlier full simulator runs also passed at `c67d189`.
+The host test temporarily installs a controller participating in the preference
+chain. Request an update to the owned environment, whose preference names the
+target, and retain it until an actual callback; requesting a leaf button in the
+initial harness left focus unchanged. This is a tested integration constraint,
+not permission to access private RN controller internals. See Apple's
+[focus update API](https://developer.apple.com/documentation/uikit/uifocussystem/updatefocusifneeded()).
+
+The RN test confirms A→B→A→D, the guide's D→B redirect, and one B activation
+arriving in React as `targetAlias=B` (the RN event's `target` key is reserved).
+With the scope enabled, Right from A remains A. Navigation also passes after
+invoking the JS busy action; this run does **not** establish a clock-correlated
+input-to-visible-feedback benchmark or a VoiceOver/JS-load acceptance result.
+
+The focused-source variants capture actual intermediate states. On tvOS 27:
+
+| Action | Host outcome through the explicit after-layout gate |
+| --- | --- |
+| Remove A | retired A → absent → B |
+| Hide A | retired A → B |
+| Disable / clip A | UIKit still reports retired A; Itar activation is revoked |
+| Reuse A | retired A → absent → A at generation 2 |
+| Replace A with a new view | retired A → absent → B at generation 2 |
+| Remove all managed targets | retired A → absent → unmanaged D |
+
+The pre-transfer/reuse case confirms A→B before removing A and retains B with
+no D callback within the observed interval. This is a **callback-level**
+prevention result only; intermediate highlight/speech remain unrun. Baseline
+removal and later host fallback are separate observations, not prevention.
+Guarded requests produced inline callbacks; initial appearance, source changes
+and presentation changes produced callbacks outside that guard. The guard's
+`inline/deferred` tag is relative to the focus invocation, not every UIKit API.
+
+Modal logs show `sameWindow=true`. Suspension precedes presentation; dismissal
+completion queries host focus (absent in the recorded case), then the revalidated
+preference confirms A inline. Nested dismissal and disposed opener tests pass.
+Interactive dismissal, native player/text control ownership, remote momentum,
+reduced-motion visual capture and reader speech remain open production gates.
+
+Local evidence artifacts are retained under `/tmp/itar-apple-*` (`.xcresult`,
+build logs and the inspected RN screenshot). Reproduce with the commands above;
+they are not checked-in generated output. Earlier failed diagnostic runs exposed
+and led to fixes for a tvOS-unavailable color, duplicate test-pod linkage, and
+incorrect focus-environment requests. Initial cold Metro startup missed the UI
+test deadline; the warmed runs pass. None of those failures is counted as a pass.
+
+Xcode 27 sometimes starts a 600-second simulator sysdiagnose collection even
+following passing suites. The reproduction command skips that optional verbose
+collector; assertions, XCTest results, native trace records and screenshots stay
+enabled. Owned hung collectors were stopped individually after tests completed;
+no shared simulator or process was stopped.
