@@ -15,6 +15,7 @@ extension ProbeRoot {
                 return false
             }
         }
+        a.resetForReuse()
         live.remove(1) // Native authority is revoked before any host mutation.
         dispatcher.invalidate(1)
         switch action {

@@ -1,11 +1,12 @@
 import UIKit
+import React
 
 final class ProbeRoot: UIView {
     var dispatcher = ProbeDispatcher(ProbeConnection())
     var connection: ProbeConnection { dispatcher.connection }
     var callbackAction: (() -> Void)?
-    let a = UIButton(type: .system)
-    let b = UIButton(type: .system)
+    let a = ProbeButton(type: .system)
+    let b = ProbeButton(type: .system)
     let d = UIButton(type: .system)
     let status = UILabel()
     let guide = UIFocusGuide()
@@ -15,6 +16,7 @@ final class ProbeRoot: UIView {
     var overflow = false
     var live: Set<UInt32> = [1, 2]
     var suspended = false
+    @objc var onNativeActivation: RCTDirectEventBlock?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -28,6 +30,18 @@ final class ProbeRoot: UIView {
             button.accessibilityIdentifier = String(title.prefix(1))
             button.accessibilityLabel = title
             addSubview(button)
+        }
+        for (button, slot) in [(a, UInt32(1)), (b, UInt32(2))] {
+            button.canActivate = { [weak self] in
+                guard let self else { return false }
+                return self.live.contains(slot) && !self.dispatcher.closed && !self.suspended
+            }
+            button.activation = { [weak self] origin in
+                guard let self else { return }
+                let alias = slot == 1 ? "A" : "B"
+                self.record("activation=\(alias) origin=\(origin) inputUnchanged")
+                self.onNativeActivation?(["target": alias])
+            }
         }
         status.frame = CGRect(x: 0, y: 220, width: 700, height: 40)
         status.font = .systemFont(ofSize: 18)
@@ -76,7 +90,7 @@ final class ProbeRoot: UIView {
         record("\(boundary) input=\(alias(focused)) a11y=\(UIAccessibility.isVoiceOverRunning ? alias(accessibility) : "off")")
     }
     func request(_ target: UIView) {
-        guard !dispatcher.closed, !overflow, !suspended, target.window != nil, !target.isHidden else { return }
+        guard !dispatcher.closed, !dispatcher.active, !overflow, !suspended, target.window != nil, !target.isHidden else { return }
         preferred = target
         record("host-enter preference=\(alias(target))")
         dispatcher.invoke {

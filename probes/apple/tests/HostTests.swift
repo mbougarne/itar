@@ -91,4 +91,28 @@ import UIKit
         XCTAssertTrue(root.b.isFocused)
     }
 
+    func testSemanticsAndAccessibilityActivationStaySeparate() {
+        root.request(root.a)
+        XCTAssertEqual(root.b.accessibilityLabel, "B: destination")
+        XCTAssertTrue(root.b.accessibilityTraits.contains(.button))
+        XCTAssertTrue(root.b.accessibilityActivate())
+        XCTAssertEqual(root.b.activations, 1)
+        XCTAssertTrue(root.a.isFocused)
+        root.b.isEnabled = false
+        XCTAssertFalse(root.b.accessibilityActivate())
+        root.b.isEnabled = true
+        root.live.remove(2)
+        XCTAssertFalse(root.b.accessibilityActivate())
+    }
+    func testBaseBorderRestoredOnBlurAndReuse() {
+        root.request(root.a)
+        root.a.baseBorder = .purple
+        root.request(root.b)
+        root.a.applyBorder()
+        XCTAssertEqual(root.a.layer.borderWidth, 1)
+        XCTAssertEqual(root.a.layer.borderColor, UIColor.purple.cgColor)
+        root.a.resetForReuse()
+        XCTAssertEqual(root.a.layer.borderWidth, 1)
+    }
+
 }
