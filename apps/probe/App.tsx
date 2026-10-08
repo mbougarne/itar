@@ -45,7 +45,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  nativeProbe: {height: 220, width: 700},
+  nativeProbe: {height: Platform.OS === 'ios' ? 300 : 220, width: 700},
   screen: {flex: 1, padding: 60, gap: 24, backgroundColor: '#eeeeee'},
   title: {fontSize: 32, color: '#111111'},
   row: {flexDirection: 'row', gap: 80, alignItems: 'flex-end'},
