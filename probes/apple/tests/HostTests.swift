@@ -2,22 +2,33 @@ import XCTest
 import UIKit
 @testable import ItarProbeHost
 
+@MainActor final class ProbeTestController: UIViewController {
+    var appeared = false
+    override var preferredFocusEnvironments: [UIFocusEnvironment] { view.subviews }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        appeared = true
+    }
+}
+
 @MainActor final class HostTests: XCTestCase {
     var window: UIWindow!
     var root: ProbeRoot!
     var previous: UIViewController?
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         window = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             .flatMap { $0.windows }.first { $0.isKeyWindow }
         XCTAssertNotNil(window)
         previous = window.rootViewController
-        let controller = UIViewController()
+        let controller = ProbeTestController()
         root = ProbeRoot(frame: CGRect(x: 100, y: 100, width: 700, height: 300))
         controller.view.addSubview(root)
         window.rootViewController = controller
         window.makeKeyAndVisible()
         window.layoutIfNeeded()
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in controller.appeared }, object: nil)
+        await fulfillment(of: [ready], timeout: 3)
     }
     override func tearDown() {
         window.rootViewController = previous
@@ -25,10 +36,12 @@ import UIKit
         window = nil
         super.tearDown()
     }
-    func testPreferencesConfirmActualFocus() {
+    func testPreferencesConfirmActualFocus() async {
         root.request(root.a)
         XCTAssertTrue(root.a.isFocused)
         root.request(root.b)
+        let focused = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.root.b.isFocused }, object: nil)
+        await fulfillment(of: [focused], timeout: 3)
         XCTAssertTrue(root.b.isFocused)
         XCTAssertTrue(root.events.contains { $0.contains("callback") && $0.contains("managed:B") })
         XCTAssertFalse(root.overflow)
@@ -80,6 +93,7 @@ import UIKit
         let guardLoop = ProbeDispatcher(ProbeConnection())
         XCTAssertFalse(guardLoop.invoke { for _ in 0..<33 { guardLoop.observe("unknown") } })
         XCTAssertTrue(guardLoop.closed)
+        XCTAssertTrue(guardLoop.overflow)
     }
     func testDisposalDuringUIKitCallback() {
         root.request(root.a)
@@ -143,6 +157,29 @@ import UIKit
         XCTAssertFalse(root.suspended)
         XCTAssertFalse(root.accessibilityElementsHidden)
         XCTAssertTrue(root.a.isFocused)
+    }
+
+    func testRemovalVariantsRevokeOldMount() {
+        for action in ProbeRemoval.allCases {
+            root.removeFromSuperview()
+            root = ProbeRoot(frame: CGRect(x: 100, y: 100, width: 700, height: 300))
+            window.rootViewController!.view.addSubview(root)
+            window.layoutIfNeeded()
+            window.setNeedsFocusUpdate()
+            window.updateFocusIfNeeded()
+            root.request(root.a)
+            XCTAssertTrue(root.a.isFocused)
+            let old = root.a
+            XCTAssertTrue(root.disappear(action))
+            if action == .reuse || action == .replace {
+                XCTAssertEqual(root.connection.generation, 2)
+                if action == .replace { XCTAssertFalse(old === root.a) }
+            } else {
+                XCTAssertFalse(root.live.contains(1))
+                XCTAssertFalse(old.accessibilityActivate())
+            }
+            XCTAssertFalse(root.overflow)
+        }
     }
 
 }

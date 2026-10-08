@@ -8,6 +8,7 @@ final class ProbeDispatcher {
     private var invalid: Set<UInt32> = []
     private(set) var active = false
     private(set) var closed = false
+    private(set) var overflow = false
     private(set) var observed = "unknown"
     init(_ connection: ProbeConnection) { self.connection = connection }
 
@@ -19,7 +20,7 @@ final class ProbeDispatcher {
     }
     private func enqueue(_ event: Event) {
         guard !closed else { return }
-        guard inbox.count < 32 else { close(); return }
+        guard inbox.count < 32 else { overflow = true; close(); return }
         inbox.append(event)
         if !active { drain() }
     }

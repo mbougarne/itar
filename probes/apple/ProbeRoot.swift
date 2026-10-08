@@ -5,16 +5,18 @@ final class ProbeRoot: UIView {
     var dispatcher = ProbeDispatcher(ProbeConnection())
     var connection: ProbeConnection { dispatcher.connection }
     var callbackAction: (() -> Void)?
-    let a = ProbeButton(type: .system)
+    var a = ProbeButton(type: .system)
     let b = ProbeButton(type: .system)
     let d = UIButton(type: .system)
     let status = UILabel()
     let guide = UIFocusGuide()
     weak var preferred: UIView?
-    var constrained = false
+    var constrained = UserDefaults.standard.bool(forKey: "itar-constrained")
     var events: [String] = []
     var overflow = false
     var live: Set<UInt32> = [1, 2]
+    weak var retiredA: UIView?
+    var retiredGeneration: UInt32 = 0
     var suspended = false
     @objc var onNativeActivation: RCTDirectEventBlock?
 
@@ -27,10 +29,29 @@ final class ProbeRoot: UIView {
         ] {
             button.frame = rect
             button.setTitle(title, for: .normal)
+            button.setTitleColor(.black, for: .normal)
             button.accessibilityIdentifier = String(title.prefix(1))
             button.accessibilityLabel = title
             addSubview(button)
         }
+        configureSemantics()
+        status.frame = CGRect(x: 0, y: 220, width: 700, height: 40)
+        status.textColor = .black
+        status.font = .systemFont(ofSize: 18)
+        addSubview(status)
+        addLayoutGuide(guide)
+        NSLayoutConstraint.activate([
+            guide.leadingAnchor.constraint(equalTo: d.leadingAnchor),
+            guide.topAnchor.constraint(equalTo: b.topAnchor),
+            guide.widthAnchor.constraint(equalTo: d.widthAnchor),
+            guide.heightAnchor.constraint(equalTo: b.heightAnchor)
+        ])
+        guide.preferredFocusEnvironments = [b]
+        preferred = a
+        let result = connection.query(slot: 1, direction: 0)
+        record("roundtrip status=\(result.status) slot=\(result.slot)")
+    }
+    func configureSemantics() {
         for (button, slot) in [(a, UInt32(1)), (b, UInt32(2))] {
             button.canActivate = { [weak self] in
                 guard let self else { return false }
@@ -40,23 +61,9 @@ final class ProbeRoot: UIView {
                 guard let self else { return }
                 let alias = slot == 1 ? "A" : "B"
                 self.record("activation=\(alias) origin=\(origin) inputUnchanged")
-                self.onNativeActivation?(["target": alias])
+                self.onNativeActivation?(["targetAlias": alias])
             }
         }
-        status.frame = CGRect(x: 0, y: 220, width: 700, height: 40)
-        status.font = .systemFont(ofSize: 18)
-        addSubview(status)
-        addLayoutGuide(guide)
-        NSLayoutConstraint.activate([
-            guide.leadingAnchor.constraint(equalTo: b.trailingAnchor),
-            guide.topAnchor.constraint(equalTo: b.topAnchor),
-            guide.widthAnchor.constraint(equalToConstant: 100),
-            guide.heightAnchor.constraint(equalTo: b.heightAnchor)
-        ])
-        guide.preferredFocusEnvironments = [b]
-        preferred = a
-        let result = connection.query(slot: 1, direction: 0)
-        record("roundtrip status=\(result.status) slot=\(result.slot)")
     }
     required init?(coder: NSCoder) { fatalError("Programmatic probe only") }
     override var preferredFocusEnvironments: [UIFocusEnvironment] {
@@ -67,6 +74,7 @@ final class ProbeRoot: UIView {
         guard let view else { return "absent" }
         if view === a && live.contains(1) { return "managed:A:g\(connection.generation)" }
         if view === b && live.contains(2) { return "managed:B:g\(connection.generation)" }
+        if view === retiredA { return "unmanaged:retired-A:g\(retiredGeneration)" }
         return "unmanaged:\(view === d ? "D" : "native")"
     }
     func record(_ event: String) {
@@ -91,19 +99,23 @@ final class ProbeRoot: UIView {
         }
         let focused = system.focusedItem
         let input = focused == nil ? "absent" : (focused as? UIView).map(alias) ?? "unmanaged:non-view"
-        let accessibility = UIAccessibility.focusedElement(using: .notificationVoiceOver) as? UIView
-        record("\(boundary) input=\(input) a11y=\(UIAccessibility.isVoiceOverRunning ? alias(accessibility) : "off")")
+        let accessibility = UIAccessibility.focusedElement(using: .notificationVoiceOver)
+        let a11y = accessibility == nil ? "absent" : (accessibility as? UIView).map(alias) ?? "unmanaged:accessibility"
+        record("\(boundary) input=\(input) a11y=\(UIAccessibility.isVoiceOverRunning ? a11y : "off")")
     }
     func request(_ target: UIView) {
         guard !dispatcher.closed, !dispatcher.active, !overflow, !suspended, target.window != nil, !target.isHidden else { return }
+        if target === a && !live.contains(1) || target === b && !live.contains(2) { return }
+        guard (target as? UIControl)?.isEnabled != false else { return }
         preferred = target
         record("host-enter preference=\(alias(target))")
         dispatcher.invoke {
-            setNeedsFocusUpdate()
-            updateFocusIfNeeded()
+            if let system = UIFocusSystem.focusSystem(for: self) {
+                system.requestFocusUpdate(to: self)
+                system.updateFocusIfNeeded()
+            }
             snapshot("host-return")
         }
-        preferred = nil
     }
     override func shouldUpdateFocus(in context: UIFocusUpdateContext) -> Bool {
         // UIKit owns input; no press interception and no JavaScript approval.
@@ -121,7 +133,12 @@ final class ProbeRoot: UIView {
         super.didUpdateFocus(in: context, with: coordinator)
         record("callback \(alias(context.previouslyFocusedView))->\(alias(context.nextFocusedView))")
         record("callback timing=\(dispatcher.active ? "inline" : "deferred")")
+        if context.nextFocusedView === preferred { preferred = nil }
         dispatcher.observe(alias(context.nextFocusedView))
+        if dispatcher.overflow {
+            record("INCONCLUSIVE inbox overflow")
+            overflow = true
+        }
         snapshot("callback-query")
         let action = callbackAction
         callbackAction = nil

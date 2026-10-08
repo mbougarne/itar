@@ -17,7 +17,7 @@ npm run build
 npm run native:generate
 bundle _2.6.9_ install
 bundle _2.6.9_ exec ruby probes/apple/tests/wire-tests.rb
-bundle _2.6.9_ exec pod install --project-directory=apps/probe/ios
+(cd apps/probe/ios && bundle _2.6.9_ exec pod install)
 xcodebuild -workspace apps/probe/ios/ItarProbe.xcworkspace \
   -scheme ItarAppleTests -configuration Debug -sdk appletvsimulator \
   -destination 'platform=tvOS Simulator,id=<your-owned-simulator>' \

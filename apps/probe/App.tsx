@@ -2,8 +2,8 @@ import React, {useState} from 'react';
 import {Button, Platform, requireNativeComponent, StyleSheet, Text, View, type ViewProps, type NativeSyntheticEvent} from 'react-native';
 import {packageStage} from 'itar';
 
-const AndroidProbe = Platform.OS === 'android' || Platform.OS === 'ios' ? requireNativeComponent<ViewProps & {
-  onNativeActivation: (event: NativeSyntheticEvent<{target: string}>) => void;
+const HostProbe = Platform.OS === 'android' || Platform.OS === 'ios' ? requireNativeComponent<ViewProps & {
+  onNativeActivation: (event: NativeSyntheticEvent<{target: string; targetAlias?: string}>) => void;
 }>(Platform.OS === 'android' ? 'ItarHostProbe' : 'ItarAppleProbe') : null;
 export default function App() {
   const [showB, setShowB] = useState(true);
@@ -12,17 +12,17 @@ export default function App() {
     <View style={styles.screen}>
       <Text style={styles.title}>Itar: {packageStage}</Text>
       <Text>Probe only; production Itar adapters are not installed.</Text>
-      {AndroidProbe && <>
+      {HostProbe && <>
         <Button title="Busy JS for 2 seconds" onPress={() => {
           console.info("ItarProbe JS busy start");
           const end = Date.now() + 2000;
           while (Date.now() < end) { /* Bounded deliberate probe load. */ }
           console.info("ItarProbe JS busy end");
         }} />
-        <AndroidProbe style={styles.nativeProbe}
-          onNativeActivation={event => setActivation(event.nativeEvent.target)} />
+        <HostProbe style={styles.nativeProbe}
+          onNativeActivation={event => setActivation(event.nativeEvent.targetAlias ?? event.nativeEvent.target)} />
       </>}
-      {!AndroidProbe && <>
+      {!HostProbe && <>
       <View style={styles.row}>
         <View style={styles.column}>
           <View style={styles.slot}>

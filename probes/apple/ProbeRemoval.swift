@@ -15,6 +15,8 @@ extension ProbeRoot {
                 return false
             }
         }
+        retiredA = a
+        retiredGeneration = connection.generation
         a.resetForReuse()
         live.remove(1) // Native authority is revoked before any host mutation.
         dispatcher.invalidate(1)
@@ -26,7 +28,13 @@ extension ProbeRoot {
             clipsToBounds = true
             a.frame.origin.x = -a.frame.width - 10
         case .reuse, .replace:
+            let frame = a.frame
             a.removeFromSuperview()
+            if case .replace = action {
+                a = ProbeButton(type: .system)
+                a.frame = frame
+                a.accessibilityIdentifier = "A"
+            }
             let generation = connection.generation + 1
             dispatcher.close()
             dispatcher = ProbeDispatcher(ProbeConnection(generation: generation))
@@ -34,6 +42,7 @@ extension ProbeRoot {
             a.accessibilityLabel = "A: replacement"
             addSubview(a)
             live = [1, 2]
+            configureSemantics()
         case .all:
             live.remove(2)
             dispatcher.invalidate(2)

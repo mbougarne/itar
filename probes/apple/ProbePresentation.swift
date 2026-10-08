@@ -3,12 +3,13 @@ import UIKit
 final class ProbePresentation: UIViewController {
     let probe = ProbeRoot(frame: CGRect(x: 100, y: 100, width: 700, height: 300))
     weak var opener: ProbeRoot?
+    weak var openerWindow: UIWindow?
     var openerGeneration: UInt32 = 0
     weak var openerTarget: UIView?
 
     override func loadView() {
         view = UIView()
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = .darkGray
         view.accessibilityViewIsModal = true
         view.addSubview(probe)
         probe.d.setTitle("Dismiss", for: .normal)
@@ -17,7 +18,7 @@ final class ProbePresentation: UIViewController {
     override var preferredFocusEnvironments: [UIFocusEnvironment] { [probe] }
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        probe.record("presented controller=ProbePresentation sameWindow=\(view.window === opener?.window)")
+        probe.record("presented controller=ProbePresentation sameWindow=\(view.window === openerWindow)")
         probe.snapshot("presentation-ready")
     }
     @discardableResult static func open(from presenter: UIViewController, opener: ProbeRoot) -> ProbePresentation? {
@@ -29,6 +30,7 @@ final class ProbePresentation: UIViewController {
         let modal = ProbePresentation()
         modal.modalPresentationStyle = .fullScreen
         modal.opener = opener
+        modal.openerWindow = opener.window
         modal.openerGeneration = opener.connection.generation
         modal.openerTarget = UIFocusSystem.focusSystem(for: opener)?.focusedItem as? UIView
         opener.suspended = true
@@ -44,7 +46,7 @@ final class ProbePresentation: UIViewController {
         guard presentingViewController != nil else { return }
         probe.dispatcher.close()
         probe.record("dismiss begin")
-        dismiss(animated: false) { [weak self] in self?.restoreOpener() }
+        dismiss(animated: false) { self.restoreOpener() }
     }
     func restoreOpener() {
         guard let opener, !opener.dispatcher.closed else { return }
