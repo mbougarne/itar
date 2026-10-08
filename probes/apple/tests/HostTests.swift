@@ -39,4 +39,23 @@ import UIKit
         root.request(root.d) // Programmatic request remains host-owned.
         XCTAssertTrue(root.d.isFocused)
     }
+    func testRemovalKeepsUnmanagedDistinct() {
+        root.request(root.a)
+        XCTAssertTrue(root.a.isFocused)
+        XCTAssertTrue(root.disappear(.all))
+        root.request(root.d)
+        XCTAssertTrue(root.d.isFocused)
+        XCTAssertEqual(root.alias(root.d), "unmanaged:D")
+        XCTAssertEqual(root.alias(nil), "absent")
+        XCTAssertTrue(root.live.isEmpty)
+    }
+    func testPreRemovalTransferAndFreshGeneration() {
+        root.request(root.a)
+        XCTAssertTrue(root.disappear(.reuse, transferFirst: true))
+        XCTAssertTrue(root.b.isFocused)
+        XCTAssertEqual(root.connection.generation, 2)
+        XCTAssertEqual(root.connection.query(slot: 1, direction: 0).slot, 2)
+        XCTAssertFalse(root.events.contains { $0.contains("->unmanaged:D") })
+    }
+
 }
