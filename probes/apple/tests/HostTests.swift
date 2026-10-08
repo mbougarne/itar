@@ -159,7 +159,7 @@ import UIKit
         XCTAssertTrue(root.a.isFocused)
     }
 
-    func testRemovalVariantsRevokeOldMount() {
+    func testRemovalVariantsRevokeOldMount() async {
         for action in ProbeRemoval.allCases {
             root.removeFromSuperview()
             root = ProbeRoot(frame: CGRect(x: 100, y: 100, width: 700, height: 300))
@@ -178,6 +178,10 @@ import UIKit
                 XCTAssertFalse(root.live.contains(1))
                 XCTAssertFalse(old.accessibilityActivate())
             }
+            let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                self.root.events.contains { $0.contains("after-layout") }
+            }, object: nil)
+            await fulfillment(of: [settled], timeout: 3)
             XCTAssertFalse(root.overflow)
         }
     }

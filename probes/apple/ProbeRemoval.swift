@@ -15,6 +15,7 @@ extension ProbeRoot {
                 return false
             }
         }
+        preferred = nil
         retiredA = a
         retiredGeneration = connection.generation
         a.resetForReuse()

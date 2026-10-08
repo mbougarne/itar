@@ -67,6 +67,7 @@ final class ProbeRoot: UIView {
     }
     required init?(coder: NSCoder) { fatalError("Programmatic probe only") }
     override var preferredFocusEnvironments: [UIFocusEnvironment] {
+        guard !dispatcher.closed, !suspended, !overflow else { return [] }
         if let target = preferred, target.window != nil, !target.isHidden { return [target] }
         return super.preferredFocusEnvironments
     }
@@ -119,8 +120,9 @@ final class ProbeRoot: UIView {
     }
     override func shouldUpdateFocus(in context: UIFocusUpdateContext) -> Bool {
         // UIKit owns input; no press interception and no JavaScript approval.
-        guard !UIAccessibility.isVoiceOverRunning, !suspended, !overflow else { return true }
-        let slot: UInt32 = context.previouslyFocusedView === a ? 1 : context.previouslyFocusedView === b ? 2 : 0
+        guard !dispatcher.closed, !UIAccessibility.isVoiceOverRunning, !suspended, !overflow else { return true }
+        let slot: UInt32 = context.previouslyFocusedView === a && live.contains(1) ? 1 :
+            context.previouslyFocusedView === b && live.contains(2) ? 2 : 0
         let direction: Int32 = context.focusHeading.contains(.up) ? 0 : context.focusHeading.contains(.down) ? 1 : -1
         if slot != 0 && direction >= 0 {
             let result = dispatcher.query(slot: slot, direction: direction)
