@@ -21,6 +21,11 @@ try {
     cpSync(path.join(output, platform), path.join(app, platform), {recursive: true});
   }
   cpSync(path.join(app, 'Podfile.lock'), path.join(app, 'ios/Podfile.lock'));
+  const podfile = path.join(app, 'ios/Podfile');
+  const pods = readFileSync(podfile, 'utf8');
+  if (!pods.includes('  use_react_native!(')) { throw new Error('Unexpected Podfile'); }
+  writeFileSync(podfile, pods.replace('  use_react_native!(',
+    "  pod 'ItarProbeHost', :path => '../../..'\n  use_react_native!("));
   // Same-major fmt fix for Apple Clang 21; keep compile-time format checking.
   for (const [name, count] of [['fmt', 2], ['RCT-Folly', 1]]) {
     const spec = path.join(root, 'node_modules/react-native/third-party-podspecs', `${name}.podspec`);

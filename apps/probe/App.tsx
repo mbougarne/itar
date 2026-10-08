@@ -2,9 +2,9 @@ import React, {useState} from 'react';
 import {Button, Platform, requireNativeComponent, StyleSheet, Text, View, type ViewProps, type NativeSyntheticEvent} from 'react-native';
 import {packageStage} from 'itar';
 
-const AndroidProbe = Platform.OS === 'android' ? requireNativeComponent<ViewProps & {
-  onNativeActivation: (event: NativeSyntheticEvent<{target: string}>) => void;
-}>('ItarHostProbe') : null;
+const HostProbe = Platform.OS === 'android' || Platform.OS === 'ios' ? requireNativeComponent<ViewProps & {
+  onNativeActivation: (event: NativeSyntheticEvent<{target: string; targetAlias?: string}>) => void;
+}>(Platform.OS === 'android' ? 'ItarHostProbe' : 'ItarAppleProbe') : null;
 export default function App() {
   const [showB, setShowB] = useState(true);
   const [activation, setActivation] = useState('None');
@@ -12,17 +12,17 @@ export default function App() {
     <View style={styles.screen}>
       <Text style={styles.title}>Itar: {packageStage}</Text>
       <Text>Probe only; production Itar adapters are not installed.</Text>
-      {AndroidProbe && <>
+      {HostProbe && <>
         <Button title="Busy JS for 2 seconds" onPress={() => {
           console.info("ItarProbe JS busy start");
           const end = Date.now() + 2000;
           while (Date.now() < end) { /* Bounded deliberate probe load. */ }
           console.info("ItarProbe JS busy end");
         }} />
-        <AndroidProbe style={styles.nativeProbe}
-          onNativeActivation={event => setActivation(event.nativeEvent.target)} />
+        <HostProbe style={styles.nativeProbe}
+          onNativeActivation={event => setActivation(event.nativeEvent.targetAlias ?? event.nativeEvent.target)} />
       </>}
-      {!AndroidProbe && <>
+      {!HostProbe && <>
       <View style={styles.row}>
         <View style={styles.column}>
           <View style={styles.slot}>
@@ -45,7 +45,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  nativeProbe: {height: 220, width: 700},
+  nativeProbe: {height: Platform.OS === 'ios' ? 300 : 220, width: 700},
   screen: {flex: 1, padding: 60, gap: 24, backgroundColor: '#eeeeee'},
   title: {fontSize: 32, color: '#111111'},
   row: {flexDirection: 'row', gap: 80, alignItems: 'flex-end'},
