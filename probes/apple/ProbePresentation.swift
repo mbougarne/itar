@@ -6,6 +6,7 @@ final class ProbePresentation: UIViewController {
     weak var openerWindow: UIWindow?
     var openerGeneration: UInt32 = 0
     weak var openerTarget: UIView?
+    var openerEnabled = (a: false, b: false, d: false)
 
     override func loadView() {
         view = UIView()
@@ -33,6 +34,7 @@ final class ProbePresentation: UIViewController {
         modal.openerWindow = opener.window
         modal.openerGeneration = opener.connection.generation
         modal.openerTarget = UIFocusSystem.focusSystem(for: opener)?.focusedItem as? UIView
+        modal.openerEnabled = (opener.a.isEnabled, opener.b.isEnabled, opener.d.isEnabled)
         opener.suspended = true
         opener.accessibilityElementsHidden = true
         opener.a.isEnabled = false
@@ -52,9 +54,9 @@ final class ProbePresentation: UIViewController {
         guard let opener, !opener.dispatcher.closed else { return }
         opener.suspended = false
         opener.accessibilityElementsHidden = false
-        opener.a.isEnabled = opener.live.contains(1)
-        opener.b.isEnabled = opener.live.contains(2)
-        opener.d.isEnabled = true
+        opener.a.isEnabled = openerEnabled.a && opener.live.contains(1)
+        opener.b.isEnabled = openerEnabled.b && opener.live.contains(2)
+        opener.d.isEnabled = openerEnabled.d
         opener.snapshot("dismiss host-restoration")
         guard !UIAccessibility.isVoiceOverRunning,
               opener.connection.generation == openerGeneration,

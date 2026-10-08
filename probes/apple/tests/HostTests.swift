@@ -149,6 +149,7 @@ import UIKit
         XCTAssertTrue(root.dispatcher.closed)
     }
     func testDismissalRestoresLiveOpener() async {
+        root.b.isEnabled = false
         root.request(root.a)
         let modal = ProbePresentation.open(from: window.rootViewController!, opener: root)!
         try? await Task.sleep(nanoseconds: 100_000_000)
@@ -156,6 +157,7 @@ import UIKit
         try? await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertFalse(root.suspended)
         XCTAssertFalse(root.accessibilityElementsHidden)
+        XCTAssertFalse(root.b.isEnabled)
         XCTAssertTrue(root.a.isFocused)
     }
 
