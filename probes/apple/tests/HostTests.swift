@@ -58,4 +58,37 @@ import UIKit
         XCTAssertFalse(root.events.contains { $0.contains("->unmanaged:D") })
     }
 
+    func testSynchronousFakeHostGuard() {
+        let guardLoop = ProbeDispatcher(ProbeConnection())
+        XCTAssertTrue(guardLoop.invoke {
+            guardLoop.observe("managed:B")
+            XCTAssertFalse(guardLoop.invoke { XCTFail("recursive host entry") })
+            guardLoop.invalidate(2)
+            XCTAssertNotEqual(guardLoop.query(slot: 1, direction: 0).status, 0)
+            guardLoop.observe("unmanaged:D")
+        })
+        XCTAssertEqual(guardLoop.observed, "unmanaged:D")
+        XCTAssertNotEqual(guardLoop.query(slot: 1, direction: 0).status, 0)
+        XCTAssertFalse(guardLoop.invoke {
+            guardLoop.close()
+            XCTAssertTrue(guardLoop.closed)
+            XCTAssertEqual(guardLoop.connection.query(slot: 1, direction: 0).status, 5)
+        })
+        XCTAssertEqual(guardLoop.connection.query(slot: 1, direction: 0).status, 8)
+    }
+    func testOverflowRevokesWithoutSilentLoss() {
+        let guardLoop = ProbeDispatcher(ProbeConnection())
+        XCTAssertFalse(guardLoop.invoke { for _ in 0..<33 { guardLoop.observe("unknown") } })
+        XCTAssertTrue(guardLoop.closed)
+    }
+    func testDisposalDuringUIKitCallback() {
+        root.request(root.a)
+        root.callbackAction = { [weak root] in root?.dispatcher.close() }
+        root.request(root.b)
+        XCTAssertTrue(root.dispatcher.closed)
+        XCTAssertTrue(root.b.isFocused) // Host outcome survives revoked intent.
+        root.request(root.a)
+        XCTAssertTrue(root.b.isFocused)
+    }
+
 }
