@@ -145,8 +145,10 @@ is generated separately; native projects, Pods and derived data are not tracked.
 
 ### Observations and limitations
 
-Implementation revision: `610ac6a61e09a7ea9f8fb48aac2367cf80b93e73` (final
-safety follow-up); earlier full simulator runs also passed at `c67d189`.
+Full-suite revision: `610ac6a61e09a7ea9f8fb48aac2367cf80b93e73`; earlier full
+simulator runs also passed at `c67d189`. Final modal-state regression coverage
+is at `77521037ad5a73892de863caa87859db72fc2429`: dismissal preserves an already
+disabled B instead of re-enabling it.
 The host test temporarily installs a controller participating in the preference
 chain. Request an update to the owned environment, whose preference names the
 target, and retain it until an actual callback; requesting a leaf button in the
