@@ -115,4 +115,34 @@ import UIKit
         XCTAssertEqual(root.a.layer.borderWidth, 1)
     }
 
+    func testNestedPresentationAndDisposedOpener() async {
+        root.request(root.a)
+        let modal = ProbePresentation.open(from: window.rootViewController!, opener: root)!
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertTrue(root.suspended)
+        XCTAssertTrue(root.accessibilityElementsHidden)
+        XCTAssertTrue(modal.view.window === window)
+        XCTAssertNil(ProbePresentation.open(from: window.rootViewController!, opener: root))
+        let nested = ProbePresentation.open(from: modal, opener: modal.probe)!
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertTrue(modal.probe.suspended)
+        nested.closeProbe()
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertFalse(modal.probe.suspended)
+        root.dispatcher.close()
+        modal.closeProbe()
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertTrue(root.dispatcher.closed)
+    }
+    func testDismissalRestoresLiveOpener() async {
+        root.request(root.a)
+        let modal = ProbePresentation.open(from: window.rootViewController!, opener: root)!
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        modal.closeProbe()
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertFalse(root.suspended)
+        XCTAssertFalse(root.accessibilityElementsHidden)
+        XCTAssertTrue(root.a.isFocused)
+    }
+
 }
