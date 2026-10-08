@@ -10,6 +10,7 @@ ref = project.main_group.new_file("#{__dir__}/HostTests.swift")
 tests.source_build_phase.add_file_reference(ref)
 tests.build_configurations.each do |config|
   config.build_settings.merge!({
+    'PRODUCT_NAME' => 'ItarAppleTests',
     'PRODUCT_BUNDLE_IDENTIFIER' => 'org.itar.apple-probe.tests',
     'GENERATE_INFOPLIST_FILE' => 'YES', 'SWIFT_VERSION' => '5.0',
     'TEST_HOST' => '$(BUILT_PRODUCTS_DIR)/ItarProbe.app/ItarProbe',

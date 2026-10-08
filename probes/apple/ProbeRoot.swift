@@ -85,9 +85,14 @@ final class ProbeRoot: UIView {
     }
     func snapshot(_ boundary: String) {
         guard window != nil else { record("\(boundary) input=unknown detached"); return }
-        let focused = UIFocusSystem.focusSystem(for: self)?.focusedItem as? UIView
+        guard let system = UIFocusSystem.focusSystem(for: self) else {
+            record("\(boundary) input=unknown no-focus-system")
+            return
+        }
+        let focused = system.focusedItem
+        let input = focused == nil ? "absent" : (focused as? UIView).map(alias) ?? "unmanaged:non-view"
         let accessibility = UIAccessibility.focusedElement(using: .notificationVoiceOver) as? UIView
-        record("\(boundary) input=\(alias(focused)) a11y=\(UIAccessibility.isVoiceOverRunning ? alias(accessibility) : "off")")
+        record("\(boundary) input=\(input) a11y=\(UIAccessibility.isVoiceOverRunning ? alias(accessibility) : "off")")
     }
     func request(_ target: UIView) {
         guard !dispatcher.closed, !dispatcher.active, !overflow, !suspended, target.window != nil, !target.isHidden else { return }
