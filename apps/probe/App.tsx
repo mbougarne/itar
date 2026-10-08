@@ -2,9 +2,9 @@ import React, {useState} from 'react';
 import {Button, Platform, requireNativeComponent, StyleSheet, Text, View, type ViewProps, type NativeSyntheticEvent} from 'react-native';
 import {packageStage} from 'itar';
 
-const AndroidProbe = Platform.OS === 'android' ? requireNativeComponent<ViewProps & {
+const AndroidProbe = Platform.OS === 'android' || Platform.OS === 'ios' ? requireNativeComponent<ViewProps & {
   onNativeActivation: (event: NativeSyntheticEvent<{target: string}>) => void;
-}>('ItarHostProbe') : null;
+}>(Platform.OS === 'android' ? 'ItarHostProbe' : 'ItarAppleProbe') : null;
 export default function App() {
   const [showB, setShowB] = useState(true);
   const [activation, setActivation] = useState('None');
