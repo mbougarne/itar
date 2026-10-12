@@ -61,3 +61,17 @@ Evidence: `core.batch` covers ordering, duplicate mixed batches, missing parents
 cycles, non-finite/negative geometry, wrong surface/revision and bounded capacity.
 This cohesive validator/test slice exceeds the 250-line target (below 500) because
 final-graph preflight and its rejection fixtures must be reviewed together.
+
+## Atomic publication (ITAR-0025)
+
+`State::apply` prepares the final graph and changed-handle pairs before a no-throw
+snapshot swap. A nonempty accepted batch advances one revision; an empty batch
+validates its expected revision without advancing it. Revision overflow rejects
+rather than wrapping. Readers run on the same serialized owner and see the old
+or new snapshot. Borrowed references expire at mutation; a copied snapshot is
+owned independently. Changed pairs include implicit parent-handle updates.
+Configured capacity supplies deterministic resource-preflight failure; allocation
+failure anywhere in staging or result preparation returns `resource` with no swap.
+
+Evidence: `core.state` tests coherent publication, copied old snapshots, capacity
+rejection, replacement/reparenting output, revision exhaustion and empty batches.
