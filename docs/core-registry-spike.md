@@ -19,3 +19,18 @@ empty snapshot's revision, never a published nonempty commit.
 
 Evidence: `core.identity` checks repeated occurrences, ambiguous delimiters,
 reserved values, equality and compile-time separation of token domains.
+
+## Storage (ITAR-0022)
+
+The registry preallocates contiguous slots and a separate key array. Key lookup
+is a bounded linear scan in this spike; no index or allocator is justified yet.
+Empty slots are reusable until the configured generation ceiling; exhausted
+slots retire permanently. Capacity and generation exhaustion have distinct
+results. The ceiling is configurable for tests and cannot exceed the token type.
+Removal releases keys and records. References are borrowed until the next
+mutation or destruction; callers retain value handles across mutation.
+Construction and key preparation may throw allocation errors; insertion copies
+the key before publishing a record. Transaction resource handling follows below.
+
+Evidence: `core.registry` exercises duplicates, invalid keys, capacity, stale
+handles, retirement, and 50 allocation/removal cycles.
