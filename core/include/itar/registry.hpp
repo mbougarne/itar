@@ -9,6 +9,10 @@
 namespace itar {
 
 struct NodeRecord {
+  NodeHandle parent;
+  std::int32_t order{};
+  bool scope{};
+  bool active{true};
   bool enabled{true};
   MountGeneration mount;
   bool mounted{};

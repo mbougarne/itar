@@ -34,3 +34,15 @@ the key before publishing a record. Transaction resource handling follows below.
 
 Evidence: `core.registry` exercises duplicates, invalid keys, capacity, stale
 handles, retirement, and 50 allocation/removal cycles.
+
+## Scopes (ITAR-0023)
+
+Scopes share owned slots with items. Parent links name generational scope handles;
+ancestry and effective activity are bounded by registry size. Inactivity propagates
+through ancestors. Declared order belongs to each parent; equal order falls back
+to stable slot order within this snapshot. These queries have no focus state or
+callbacks. The raw registry is a storage primitive; applications use the validated
+snapshot boundary below to publish topology.
+
+Evidence: `core.topology` checks nested inactivity, independent scope order and
+membership, reparenting, invalid handles and bounded malformed-cycle behavior.
