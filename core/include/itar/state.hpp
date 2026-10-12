@@ -1,6 +1,7 @@
 #pragma once
 
 #include <itar/batch.hpp>
+#include <itar/host.hpp>
 
 namespace itar {
 
@@ -36,6 +37,7 @@ class State {
     return validateBatch(committed_.registry, surface_, committed_.revision, batch);
   }
   ApplyResult apply(Batch batch);
+  ObservationStatus observeAvailability(AvailabilityObservation observation) noexcept;
 
  private:
   SurfaceId surface_;

@@ -75,3 +75,16 @@ failure anywhere in staging or result preparation returns `resource` with no swa
 
 Evidence: `core.state` tests coherent publication, copied old snapshots, capacity
 rejection, replacement/reparenting output, revision exhaustion and empty batches.
+
+## Irreversible host facts (ITAR-0026)
+
+The adapter removes its native mapping first, then reports surface/node/mount
+identity. Mount loss preserves logical membership and the last mount token as a
+tombstone. Only a strictly newer mount generation can remount that logical node;
+replacement also retires its node handle. Geometry invalidation preserves a host
+layout watermark that declarative updates cannot lower. Observations do not
+advance the declarative revision, emit effects or assert host focus absence.
+
+Evidence: `core.host` uses a fake host mapping, detach before rejected duplicate
+batch, prohibited resurrection, remount, old-generation observations, idempotence,
+and explicit dirty/unavailable geometry states.

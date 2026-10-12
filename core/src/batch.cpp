@@ -65,6 +65,14 @@ Validation prepare(const Registry& committed, SurfaceId surface,
     } else {
       return fail(BatchStatus::invalid, i);
     }
+    if (op.kind == MutationKind::update) {
+      const auto& previous = *committed.lookup(existing);
+      if (op.record.mount.value < previous.mount.value ||
+          (op.record.mounted && !previous.mounted &&
+           op.record.mount == previous.mount && bool(previous.mount))) {
+        return fail(BatchStatus::stale_mount, i);
+      }
+    }
     if (op.kind != MutationKind::erase &&
         ((op.record.mounted && (!op.record.mount || op.record.scope)) ||
          !validGeometry(op.record, surface))) {
@@ -86,7 +94,11 @@ Validation prepare(const Registry& committed, SurfaceId surface,
                         ? BatchStatus::exhausted : BatchStatus::capacity, i);
       }
     } else if (op.kind == MutationKind::update) {
-      staged.replace(op.expected, op.record);
+      auto record = op.record;
+      const auto& previous = *committed.lookup(op.expected);
+      record.invalidatedThrough = record.mount == previous.mount
+                                      ? previous.invalidatedThrough : LayoutRevision{};
+      staged.replace(op.expected, record);
     }
   }
   for (auto handle : staged.handles()) {

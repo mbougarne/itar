@@ -18,6 +18,7 @@ struct NodeRecord {
   MountGeneration mount;
   bool mounted{};
   Geometry geometry;
+  LayoutRevision invalidatedThrough;  // Host fact; batches cannot lower it.
   bool operator==(const NodeRecord&) const = default;
 };
 

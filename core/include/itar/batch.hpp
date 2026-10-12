@@ -25,7 +25,7 @@ struct Batch {
 enum class BatchStatus {
   valid, stale_surface, revision_mismatch, invalid, duplicate, missing,
   stale_handle, missing_parent, cycle, geometry, capacity, exhausted, resource,
-  revision_exhausted
+  revision_exhausted, stale_mount
 };
 
 struct Validation {
