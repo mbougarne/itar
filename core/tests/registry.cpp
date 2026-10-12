@@ -8,7 +8,8 @@ int main() {
   Registry registry{{2, 8, 3}};
   const OccurrenceKey a{"a"}, b{"b"}, c{"c"};
   CHECK(registry.insert({}).status == StorageStatus::invalid);
-  CHECK(registry.insert(OccurrenceKey{"123456789"}).status == StorageStatus::invalid);
+  CHECK(registry.insert(OccurrenceKey{"123456789"}).status ==
+        StorageStatus::invalid);
   const auto first = registry.insert(a);
   CHECK(first.status == StorageStatus::inserted);
   CHECK(registry.insert(a).status == StorageStatus::duplicate);

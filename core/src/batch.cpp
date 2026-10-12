@@ -36,7 +36,8 @@ Validation prepare(const Registry& committed, SurfaceId surface,
       if (existing) {
         return fail(BatchStatus::duplicate, i);
       }
-    } else if (op.kind == MutationKind::update || op.kind == MutationKind::replace ||
+    } else if (op.kind == MutationKind::update ||
+               op.kind == MutationKind::replace ||
                op.kind == MutationKind::erase) {
       if (!existing) {
         return fail(BatchStatus::missing, i);
@@ -54,9 +55,11 @@ Validation prepare(const Registry& committed, SurfaceId surface,
            op.record.mount == previous.mount && bool(previous.mount))) {
         return fail(BatchStatus::stale_mount, i);
       }
-      if (op.record.mount == previous.mount && measuredGeometry(op.record.geometry.state) &&
+      if (op.record.mount == previous.mount &&
+          measuredGeometry(op.record.geometry.state) &&
           (op.record.geometry.layout.value < previous.geometry.layout.value ||
-           op.record.geometry.layout.value <= previous.invalidatedThrough.value)) {
+           op.record.geometry.layout.value <=
+               previous.invalidatedThrough.value)) {
         return fail(BatchStatus::geometry, i);
       }
     }
@@ -79,16 +82,20 @@ Validation prepare(const Registry& committed, SurfaceId surface,
       const auto result = staged.insert(op.key, op.record);
       if (result.status != StorageStatus::inserted) {
         return fail(result.status == StorageStatus::exhausted
-                        ? BatchStatus::exhausted : BatchStatus::capacity, i);
+                        ? BatchStatus::exhausted
+                        : BatchStatus::capacity,
+                    i);
       }
     } else if (op.kind == MutationKind::update) {
       auto record = op.record;
       const auto& previous = *committed.lookup(op.expected);
       record.invalidatedThrough = record.mount == previous.mount
-                                      ? previous.invalidatedThrough : LayoutRevision{};
-      if (record.mount == previous.mount && !measuredGeometry(record.geometry.state)) {
-        record.invalidatedThrough.value = std::max(record.invalidatedThrough.value,
-                                                   previous.geometry.layout.value);
+                                      ? previous.invalidatedThrough
+                                      : LayoutRevision{};
+      if (record.mount == previous.mount &&
+          !measuredGeometry(record.geometry.state)) {
+        record.invalidatedThrough.value = std::max(
+            record.invalidatedThrough.value, previous.geometry.layout.value);
       }
       staged.replace(op.expected, record);
     }
@@ -98,7 +105,8 @@ Validation prepare(const Registry& committed, SurfaceId surface,
     OccurrenceKey parent;
     std::optional<std::size_t> operation;
     const auto old = committed.find(*staged.key(handle));
-    if (const auto* previous = committed.lookup(old); previous && previous->parent) {
+    if (const auto* previous = committed.lookup(old);
+        previous && previous->parent) {
       const auto* key = committed.key(previous->parent);
       if (!key) {
         return fail(BatchStatus::missing_parent);
@@ -119,7 +127,7 @@ Validation prepare(const Registry& committed, SurfaceId surface,
   }
   for (auto handle : staged.handles()) {
     auto ancestor = handle;
-    for (std::size_t depth = 0; ; ++depth) {
+    for (std::size_t depth = 0;; ++depth) {
       ancestor = staged.lookup(ancestor)->parent;
       if (!ancestor) {
         break;

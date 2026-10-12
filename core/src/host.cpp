@@ -4,7 +4,8 @@
 
 namespace itar {
 
-ObservationStatus State::observeAvailability(AvailabilityObservation observation) noexcept {
+ObservationStatus State::observeAvailability(
+    AvailabilityObservation observation) noexcept {
   if (observation.surface != surface_ || !surface_) {
     return ObservationStatus::stale_surface;
   }
@@ -26,22 +27,28 @@ ObservationStatus State::observeAvailability(AvailabilityObservation observation
       if (!observation.through) {
         return ObservationStatus::invalid;
       }
-      if (!record.mounted || observation.through.value < record.geometry.layout.value ||
+      if (!record.mounted ||
+          observation.through.value < record.geometry.layout.value ||
           observation.through.value <= record.invalidatedThrough.value) {
         return ObservationStatus::unchanged;
       }
-      record.geometry.state = observation.kind == AvailabilityKind::geometry_dirty
-                                  ? GeometryState::dirty : GeometryState::unavailable;
+      record.geometry.state =
+          observation.kind == AvailabilityKind::geometry_dirty
+              ? GeometryState::dirty
+              : GeometryState::unavailable;
       record.invalidatedThrough = observation.through;
       break;
-    default: return ObservationStatus::invalid;
+    default:
+      return ObservationStatus::invalid;
   }
   if (record == *previous) {
     return ObservationStatus::unchanged;
   }
   committed_.registry.replace(observation.node, record);
-  committed_.inputFocus = reconcileFocus(committed_.registry, committed_.inputFocus);
-  committed_.accessibilityFocus = reconcileFocus(committed_.registry, committed_.accessibilityFocus);
+  committed_.inputFocus =
+      reconcileFocus(committed_.registry, committed_.inputFocus);
+  committed_.accessibilityFocus =
+      reconcileFocus(committed_.registry, committed_.accessibilityFocus);
   return ObservationStatus::changed;
 }
 

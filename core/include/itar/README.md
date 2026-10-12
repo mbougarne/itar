@@ -1,4 +1,6 @@
 # Public C++ headers
 
-This is the public include root exported by `itar::core`. No engine API exists
-yet; the portable probe seam and engine tickets introduce its first headers.
+This is the include root exported by `itar::core`. The independent registry
+spike exposes value identities, bounded storage and a serialized `State` API.
+See [contracts and evidence](../../../docs/core-registry-spike.md). Headers in
+`probe/` remain disposable native-probe fixtures, separate from engine state.

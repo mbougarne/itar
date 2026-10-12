@@ -16,7 +16,8 @@ struct Snapshot {
 
 struct ChangedRecord {
   NodeHandle before;
-  NodeHandle after;  // Empty for deletion; different from before on replacement.
+  NodeHandle
+      after;  // Empty for deletion; different from before on replacement.
 };
 
 struct ApplyResult {
@@ -30,18 +31,23 @@ struct ApplyResult {
 // Publication is a no-throw swap after all resource preparation. No callbacks.
 class State {
  public:
-  explicit State(SurfaceId surface, RegistryLimits limits = {},
-                 std::uint64_t revisionCeiling =
-                     std::numeric_limits<std::uint64_t>::max())
-      : surface_(surface), committed_{Registry{limits}, {}},
+  explicit State(
+      SurfaceId surface, RegistryLimits limits = {},
+      std::uint64_t revisionCeiling = std::numeric_limits<std::uint64_t>::max())
+      : surface_(surface),
+        committed_{Registry{limits}, {}, {}, {}, {}},
         revisionCeiling_(revisionCeiling) {}
+  State(const State&) = delete;
+  State& operator=(const State&) = delete;
   const Snapshot& snapshot() const noexcept { return committed_; }
   SurfaceId surface() const noexcept { return surface_; }
   Validation validate(Batch batch) const {
-    return validateBatch(committed_.registry, surface_, committed_.revision, batch);
+    return validateBatch(committed_.registry, surface_, committed_.revision,
+                         batch);
   }
   ApplyResult apply(Batch batch);
-  ObservationStatus observeAvailability(AvailabilityObservation observation) noexcept;
+  ObservationStatus observeAvailability(
+      AvailabilityObservation observation) noexcept;
   ObservationStatus observeFocus(FocusObservation observation);
   const OccurrenceKey* history(NodeHandle scope) const noexcept;
 

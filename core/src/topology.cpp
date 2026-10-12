@@ -42,7 +42,7 @@ bool descendantOf(const Registry& registry, NodeHandle node,
 }
 
 std::vector<NodeHandle> orderedChildren(const Registry& registry,
-                                      NodeHandle parent) {
+                                        NodeHandle parent) {
   auto children = registry.handles();
   std::erase_if(children, [&](NodeHandle node) {
     return registry.lookup(node)->parent != parent;

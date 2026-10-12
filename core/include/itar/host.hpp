@@ -4,7 +4,11 @@
 
 namespace itar {
 
-enum class AvailabilityKind { mount_lost, geometry_dirty, geometry_unavailable };
+enum class AvailabilityKind {
+  mount_lost,
+  geometry_dirty,
+  geometry_unavailable
+};
 
 struct AvailabilityObservation {
   SurfaceId surface;
@@ -15,7 +19,13 @@ struct AvailabilityObservation {
 };
 
 enum class ObservationStatus {
-  changed, unchanged, stale_surface, stale_handle, stale_mount, invalid, resource
+  changed,
+  unchanged,
+  stale_surface,
+  stale_handle,
+  stale_mount,
+  invalid,
+  resource
 };
 
 }  // namespace itar

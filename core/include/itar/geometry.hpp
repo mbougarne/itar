@@ -20,7 +20,8 @@ struct Geometry {
   bool operator==(const Geometry&) const = default;
 };
 
-// Stable surface navigation bounds; decorative scale/parallax never enters here.
+// Stable surface navigation bounds; decorative scale/parallax never enters
+// here.
 bool measuredGeometry(GeometryState state) noexcept;
 bool validGeometry(const Geometry& geometry, SurfaceId surface,
                    MountGeneration mount, bool mounted, bool scope) noexcept;

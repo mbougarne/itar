@@ -118,3 +118,34 @@ No requested target, restoration selection or transaction completion is included
 
 Evidence: `core.focus` covers independent channels, duplicate reports, stale
 observations, uncertainty on detach, history retention/pruning and rejected batches.
+
+## Validation and limits (2026-10-12)
+
+CMake 3.31.6 / Apple Clang 21.0.0, C++20:
+
+- Release CTest: 12/12, including eight registry fixtures and four prior fixtures.
+- ASan/UBSan with `-Wall -Wextra -Wpedantic -Werror`: 12/12.
+- `BUILD_TESTING=OFF` independent library build: passed.
+- Node 22.14.0 / npm 10.9.2: workspace build, typecheck, lint, two tests and
+  Android JS bundle passed. Pinned native generation completed; generated Android
+  and Apple projects, dependencies and build trees are retained in the worktree.
+- Manual `npm audit`: fails with 27 high / 5 moderate baseline findings; report
+  retained at `build/manual-npm-audit.json`. No JS audit is added to Actions;
+  existing Ruby dependency and repository security checks are unchanged.
+- Ticket/index statuses agree locally; ITAR-0021–0028 are Done. Tickets remain
+  ignored repository planning files; this tracked note preserves their evidence.
+- Accepted architecture SHA-256 is unchanged:
+  `d3c8147c5e18e24a0ea6c840a247f57a3b7bb7699dbcf262ff20862dcca39915`.
+
+The eight initial commits contain 131, 207, 133, 281, 168, 150, 177 and 230
+tracked authored changed lines respectively. A separate final review applies
+formatting, strict-warning fixes and additional boundary fixtures across those
+slices; no ticket exceeds 500 authored lines including local ticket evidence.
+No generated native output or lockfile changes are committed.
+
+Physical Apple TV/iOS, Android TV/Fire OS, VoiceOver/TalkBack/VoiceView, gesture,
+style and reduced-motion acceptance were not run for this portable spike. Earlier
+partial Apple and Android gates remain partial. No latency, allocation-free
+navigation or released platform support is claimed. Next work is navigation and
+request integration under its own tickets; production host/device acceptance is
+still required before support claims.

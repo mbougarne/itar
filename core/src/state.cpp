@@ -39,8 +39,10 @@ ApplyResult State::apply(Batch batch) {
     }
     auto history = committed_.history;
     pruneHistory(*validation.prepared, history);
-    const auto input = reconcileFocus(*validation.prepared, committed_.inputFocus);
-    const auto accessibility = reconcileFocus(*validation.prepared, committed_.accessibilityFocus);
+    const auto input =
+        reconcileFocus(*validation.prepared, committed_.inputFocus);
+    const auto accessibility =
+        reconcileFocus(*validation.prepared, committed_.accessibilityFocus);
     Snapshot next{std::move(*validation.prepared),
                   Revision{committed_.revision.value + 1}, input, accessibility,
                   std::move(history)};

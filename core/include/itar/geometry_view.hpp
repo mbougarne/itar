@@ -13,7 +13,7 @@ struct MeasuredBounds {
 // Read a single borrowed committed snapshot for the whole candidate traversal.
 // The owner must not mutate during traversal. No general occlusion inference.
 std::optional<MeasuredBounds> usableGeometry(const Snapshot& snapshot,
-                                            SurfaceId surface,
-                                            NodeHandle node) noexcept;
+                                             SurfaceId surface,
+                                             NodeHandle node) noexcept;
 
 }  // namespace itar

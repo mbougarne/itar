@@ -23,7 +23,8 @@ struct FocusObservation {
 
 struct ScopeHistory {
   NodeHandle scope;
-  OccurrenceKey occurrence;  // Stable logical entry, never a host pointer/index.
+  OccurrenceKey
+      occurrence;  // Stable logical entry, never a host pointer/index.
 };
 
 bool liveFocus(const Registry& registry, FocusState focus) noexcept;

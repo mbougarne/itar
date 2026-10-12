@@ -38,17 +38,21 @@ int main() {
   CHECK(result.changed.size() == 2);
   CHECK(!state.snapshot().registry.lookup(scope));
   CHECK(!state.snapshot().registry.lookup(item)->enabled);
-  CHECK(oldSnapshot.registry.lookup(scope) && oldSnapshot.registry.lookup(item)->enabled);
-  // Unchanged child is included when replacing its scope changes the parent handle.
+  CHECK(oldSnapshot.registry.lookup(scope) &&
+        oldSnapshot.registry.lookup(item)->enabled);
+  // Unchanged child is included when replacing its scope changes the parent
+  // handle.
   parent.expected = state.snapshot().registry.find(parent.key);
   parent.kind = MutationKind::replace;
   result = state.apply({state.surface(), Revision{2}, std::span{&parent, 1}});
   CHECK(result.changed.size() == 2 && result.revision == Revision{3});
   parent.expected = state.snapshot().registry.find(parent.key);
   result = state.apply({state.surface(), Revision{3}, std::span{&parent, 1}});
-  CHECK(result.status == BatchStatus::revision_exhausted && result.changed.empty());
+  CHECK(result.status == BatchStatus::revision_exhausted &&
+        result.changed.empty());
   CHECK(state.snapshot().revision == Revision{3});
-  CHECK(state.apply({state.surface(), Revision{3}, {}}).revision == Revision{3});
+  CHECK(state.apply({state.surface(), Revision{3}, {}}).revision ==
+        Revision{3});
   CHECK(state.apply({state.surface(), Revision{2}, {}}).status ==
         BatchStatus::revision_mismatch);
 }

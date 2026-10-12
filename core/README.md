@@ -3,7 +3,9 @@
 Requires CMake 3.20+ and a C++20 compiler with its standard library. The
 `itar_core` static library (`itar::core` for CMake consumers) exports `include/`
 and the C++20 usage requirement. It has no React, JNI, UIKit, JavaScript, or
-downloaded dependency. This foundation intentionally implements no engine API.
+downloaded dependency. The [registry spike](../docs/core-registry-spike.md)
+implements bounded identity, topology, committed geometry and observed focus
+state; it does not yet implement navigation, requests or production adapters.
 
 From the repository root:
 
@@ -26,7 +28,7 @@ build/core/itar_core_harness --fail
 Use `-DBUILD_TESTING=OFF` for a library-only build. Keep build trees under the
 ignored `build/` directory (or outside the checkout). Use a different build
 directory per compiler/configuration. No third-party test framework is needed
-for this build-only check; behavioral tests arrive with engine behavior.
+for the harness; eight additional behavioral fixtures exercise registry contracts.
 
 For Clang sanitizers, configure a fresh directory with
 `-DCMAKE_BUILD_TYPE=Debug` and

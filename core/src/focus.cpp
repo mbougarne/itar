@@ -14,10 +14,12 @@ bool liveFocus(const Registry& registry, FocusState focus) noexcept {
 
 FocusState reconcileFocus(const Registry& registry, FocusState focus) noexcept {
   return focus.kind == FocusKind::managed && !liveFocus(registry, focus)
-             ? FocusState{} : focus;
+             ? FocusState{}
+             : focus;
 }
 
-void pruneHistory(const Registry& registry, std::vector<ScopeHistory>& history) {
+void pruneHistory(const Registry& registry,
+                  std::vector<ScopeHistory>& history) {
   std::erase_if(history, [&](const ScopeHistory& entry) {
     const auto node = registry.find(entry.occurrence);
     return !node || !descendantOf(registry, node, entry.scope);
@@ -54,24 +56,27 @@ ObservationStatus State::observeFocus(FocusObservation observation) {
       focus.node = {};
       focus.mount = {};
       break;
-    default: return ObservationStatus::invalid;
+    default:
+      return ObservationStatus::invalid;
   }
   auto& current = observation.channel == FocusChannel::input
-                      ? committed_.inputFocus : committed_.accessibilityFocus;
+                      ? committed_.inputFocus
+                      : committed_.accessibilityFocus;
   if (current == focus) {
     return ObservationStatus::unchanged;
   }
   try {
     // Accessibility focus never supplies input history or activation authority.
-    if (observation.channel == FocusChannel::input && focus.kind == FocusKind::managed) {
+    if (observation.channel == FocusChannel::input &&
+        focus.kind == FocusKind::managed) {
       auto history = committed_.history;
       history.reserve(committed_.registry.limits().capacity);
       auto parent = committed_.registry.lookup(focus.node)->parent;
       const auto key = *committed_.registry.key(focus.node);
       while (parent) {
-        auto entry = std::find_if(history.begin(), history.end(), [&](const ScopeHistory& h) {
-          return h.scope == parent;
-        });
+        auto entry = std::find_if(
+            history.begin(), history.end(),
+            [&](const ScopeHistory& h) { return h.scope == parent; });
         if (entry == history.end()) {
           history.push_back({parent, key});
         } else {

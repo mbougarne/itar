@@ -6,7 +6,8 @@ Registry::Registry(RegistryLimits limits)
     : limits_(limits), slots_(limits.capacity), keys_(limits.capacity) {}
 
 InsertResult Registry::insert(const OccurrenceKey& key, NodeRecord record) {
-  if (!key || key.value().size() > limits_.keyBytes || !limits_.generationCeiling) {
+  if (!key || key.value().size() > limits_.keyBytes ||
+      !limits_.generationCeiling) {
     return {StorageStatus::invalid, {}};
   }
   if (find(key)) {
@@ -23,7 +24,8 @@ InsertResult Registry::insert(const OccurrenceKey& key, NodeRecord record) {
     }
   }
   return {size_ == slots_.size() ? StorageStatus::capacity
-                               : StorageStatus::exhausted, {}};
+                                 : StorageStatus::exhausted,
+          {}};
 }
 
 const NodeRecord* Registry::lookup(NodeHandle handle) const noexcept {
@@ -31,8 +33,8 @@ const NodeRecord* Registry::lookup(NodeHandle handle) const noexcept {
     return nullptr;
   }
   const auto& slot = slots_[handle.slot.value - 1];
-  return slot.generation == handle.generation && slot.record
-             ? &*slot.record : nullptr;
+  return slot.generation == handle.generation && slot.record ? &*slot.record
+                                                             : nullptr;
 }
 
 bool Registry::remove(NodeHandle handle) noexcept {
@@ -80,8 +82,8 @@ std::vector<NodeHandle> Registry::handles() const {
   result.reserve(size_);
   for (std::size_t i = 0; i < slots_.size(); ++i) {
     if (slots_[i].record) {
-      result.push_back({NodeId{static_cast<std::uint32_t>(i + 1)},
-                        slots_[i].generation});
+      result.push_back(
+          {NodeId{static_cast<std::uint32_t>(i + 1)}, slots_[i].generation});
     }
   }
   return result;

@@ -9,6 +9,6 @@ bool effectivelyActive(const Registry& registry, NodeHandle node) noexcept;
 bool descendantOf(const Registry& registry, NodeHandle node,
                   NodeHandle scope) noexcept;
 std::vector<NodeHandle> orderedChildren(const Registry& registry,
-                                      NodeHandle parent);
+                                        NodeHandle parent);
 
 }  // namespace itar
