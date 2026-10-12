@@ -1,28 +1,10 @@
 #include <itar/batch.hpp>
 
-#include <cmath>
+#include <algorithm>
 #include <new>
 
 namespace itar {
 namespace {
-
-bool validGeometry(const NodeRecord& node, SurfaceId surface) noexcept {
-  const auto& geometry = node.geometry;
-  switch (geometry.state) {
-    case GeometryState::unavailable:
-    case GeometryState::dirty: return true;
-    case GeometryState::measured:
-    case GeometryState::hidden:
-    case GeometryState::clipped: break;
-    default: return false;
-  }
-  const auto& r = geometry.bounds;
-  return node.mounted && !node.scope && bool(geometry.layout) &&
-         geometry.surface == surface && geometry.mount == node.mount &&
-         std::isfinite(r.x) && std::isfinite(r.y) && std::isfinite(r.width) &&
-         std::isfinite(r.height) && r.width > 0 && r.height > 0 &&
-         std::isfinite(r.x + r.width) && std::isfinite(r.y + r.height);
-}
 
 Validation prepare(const Registry& committed, SurfaceId surface,
                    Revision revision, Batch batch) {
@@ -72,10 +54,16 @@ Validation prepare(const Registry& committed, SurfaceId surface,
            op.record.mount == previous.mount && bool(previous.mount))) {
         return fail(BatchStatus::stale_mount, i);
       }
+      if (op.record.mount == previous.mount && measuredGeometry(op.record.geometry.state) &&
+          (op.record.geometry.layout.value < previous.geometry.layout.value ||
+           op.record.geometry.layout.value <= previous.invalidatedThrough.value)) {
+        return fail(BatchStatus::geometry, i);
+      }
     }
     if (op.kind != MutationKind::erase &&
         ((op.record.mounted && (!op.record.mount || op.record.scope)) ||
-         !validGeometry(op.record, surface))) {
+         !validGeometry(op.record.geometry, surface, op.record.mount,
+                        op.record.mounted, op.record.scope))) {
       return fail(BatchStatus::geometry, i);
     }
   }
@@ -98,6 +86,10 @@ Validation prepare(const Registry& committed, SurfaceId surface,
       const auto& previous = *committed.lookup(op.expected);
       record.invalidatedThrough = record.mount == previous.mount
                                       ? previous.invalidatedThrough : LayoutRevision{};
+      if (record.mount == previous.mount && !measuredGeometry(record.geometry.state)) {
+        record.invalidatedThrough.value = std::max(record.invalidatedThrough.value,
+                                                   previous.geometry.layout.value);
+      }
       staged.replace(op.expected, record);
     }
   }

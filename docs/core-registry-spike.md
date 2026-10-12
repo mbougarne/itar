@@ -88,3 +88,18 @@ advance the declarative revision, emit effects or assert host focus absence.
 Evidence: `core.host` uses a fake host mapping, detach before rejected duplicate
 batch, prohibited resurrection, remount, old-generation observations, idempotence,
 and explicit dirty/unavailable geometry states.
+
+## Geometry freshness (ITAR-0027)
+
+Hosts publish stable navigation rectangles in surface coordinates, tagged with
+mount and monotonically increasing layout epochs. Invalidation through epoch N
+requires a measurement newer than N, even if a rejected configuration still
+contains the old rectangle. Geometry-only publication uses the same atomic batch
+path. A dirty/unavailable declarative update also prevents resurrecting its prior
+measurement. A new mount resets the per-mount watermark; mount exhaustion requires
+logical replacement. Decorative focus transforms are deliberately absent.
+`usableGeometry` reads one borrowed snapshot and reports its committed revision;
+hidden/clipped states are explicit exclusions, not arbitrary occlusion detection.
+
+Evidence: `core.geometry` tests scroll invalidation, stale epoch rejection,
+coherent two-target publication, old snapshots, wrong surface/mount and visibility.
