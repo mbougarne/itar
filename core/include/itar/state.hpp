@@ -2,12 +2,16 @@
 
 #include <itar/batch.hpp>
 #include <itar/host.hpp>
+#include <itar/focus.hpp>
 
 namespace itar {
 
 struct Snapshot {
   Registry registry;
   Revision revision;
+  FocusState inputFocus;
+  FocusState accessibilityFocus;
+  std::vector<ScopeHistory> history;
 };
 
 struct ChangedRecord {
@@ -38,6 +42,8 @@ class State {
   }
   ApplyResult apply(Batch batch);
   ObservationStatus observeAvailability(AvailabilityObservation observation) noexcept;
+  ObservationStatus observeFocus(FocusObservation observation);
+  const OccurrenceKey* history(NodeHandle scope) const noexcept;
 
  private:
   SurfaceId surface_;

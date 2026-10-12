@@ -103,3 +103,18 @@ hidden/clipped states are explicit exclusions, not arbitrary occlusion detection
 
 Evidence: `core.geometry` tests scroll invalidation, stale epoch rejection,
 coherent two-target publication, old snapshots, wrong surface/mount and visibility.
+
+## Observed focus and history (ITAR-0028)
+
+Input and accessibility focus have independent managed/unmanaged/absent/unknown
+states. Only a matching live node/mount accepts managed observation. Duplicate
+reports return `unchanged`; no callback is invoked. Mount loss or replacement
+reconciles an obsolete managed observation to unknown, never confirmed absence.
+Input observations update value-only occurrence history for each ancestor scope.
+History is bounded by scope capacity and survives unmount/remount; deletion,
+scope disposal/replacement and reparenting prune invalid entries on commit.
+Accessibility observations cannot alter input history or authorize activation.
+No requested target, restoration selection or transaction completion is included.
+
+Evidence: `core.focus` covers independent channels, duplicate reports, stale
+observations, uncertainty on detach, history retention/pruning and rejected batches.

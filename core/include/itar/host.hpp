@@ -15,7 +15,7 @@ struct AvailabilityObservation {
 };
 
 enum class ObservationStatus {
-  changed, unchanged, stale_surface, stale_handle, stale_mount, invalid
+  changed, unchanged, stale_surface, stale_handle, stale_mount, invalid, resource
 };
 
 }  // namespace itar

@@ -40,6 +40,8 @@ ObservationStatus State::observeAvailability(AvailabilityObservation observation
     return ObservationStatus::unchanged;
   }
   committed_.registry.replace(observation.node, record);
+  committed_.inputFocus = reconcileFocus(committed_.registry, committed_.inputFocus);
+  committed_.accessibilityFocus = reconcileFocus(committed_.registry, committed_.accessibilityFocus);
   return ObservationStatus::changed;
 }
 

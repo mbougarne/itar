@@ -37,8 +37,13 @@ ApplyResult State::apply(Batch batch) {
         changed.push_back({{}, after});
       }
     }
+    auto history = committed_.history;
+    pruneHistory(*validation.prepared, history);
+    const auto input = reconcileFocus(*validation.prepared, committed_.inputFocus);
+    const auto accessibility = reconcileFocus(*validation.prepared, committed_.accessibilityFocus);
     Snapshot next{std::move(*validation.prepared),
-                  Revision{committed_.revision.value + 1}};
+                  Revision{committed_.revision.value + 1}, input, accessibility,
+                  std::move(history)};
     static_assert(std::is_nothrow_swappable_v<Snapshot>);
     std::swap(committed_, next);
     return {BatchStatus::valid, committed_.revision, {}, std::move(changed)};
