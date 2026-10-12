@@ -46,3 +46,18 @@ snapshot boundary below to publish topology.
 
 Evidence: `core.topology` checks nested inactivity, independent scope order and
 membership, reparenting, invalid handles and bounded malformed-cycle behavior.
+
+## Final graph validation (ITAR-0024)
+
+One operation per key makes duplicate intent explicit. Replacement is a distinct
+operation that retires the old node handle. Deletions run before allocations;
+parent keys resolve after all records exist, including untouched children of a
+replaced scope. Insert ordering cannot expose intermediate missing-parent errors.
+Operations are bounded to twice slot capacity and keys to configured byte length.
+Diagnostics retain an operation index when attributable, never an unbounded string.
+Validation stages a copy and reports allocation failure without publishing it.
+
+Evidence: `core.batch` covers ordering, duplicate mixed batches, missing parents,
+cycles, non-finite/negative geometry, wrong surface/revision and bounded capacity.
+This cohesive validator/test slice exceeds the 250-line target (below 500) because
+final-graph preflight and its rejection fixtures must be reviewed together.

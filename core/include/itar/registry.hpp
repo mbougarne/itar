@@ -1,6 +1,7 @@
 #pragma once
 
 #include <itar/identity.hpp>
+#include <itar/geometry.hpp>
 
 #include <limits>
 #include <optional>
@@ -16,6 +17,7 @@ struct NodeRecord {
   bool enabled{true};
   MountGeneration mount;
   bool mounted{};
+  Geometry geometry;
   bool operator==(const NodeRecord&) const = default;
 };
 
