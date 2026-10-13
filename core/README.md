@@ -5,7 +5,8 @@ Requires CMake 3.20+ and a C++20 compiler with its standard library. The
 and the C++20 usage requirement. It has no React, JNI, UIKit, JavaScript, or
 downloaded dependency. The [registry spike](../docs/core-registry-spike.md)
 implements bounded identity, topology, committed geometry and observed focus
-state; it does not yet implement navigation, requests or production adapters.
+state. The [navigation policy](../docs/core-navigation.md) adds pure destination,
+scope-entry and deletion-recovery proposals; requests and production adapters follow.
 
 From the repository root:
 
@@ -28,7 +29,7 @@ build/core/itar_core_harness --fail
 Use `-DBUILD_TESTING=OFF` for a library-only build. Keep build trees under the
 ignored `build/` directory (or outside the checkout). Use a different build
 directory per compiler/configuration. No third-party test framework is needed
-for the harness; eight additional behavioral fixtures exercise registry contracts.
+for the harness; behavioral fixtures exercise registry and navigation contracts.
 
 For Clang sanitizers, configure a fresh directory with
 `-DCMAKE_BUILD_TYPE=Debug` and

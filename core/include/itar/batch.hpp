@@ -15,6 +15,7 @@ struct Mutation {
   OccurrenceKey
       parent;         // Empty means surface root; resolved in final topology.
   NodeRecord record;  // parent handle is resolved from the key, never trusted.
+  std::optional<OccurrenceKey> preferred{};  // Omitted preserves; empty explicitly clears.
 };
 
 struct Batch {

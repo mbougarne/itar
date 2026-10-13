@@ -2,6 +2,7 @@
 
 #include <itar/identity.hpp>
 #include <itar/geometry.hpp>
+#include <itar/navigation_config.hpp>
 
 #include <limits>
 #include <optional>
@@ -19,6 +20,7 @@ struct NodeRecord {
   bool mounted{};
   Geometry geometry;
   LayoutRevision invalidatedThrough;  // Host fact; batches cannot lower it.
+  NavigationConfig navigation;
   bool operator==(const NodeRecord&) const = default;
 };
 
@@ -47,7 +49,10 @@ class Registry {
   bool replace(NodeHandle handle, NodeRecord record) noexcept;
   NodeHandle find(const OccurrenceKey& key) const noexcept;
   const OccurrenceKey* key(NodeHandle handle) const noexcept;
+  const OccurrenceKey* preferred(NodeHandle scope) const noexcept;
+  bool setPreferred(NodeHandle scope, OccurrenceKey key) noexcept;
   std::vector<NodeHandle> handles() const;
+  NodeHandle handleAt(std::size_t index) const noexcept;
   std::size_t size() const noexcept { return size_; }
   RegistryLimits limits() const noexcept { return limits_; }
 
@@ -61,6 +66,7 @@ class Registry {
   RegistryLimits limits_;
   std::vector<Slot> slots_;
   std::vector<OccurrenceKey> keys_;
+  std::vector<OccurrenceKey> preferred_;  // Cold stable entry keys, separate from hot records.
   std::size_t size_{};
 };
 
