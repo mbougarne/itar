@@ -12,7 +12,8 @@ enum class ProposalReason {
   selected, host_input, stale_surface, no_authority, unknown_source,
   absent_source, stale_source, ineligible, outside_boundary, override_target,
   invalid_override, stop, wrapped, parent_continuation, invalid_direction, ordered,
-  geometric, stale_geometry
+  geometric, stale_geometry, first_entry, restoration, anchor_entry,
+  entry_not_ready, existing_focus, no_entry, invalid_anchor
 };
 inline constexpr std::string_view navigationPolicy = "itar-linear-v1";
 
@@ -59,5 +60,15 @@ std::optional<Rect> regionBounds(const State& state, NodeHandle node,
 NodeHandle geometricDestination(const State& state, NodeHandle source,
                                 Direction direction, const InputContext& input,
                                 bool wrap = false) noexcept;
+enum class EntryReason { first, returning, adjacent };
+struct EntryContext {
+  EntryReason reason{EntryReason::first};
+  Direction direction{Direction::down};
+  std::optional<double> anchor;  // Surface x for up/down, y for left/right.
+};
+Proposal resolveEntry(const State& state, NodeHandle scope,
+                      const InputContext& input, EntryContext entry = {}) noexcept;
+Proposal enterDestination(const State& state, NodeHandle target, Direction direction,
+                          const InputContext& input) noexcept;
 
 }  // namespace itar

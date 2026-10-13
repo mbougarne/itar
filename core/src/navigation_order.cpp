@@ -54,7 +54,7 @@ Proposal resolve(const State& state, Direction direction,
       reason = ProposalReason::geometric;
     }
     if (target) {
-      result = proposeTarget(state, target, input);
+      result = enterDestination(state, target, direction, input);
       result.reason = continued ? ProposalReason::parent_continuation : reason;
       return result;
     }

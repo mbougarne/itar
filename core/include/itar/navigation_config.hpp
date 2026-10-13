@@ -15,6 +15,8 @@ struct NavigationConfig {
   Boundary boundary{Boundary::stop};
   bool rtl{};  // Row order runs from right to left when explicitly enabled.
   bool trap{};
+  bool entryReady{true};
+  NodeHandle preferred;
   bool operator==(const NavigationConfig&) const = default;
 };
 

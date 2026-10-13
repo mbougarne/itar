@@ -27,7 +27,7 @@ Proposal resolveOverride(const State& state, Direction direction,
     result.reason = ProposalReason::invalid_override;
     return result;
   }
-  result = proposeTarget(state, target, input);
+  result = enterDestination(state, target, direction, input);
   if (result.target) { result.reason = ProposalReason::override_target; }
   return result;
 }
@@ -55,7 +55,7 @@ Proposal boundaryProposal(const State& state, NodeHandle scope,
       const auto target = geometricDestination(state, region ? region : input.source.node,
                                                direction, input, true);
       if (target) {
-        result = proposeTarget(state, target, input);
+        result = enterDestination(state, target, direction, input);
         if (result.target) { result.reason = ProposalReason::wrapped; }
       }
       return result;

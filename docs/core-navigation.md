@@ -50,3 +50,16 @@ chooses the opposite physical edge, then perpendicular gap/center and stable ord
 scores 11.25; diagonal `(12,25,10,10)` scores 38.25; distant aligned `(100,0,10,10)`
 scores 90. Identical aligned candidates tie by key `a` before `b`, including
 reversed registrations. Invalid publication and stale source fail explicitly.
+
+## Explicit scope entry (ITAR-0033)
+
+Entry is an explicit query, never triggered by registration. First entry requires
+confirmed absence and respects readiness/preference. Existing managed focus
+suppresses late first entry; existing eligible focus in a returning scope also
+suppresses redundant restoration. Return tries valid remembered occurrence, then
+preferred, then eligible declared order/key. Nested unready scopes are excluded.
+Adjacent entry ignores history/preference and minimizes distance to the value
+anchor (x for up/down, y for left/right); absent measured candidates fall back to
+logical order and reveal. No anchor means derive it from fresh source geometry.
+`core.navigation_entry` tests precedence, invalid history, readiness, anchor,
+empty entry and the integrated move between two rails.
