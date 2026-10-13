@@ -33,7 +33,8 @@ Proposal resolveOverride(const State& state, Direction direction,
 }
 
 Proposal boundaryProposal(const State& state, NodeHandle scope,
-                          Direction direction, const InputContext& input) noexcept {
+                          Direction direction, const InputContext& input,
+                          NodeHandle region) noexcept {
   auto result = gateNavigation(state, input);
   if (result.kind != ProposalKind::ready) { return result; }
   result.kind = ProposalKind::boundary;
@@ -50,7 +51,15 @@ Proposal boundaryProposal(const State& state, NodeHandle scope,
       result.reason = ProposalReason::invalid_direction;
       return result;
     }
-    if (!orderedAxis(*record, direction)) { return result; }
+    if (!orderedAxis(*record, direction)) {
+      const auto target = geometricDestination(state, region ? region : input.source.node,
+                                               direction, input, true);
+      if (target) {
+        result = proposeTarget(state, target, input);
+        if (result.target) { result.reason = ProposalReason::wrapped; }
+      }
+      return result;
+    }
     const bool forward = direction == Direction::right || direction == Direction::down;
     const bool first = forward != (record->navigation.layout == Layout::row &&
                                     record->navigation.rtl);

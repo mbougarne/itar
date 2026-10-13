@@ -11,7 +11,8 @@ enum class ProposalKind { ready, reveal, boundary, unavailable, host_owned };
 enum class ProposalReason {
   selected, host_input, stale_surface, no_authority, unknown_source,
   absent_source, stale_source, ineligible, outside_boundary, override_target,
-  invalid_override, stop, wrapped, parent_continuation, invalid_direction, ordered
+  invalid_override, stop, wrapped, parent_continuation, invalid_direction, ordered,
+  geometric, stale_geometry
 };
 inline constexpr std::string_view navigationPolicy = "itar-linear-v1";
 
@@ -46,11 +47,17 @@ bool stableBefore(const Registry& registry, NodeHandle a, NodeHandle b) noexcept
 Proposal resolveOverride(const State& state, Direction direction,
                          const InputContext& input) noexcept;
 Proposal boundaryProposal(const State& state, NodeHandle scope,
-                          Direction direction, const InputContext& input) noexcept;
+                          Direction direction, const InputContext& input,
+                          NodeHandle region = {}) noexcept;
 bool orderedAxis(const NodeRecord& scope, Direction direction) noexcept;
 NodeHandle orderedDestination(const State& state, NodeHandle source,
                               Direction direction, const InputContext& input) noexcept;
 Proposal resolve(const State& state, Direction direction,
                  const InputContext& input) noexcept;
+std::optional<Rect> regionBounds(const State& state, NodeHandle node,
+                                 const InputContext& input) noexcept;
+NodeHandle geometricDestination(const State& state, NodeHandle source,
+                                Direction direction, const InputContext& input,
+                                bool wrap = false) noexcept;
 
 }  // namespace itar

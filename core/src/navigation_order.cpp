@@ -41,13 +41,24 @@ Proposal resolve(const State& state, Direction direction,
   for (std::size_t depth = 0; depth <= registry.size(); ++depth) {
     const auto* record = registry.lookup(source);
     if (!record) { break; }
-    const auto target = orderedDestination(state, source, direction, input);
+    auto target = orderedDestination(state, source, direction, input);
+    auto reason = ProposalReason::ordered;
+    const auto* scope = registry.lookup(record->parent);
+    if (!target && (!scope || !orderedAxis(*scope, direction))) {
+      if (!regionBounds(state, source, input)) {
+        result.kind = ProposalKind::unavailable;
+        result.reason = ProposalReason::stale_geometry;
+        return result;
+      }
+      target = geometricDestination(state, source, direction, input);
+      reason = ProposalReason::geometric;
+    }
     if (target) {
       result = proposeTarget(state, target, input);
-      result.reason = continued ? ProposalReason::parent_continuation : ProposalReason::ordered;
+      result.reason = continued ? ProposalReason::parent_continuation : reason;
       return result;
     }
-    result = boundaryProposal(state, record->parent, direction, input);
+    result = boundaryProposal(state, record->parent, direction, input, source);
     if (result.reason != ProposalReason::parent_continuation) { return result; }
     source = record->parent;
     continued = true;

@@ -32,3 +32,21 @@ are skipped; unmounted entries retain their place and require reveal without
 invented geometry. Endpoints stop or wrap to the eligible opposite endpoint.
 Parent continuation is bounded by registry size. `core.navigation_order` includes
 19→unmounted 20, reverse registration order, RTL, columns, deletion and wrap.
+
+## Provisional geometry (ITAR-0032)
+
+`itar-linear-v1` admits centers strictly forward in the physical direction. Rank
+lexicographically by `(forwardGap + 2*perpendicularGap + perpendicularCenter/4,
+forwardGap, perpendicularCenter, declaredOrder, occurrenceKey)`. Gaps are edge
+distances clamped to zero; perpendicular overlap makes its gap zero. Unequal
+sizes use their measured edges and centers. This is an Itar policy, with no
+platform-equivalence or performance claim. Changing winners requires versioning.
+
+Each sibling scan retains one winner. Child-region bounds are the union of fresh
+eligible descendant geometry (a bounded scan per region, no cached host measures).
+No stale, clipped, inactive or wrong-direction rectangle can win. Spatial wrap
+chooses the opposite physical edge, then perpendicular gap/center and stable order.
+`core.navigation_geometry`: source `(0,0,10,10)`, right aligned `(20,0,20,20)`
+scores 11.25; diagonal `(12,25,10,10)` scores 38.25; distant aligned `(100,0,10,10)`
+scores 90. Identical aligned candidates tie by key `a` before `b`, including
+reversed registrations. Invalid publication and stale source fail explicitly.
