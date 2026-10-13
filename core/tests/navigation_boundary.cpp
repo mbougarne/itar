@@ -6,6 +6,7 @@ int main() {
   NavigationFixture f;
   NodeRecord scope;
   scope.scope = true;
+  scope.navigation.layout = Layout::row;
   const auto root = f.add("root", scope);
   const auto modal = f.add("modal", scope, "root");
   const auto a = f.add("a", f.item(1), "modal");

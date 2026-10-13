@@ -23,3 +23,12 @@ targets cannot win. Missing overrides allow ordinary selection. Stop is default,
 wrap is opt-in, and parent continuation is explicit. Authority/trap boundaries
 prevent escape. Stable order compares declared order then occurrence-key bytes,
 never storage slots. `core.navigation_boundary` covers these outcomes.
+
+## Logical order (ITAR-0031)
+
+Rows use physical left/right; columns use up/down. Increasing declared order is
+right/down, except explicitly RTL rows where it is left. Disabled/deleted entries
+are skipped; unmounted entries retain their place and require reveal without
+invented geometry. Endpoints stop or wrap to the eligible opposite endpoint.
+Parent continuation is bounded by registry size. `core.navigation_order` includes
+19→unmounted 20, reverse registration order, RTL, columns, deletion and wrap.

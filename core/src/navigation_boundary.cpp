@@ -50,6 +50,7 @@ Proposal boundaryProposal(const State& state, NodeHandle scope,
       result.reason = ProposalReason::invalid_direction;
       return result;
     }
+    if (!orderedAxis(*record, direction)) { return result; }
     const bool forward = direction == Direction::right || direction == Direction::down;
     const bool first = forward != (record->navigation.layout == Layout::row &&
                                     record->navigation.rtl);

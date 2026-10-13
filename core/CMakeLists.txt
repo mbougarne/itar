@@ -4,7 +4,7 @@ project(itar_core LANGUAGES CXX)
 add_library(itar_core STATIC
   src/build.cpp src/registry.cpp src/topology.cpp src/batch.cpp src/state.cpp
   src/host.cpp src/geometry.cpp src/focus.cpp src/navigation.cpp
-  src/navigation_boundary.cpp)
+  src/navigation_boundary.cpp src/navigation_order.cpp)
 add_library(itar::core ALIAS itar_core)
 target_compile_features(itar_core PUBLIC cxx_std_20)
 target_include_directories(itar_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
@@ -35,6 +35,7 @@ if(BUILD_TESTING)
   itar_core_test(focus)
   itar_core_test(navigation)
   itar_core_test(navigation_boundary)
+  itar_core_test(navigation_order)
   add_executable(itar_apple_facade_tests ../probes/apple/tests/facade.cpp ../probes/apple/ItarProbe.cpp)
   target_include_directories(itar_apple_facade_tests PRIVATE ../probes/apple)
   target_link_libraries(itar_apple_facade_tests PRIVATE itar::probe)
