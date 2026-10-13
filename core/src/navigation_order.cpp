@@ -22,7 +22,7 @@ NodeHandle orderedDestination(const State& state, NodeHandle source,
     const auto node = registry.handleAt(i);
     const auto* candidate = registry.lookup(node);
     if (!candidate || candidate->parent != record->parent || node == source ||
-        !logicalTarget(state, node) || !withinBoundary(state, node, input)) { continue; }
+        !selectableDestination(state, node, input)) { continue; }
     const bool after = stableBefore(registry, source, node);
     if (after != forward) { continue; }
     if (!best || (forward ? stableBefore(registry, node, best)
@@ -55,7 +55,7 @@ Proposal resolve(const State& state, Direction direction,
     }
     if (target) {
       result = enterDestination(state, target, direction, input);
-      result.reason = continued ? ProposalReason::parent_continuation : reason;
+      if (result.target) { result.reason = continued ? ProposalReason::parent_continuation : reason; }
       return result;
     }
     result = boundaryProposal(state, record->parent, direction, input, source);

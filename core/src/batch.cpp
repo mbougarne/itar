@@ -32,6 +32,9 @@ Validation prepare(const Registry& committed, SurfaceId surface,
       }
     }
     const auto existing = committed.find(op.key);
+    if (op.kind != MutationKind::erase && !validNavigationConfig(op.record.navigation)) {
+      return fail(BatchStatus::invalid, i);
+    }
     if (op.kind == MutationKind::insert) {
       if (existing) {
         return fail(BatchStatus::duplicate, i);

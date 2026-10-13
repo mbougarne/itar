@@ -20,8 +20,7 @@ std::optional<Rect> regionBounds(const State& state, NodeHandle node,
   std::optional<Rect> bounds;
   for (std::size_t i = 0; i < registry.limits().capacity; ++i) {
     const auto child = registry.handleAt(i);
-    if (!logicalTarget(state, child) || !descendantOf(registry, child, node) ||
-        !withinBoundary(state, child, input)) { continue; }
+    if (!entryCandidate(state, child, node, input)) { continue; }
     const auto geometry = usableGeometry(state.snapshot(), state.surface(), child);
     if (!geometry) { continue; }
     const auto r = geometry->bounds;
@@ -47,7 +46,7 @@ NodeHandle geometricDestination(const State& state, NodeHandle source,
   if (!record || !from) { return {}; }
   const bool horizontal = direction == Direction::left || direction == Direction::right;
   const bool positive = direction == Direction::right || direction == Direction::down;
-  // Long doubles keep finite double rectangles from overflowing score arithmetic.
+  // Widen arithmetic where supported; unrepresentable ranks fail closed.
   const auto axes = [horizontal](Rect r) {
     return horizontal ? std::array<long double, 4>{r.x, r.width, r.y, r.height}
                       : std::array<long double, 4>{r.y, r.height, r.x, r.width};
@@ -66,6 +65,7 @@ NodeHandle geometricDestination(const State& state, NodeHandle source,
     if (!bounds) { continue; }
     const auto b = axes(*bounds);
     const auto delta = (b[0] + b[1] / 2) - (a[0] + a[1] / 2);
+    if (!std::isfinite(delta)) { continue; }
     if (!wrap && (positive ? delta <= 0 : delta >= 0)) { continue; }
     const auto forward = std::max(0.0L, positive ? b[0] - (a[0] + a[1])
                                                : a[0] - (b[0] + b[1]));
@@ -74,6 +74,8 @@ NodeHandle geometricDestination(const State& state, NodeHandle source,
     const Rank rank = wrap ? Rank{positive ? b[0] : -(b[0] + b[1]), gap, perpendicular}
                            : Rank{forward + 2 * gap + perpendicular / 4,
                                   forward, perpendicular};
+    if (!std::isfinite(std::get<0>(rank)) || !std::isfinite(std::get<1>(rank)) ||
+        !std::isfinite(std::get<2>(rank))) { continue; }
     if (!best || rank < bestRank ||
         (rank == bestRank && stableBefore(registry, node, best))) {
       best = node;

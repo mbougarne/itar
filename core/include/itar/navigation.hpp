@@ -65,12 +65,16 @@ enum class EntryReason { first, returning, adjacent };
 struct EntryContext {
   EntryReason reason{EntryReason::first};
   Direction direction{Direction::down};
-  std::optional<double> anchor;  // Surface x for up/down, y for left/right.
+  std::optional<double> anchor{};  // Surface x for up/down, y for left/right.
 };
 Proposal resolveEntry(const State& state, NodeHandle scope,
                       const InputContext& input, EntryContext entry = {}) noexcept;
 Proposal enterDestination(const State& state, NodeHandle target, Direction direction,
                           const InputContext& input) noexcept;
+bool entryCandidate(const State& state, NodeHandle node, NodeHandle scope,
+                    const InputContext& input) noexcept;
+bool selectableDestination(const State& state, NodeHandle node,
+                           const InputContext& input) noexcept;
 struct RecoveryScope {
   OccurrenceKey key;
   NodeHandle handle;

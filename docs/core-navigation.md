@@ -76,3 +76,48 @@ successor, then predecessor in the surviving original scope, then returning entr
 in that scope and surviving ancestors. An unavailable result makes no host-focus
 claim. `core.navigation_recovery` tests one-batch replacement, temporary detach,
 neighbor precedence, current host reassignment and lost authority.
+
+## Cross-policy fixtures (ITAR-0035)
+
+`core.navigation_scenarios` records source, physical direction, destination, kind,
+reason and `itar-linear-v1` for nested rails/sidebar and irregular trapped controls.
+An inactive route has a deceptively near rectangle but cannot win. Forward/reverse
+batch registration yields the same occurrence destination. Thirty repeated queries
+per case preserve every record, revision, both focus channels and scope histories;
+the fixture's allocation counter observes zero query allocations. Separate cases
+check unready/empty regions, scope overrides, malformed policy rejection and a
+replaced target whose stale generation must never be returned as ready. Ordered
+region traversal shares entry eligibility with geometric region bounds.
+
+This layer does not integrate with the disposable native probes. It implements
+no focus dispatch, native styles, gestures, accessibility reader behavior or TV
+support. Those acceptance gates remain in native adapter/device tickets.
+
+Review scope: seven independently reviewable ticket commits in the user-requested
+single PR. ITAR-0035 exceeds the 250-line target because the assembled fixtures and
+shared readiness/generation guards are reviewed together; it remains below 500.
+No generated/native files, locks, dependencies or CI requirements changed.
+
+## Local verification (2026-10-13)
+
+CMake 3.31.6 / Apple Clang 21.0.0 on the connected Mac; Node 22.14.0 /
+npm 10.9.2. Logs and generated reference projects are retained under this
+worktree's ignored `build/` and `apps/probe/{android,ios}/` directories.
+
+| Check | Result |
+| --- | --- |
+| Release configure/build + CTest | 19/19 pass; `build/final-release-tests.log` |
+| `-Wall -Wextra -Wpedantic -Werror`, ASan/UBSan | 19/19 pass; no sanitizer findings |
+| `BUILD_TESTING=OFF` library build | Pass |
+| Android arm64 core build, NDK 27.1.12297006/API 24 | Pass; compile evidence only |
+| tvOS simulator arm64 core build, SDK 27.0 | Pass; compile evidence only |
+| RN build/typecheck/lint/test + Android Metro bundle | Pass; both workspace tests pass |
+| Manual `npm audit --audit-level=high` | Failed: 27 high / 5 moderate, same two baseline advisory roots |
+| Architecture SHA256 | `d3c8147c5e18e24a0ea6c840a247f57a3b7bb7699dbcf262ff20862dcca39915`, unchanged |
+
+Reproduce core checks with the commands in [core/README](../core/README.md),
+using separate build directories per configuration. The sanitizer configuration
+also adds the strict-warning flags above. `npm audit` remains outside Actions;
+no check is suppressed. Physical Android TV/Fire TV/Apple TV, TalkBack/VoiceView/
+VoiceOver, host focus/style behavior, input latency and device benchmarks are
+unrun here. These pure core fixtures do not establish those capabilities.

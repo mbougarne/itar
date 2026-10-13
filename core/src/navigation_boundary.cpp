@@ -68,13 +68,13 @@ Proposal boundaryProposal(const State& state, NodeHandle scope,
       const auto node = registry.handleAt(i);
       const auto* child = registry.lookup(node);
       if (!child || child->parent != scope || node == input.source.node ||
-          !logicalTarget(state, node) || !withinBoundary(state, node, input)) { continue; }
+          !selectableDestination(state, node, input)) { continue; }
       if (!best || (first ? stableBefore(registry, node, best)
                           : stableBefore(registry, best, node))) { best = node; }
     }
     if (best) {
-      result = proposeTarget(state, best, input);
-      result.reason = ProposalReason::wrapped;
+      result = enterDestination(state, best, direction, input);
+      if (result.target) { result.reason = ProposalReason::wrapped; }
     }
   }
   return result;

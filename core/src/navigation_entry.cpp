@@ -7,6 +7,33 @@
 
 namespace itar {
 
+bool entryCandidate(const State& state, NodeHandle node, NodeHandle scope,
+                    const InputContext& input) noexcept {
+  const auto& registry = state.snapshot().registry;
+  if (!logicalTarget(state, node) || !descendantOf(registry, node, scope) ||
+      !withinBoundary(state, node, input)) { return false; }
+  auto parent = registry.lookup(node)->parent;
+  for (std::size_t depth = 0; parent && depth < registry.size(); ++depth) {
+    const auto* ancestor = registry.lookup(parent);
+    if (!ancestor || !ancestor->navigation.entryReady) { return false; }
+    if (parent == scope) { return true; }
+    parent = ancestor->parent;
+  }
+  return false;
+}
+
+bool selectableDestination(const State& state, NodeHandle node,
+                           const InputContext& input) noexcept {
+  const auto& registry = state.snapshot().registry;
+  const auto* record = registry.lookup(node);
+  if (!record) { return false; }
+  if (!record->scope) { return logicalTarget(state, node) && withinBoundary(state, node, input); }
+  for (std::size_t i = 0; i < registry.limits().capacity; ++i) {
+    if (entryCandidate(state, registry.handleAt(i), node, input)) { return true; }
+  }
+  return false;
+}
+
 Proposal resolveEntry(const State& state, NodeHandle scope,
                       const InputContext& input, EntryContext entry) noexcept {
   auto result = gateNavigation(state, input);
@@ -15,6 +42,11 @@ Proposal resolveEntry(const State& state, NodeHandle scope,
   const auto focus = state.snapshot().inputFocus;
   // Explicit entry can start from confirmed absence, never from unknown host focus.
   if (result.kind != ProposalKind::ready && result.reason != ProposalReason::absent_source) {
+    return result;
+  }
+  if (input.source != focus) {
+    result.kind = ProposalKind::unavailable;
+    result.reason = ProposalReason::stale_source;
     return result;
   }
   result.kind = ProposalKind::unavailable;
@@ -37,16 +69,7 @@ Proposal resolveEntry(const State& state, NodeHandle scope,
     return result;
   }
   const auto eligible = [&](NodeHandle node) {
-    if (!logicalTarget(state, node) || !descendantOf(registry, node, scope) ||
-        !withinBoundary(state, node, input)) { return false; }
-    auto parent = registry.lookup(node)->parent;
-    for (std::size_t depth = 0; parent && depth < registry.size(); ++depth) {
-      const auto* ancestor = registry.lookup(parent);
-      if (!ancestor || !ancestor->navigation.entryReady) { return false; }
-      if (parent == scope) { return true; }
-      parent = ancestor->parent;
-    }
-    return false;
+    return entryCandidate(state, node, scope, input);
   };
   if (focus.kind == FocusKind::managed &&
       (entry.reason == EntryReason::first || eligible(focus.node))) {
