@@ -89,4 +89,11 @@ std::vector<NodeHandle> Registry::handles() const {
   return result;
 }
 
+NodeHandle Registry::handleAt(std::size_t index) const noexcept {
+  if (index >= slots_.size() || !slots_[index].record) {
+    return {};
+  }
+  return {NodeId{static_cast<std::uint32_t>(index + 1)}, slots_[index].generation};
+}
+
 }  // namespace itar

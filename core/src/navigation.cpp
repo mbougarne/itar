@@ -59,8 +59,19 @@ bool logicalTarget(const State& state, NodeHandle node) noexcept {
 
 bool withinBoundary(const State& state, NodeHandle target,
                     const InputContext& input) noexcept {
-  return !input.authority ||
-         descendantOf(state.snapshot().registry, target, input.authority);
+  const auto& registry = state.snapshot().registry;
+  if (input.authority && !descendantOf(registry, target, input.authority)) {
+    return false;
+  }
+  auto ancestor = input.source.node;
+  for (std::size_t depth = 0; depth < registry.size() && ancestor; ++depth) {
+    const auto* record = registry.lookup(ancestor);
+    if (!record) { return false; }
+    if (record->scope && record->navigation.trap &&
+        !descendantOf(registry, target, ancestor)) { return false; }
+    ancestor = record->parent;
+  }
+  return !ancestor;
 }
 
 Proposal proposeTarget(const State& state, NodeHandle target,

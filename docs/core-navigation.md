@@ -14,3 +14,12 @@ stale source/mount or surface, inactive authority and disabled ancestry reject
 movement. A logical target can require reveal; only fresh, visible measured
 geometry supplies `ready` and a live mount generation. Querying never updates
 focus or history. `core.navigation` verifies these rules and repeated-query purity.
+
+## Overrides and boundaries (ITAR-0030)
+
+Overrides name generation-checked targets and resolve exactly one hop; reciprocal
+links cannot loop. Invalid/self targets fail explicitly; inactive or trapped-out
+targets cannot win. Missing overrides allow ordinary selection. Stop is default,
+wrap is opt-in, and parent continuation is explicit. Authority/trap boundaries
+prevent escape. Stable order compares declared order then occurrence-key bytes,
+never storage slots. `core.navigation_boundary` covers these outcomes.
