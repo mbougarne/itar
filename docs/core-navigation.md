@@ -63,3 +63,16 @@ anchor (x for up/down, y for left/right); absent measured candidates fall back t
 logical order and reveal. No anchor means derive it from fresh source geometry.
 `core.navigation_entry` tests precedence, invalid history, readiness, anchor,
 empty entry and the integrated move between two rails.
+
+## Committed deletion recovery (ITAR-0034)
+
+Capture value-only occurrence/order and nearest-first scope identities before the
+related batch; capture may allocate, while resolution does not. Query only after
+that revision commits and host observations reconcile. Current managed focus
+suppresses recovery; unmanaged/unknown states cannot stand in for confirmed
+absence. The same logical key surviving unmount or replacement suppresses deletion
+recovery. Authority loss rejects it. True deletion chooses the nearest eligible
+successor, then predecessor in the surviving original scope, then returning entry
+in that scope and surviving ancestors. An unavailable result makes no host-focus
+claim. `core.navigation_recovery` tests one-batch replacement, temporary detach,
+neighbor precedence, current host reassignment and lost authority.

@@ -13,7 +13,8 @@ enum class ProposalReason {
   absent_source, stale_source, ineligible, outside_boundary, override_target,
   invalid_override, stop, wrapped, parent_continuation, invalid_direction, ordered,
   geometric, stale_geometry, first_entry, restoration, anchor_entry,
-  entry_not_ready, existing_focus, no_entry, invalid_anchor
+  entry_not_ready, existing_focus, no_entry, invalid_anchor, origin_present,
+  host_reassigned, deletion_neighbor, recovery_fallback, no_recovery
 };
 inline constexpr std::string_view navigationPolicy = "itar-linear-v1";
 
@@ -70,5 +71,20 @@ Proposal resolveEntry(const State& state, NodeHandle scope,
                       const InputContext& input, EntryContext entry = {}) noexcept;
 Proposal enterDestination(const State& state, NodeHandle target, Direction direction,
                           const InputContext& input) noexcept;
+struct RecoveryScope {
+  OccurrenceKey key;
+  NodeHandle handle;
+};
+struct RecoveryOrigin {
+  SurfaceId surface;
+  Revision revision;
+  OccurrenceKey occurrence;
+  std::int32_t order{};
+  std::vector<RecoveryScope> ancestors;  // Nearest first, bounded by registry capacity.
+};
+// Capture before a related batch. Owned values; allocation failure may throw.
+std::optional<RecoveryOrigin> captureRecovery(const State& state);
+Proposal resolveRecovery(const State& state, const RecoveryOrigin& origin,
+                         const InputContext& input) noexcept;
 
 }  // namespace itar
