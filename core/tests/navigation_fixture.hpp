@@ -18,7 +18,8 @@ struct NavigationFixture {
                        std::span{&op, 1}}).status == itar::BatchStatus::valid);
     return state.snapshot().registry.find(op.key);
   }
-  void update(itar::NodeHandle node, itar::NodeRecord record) {
+  void update(itar::NodeHandle node, itar::NodeRecord record,
+              std::optional<itar::OccurrenceKey> preferred = {}) {
     const auto& registry = state.snapshot().registry;
     itar::Mutation op;
     op.kind = itar::MutationKind::update;
@@ -28,6 +29,7 @@ struct NavigationFixture {
       op.parent = *registry.key(registry.lookup(node)->parent);
     }
     op.record = record;
+    op.preferred = std::move(preferred);
     CHECK(state.apply({state.surface(), state.snapshot().revision,
                        std::span{&op, 1}}).status == itar::BatchStatus::valid);
   }

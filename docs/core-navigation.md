@@ -58,6 +58,15 @@ confirmed absence and respects readiness/preference. Existing managed focus
 suppresses late first entry; existing eligible focus in a returning scope also
 suppresses redundant restoration. Return tries valid remembered occurrence, then
 preferred, then eligible declared order/key. Nested unready scopes are excluded.
+Preferred occurrence keys live in bounded cold registry storage. A scope can name
+an unmounted/new child in the same atomic batch, and preference survives that
+child's mount or node replacement. Omitted updates preserve it; empty keys clear
+it. Preference-only changes participate in revision/change publication. Value
+copies may allocate; staging contains allocation failures. Availability
+observations and selection copy no preference strings.
+An unavailable configured preference yields `no_entry` on first entry, rather
+than choosing unrelated default content while it loads. Returning entry retains
+its declared history/preference/order fallback.
 Adjacent entry ignores history/preference and minimizes distance to the value
 anchor (x for up/down, y for left/right); absent measured candidates fall back to
 logical order and reveal. No anchor means derive it from fresh source geometry.
@@ -93,7 +102,7 @@ This layer does not integrate with the disposable native probes. It implements
 no focus dispatch, native styles, gestures, accessibility reader behavior or TV
 support. Those acceptance gates remain in native adapter/device tickets.
 
-Review scope: seven independently reviewable ticket commits in the user-requested
+Review scope: seven independently reviewable ticket slices in the user-requested
 single PR. ITAR-0035 exceeds the 250-line target because the assembled fixtures and
 shared readiness/generation guards are reviewed together; it remains below 500.
 No generated/native files, locks, dependencies or CI requirements changed.
@@ -112,6 +121,7 @@ worktree's ignored `build/` and `apps/probe/{android,ios}/` directories.
 | Android arm64 core build, NDK 27.1.12297006/API 24 | Pass; compile evidence only |
 | tvOS simulator arm64 core build, SDK 27.0 | Pass; compile evidence only |
 | RN build/typecheck/lint/test + Android Metro bundle | Pass; both workspace tests pass |
+| Android consumer `assembleDebug assembleAndroidTest lintDebug` | Pass, JDK 17.0.14 / Gradle 9.0.0, one worker; `build/android-consumer.log` |
 | Manual `npm audit --audit-level=high` | Failed: 27 high / 5 moderate, same two baseline advisory roots |
 | Architecture SHA256 | `d3c8147c5e18e24a0ea6c840a247f57a3b7bb7699dbcf262ff20862dcca39915`, unchanged |
 
@@ -121,3 +131,8 @@ also adds the strict-warning flags above. `npm audit` remains outside Actions;
 no check is suppressed. Physical Android TV/Fire TV/Apple TV, TalkBack/VoiceView/
 VoiceOver, host focus/style behavior, input latency and device benchmarks are
 unrun here. These pure core fixtures do not establish those capabilities.
+
+ITAR-0033 also includes the stable-preference follow-up: bounded cold keys, atomic
+publication and replacement/clear/rejection fixtures are one cohesive entry
+contract. Together with ITAR-0029 ownership API/fixtures and local ticket evidence,
+these slices exceed the 250-line target and remain below the 500-line ceiling.

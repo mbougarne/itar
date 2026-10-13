@@ -49,6 +49,8 @@ class Registry {
   bool replace(NodeHandle handle, NodeRecord record) noexcept;
   NodeHandle find(const OccurrenceKey& key) const noexcept;
   const OccurrenceKey* key(NodeHandle handle) const noexcept;
+  const OccurrenceKey* preferred(NodeHandle scope) const noexcept;
+  bool setPreferred(NodeHandle scope, OccurrenceKey key) noexcept;
   std::vector<NodeHandle> handles() const;
   NodeHandle handleAt(std::size_t index) const noexcept;
   std::size_t size() const noexcept { return size_; }
@@ -64,6 +66,7 @@ class Registry {
   RegistryLimits limits_;
   std::vector<Slot> slots_;
   std::vector<OccurrenceKey> keys_;
+  std::vector<OccurrenceKey> preferred_;  // Cold stable entry keys, separate from hot records.
   std::size_t size_{};
 };
 

@@ -3,7 +3,8 @@
 namespace itar {
 
 Registry::Registry(RegistryLimits limits)
-    : limits_(limits), slots_(limits.capacity), keys_(limits.capacity) {}
+    : limits_(limits), slots_(limits.capacity), keys_(limits.capacity),
+      preferred_(limits.capacity) {}
 
 InsertResult Registry::insert(const OccurrenceKey& key, NodeRecord record) {
   if (!key || key.value().size() > limits_.keyBytes ||
@@ -44,6 +45,7 @@ bool Registry::remove(NodeHandle handle) noexcept {
   auto& slot = slots_[handle.slot.value - 1];
   slot.record.reset();
   keys_[handle.slot.value - 1] = {};
+  preferred_[handle.slot.value - 1] = {};
   --size_;
   if (slot.generation.value == limits_.generationCeiling) {
     slot.retired = true;
@@ -58,6 +60,7 @@ bool Registry::replace(NodeHandle handle, NodeRecord record) noexcept {
     return false;
   }
   slots_[handle.slot.value - 1].record = record;
+  if (!record.scope) { preferred_[handle.slot.value - 1] = {}; }
   return true;
 }
 
@@ -75,6 +78,19 @@ NodeHandle Registry::find(const OccurrenceKey& key) const noexcept {
 
 const OccurrenceKey* Registry::key(NodeHandle handle) const noexcept {
   return lookup(handle) ? &keys_[handle.slot.value - 1] : nullptr;
+}
+
+const OccurrenceKey* Registry::preferred(NodeHandle scope) const noexcept {
+  const auto* record = lookup(scope);
+  return record && record->scope && preferred_[scope.slot.value - 1]
+             ? &preferred_[scope.slot.value - 1] : nullptr;
+}
+
+bool Registry::setPreferred(NodeHandle scope, OccurrenceKey key) noexcept {
+  const auto* record = lookup(scope);
+  if (!record || !record->scope || key.value().size() > limits_.keyBytes) { return false; }
+  preferred_[scope.slot.value - 1] = std::move(key);
+  return true;
 }
 
 std::vector<NodeHandle> Registry::handles() const {

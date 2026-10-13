@@ -35,6 +35,10 @@ Validation prepare(const Registry& committed, SurfaceId surface,
     if (op.kind != MutationKind::erase && !validNavigationConfig(op.record.navigation)) {
       return fail(BatchStatus::invalid, i);
     }
+    if (op.kind != MutationKind::erase && op.preferred &&
+        (!op.record.scope || op.preferred->value().size() > committed.limits().keyBytes)) {
+      return fail(BatchStatus::invalid, i);
+    }
     if (op.kind == MutationKind::insert) {
       if (existing) {
         return fail(BatchStatus::duplicate, i);
@@ -101,6 +105,9 @@ Validation prepare(const Registry& committed, SurfaceId surface,
             record.invalidatedThrough.value, previous.geometry.layout.value);
       }
       staged.replace(op.expected, record);
+    }
+    if (op.kind != MutationKind::erase && op.preferred) {
+      staged.setPreferred(staged.find(op.key), *op.preferred);
     }
   }
   for (auto handle : staged.handles()) {

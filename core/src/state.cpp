@@ -27,8 +27,12 @@ ApplyResult State::apply(Batch batch) {
     changed.reserve(committed_.registry.size() + validation.prepared->size());
     for (auto before : committed_.registry.handles()) {
       auto after = validation.prepared->find(*committed_.registry.key(before));
+      const auto* oldPreferred = committed_.registry.preferred(before);
+      const auto* newPreferred = validation.prepared->preferred(after);
       if (before != after || *committed_.registry.lookup(before) !=
-                                 *validation.prepared->lookup(after)) {
+                                 *validation.prepared->lookup(after) ||
+          bool(oldPreferred) != bool(newPreferred) ||
+          (oldPreferred && newPreferred && *oldPreferred != *newPreferred)) {
         changed.push_back({before, after});
       }
     }

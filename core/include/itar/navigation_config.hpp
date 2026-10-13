@@ -16,7 +16,6 @@ struct NavigationConfig {
   bool rtl{};  // Row order runs from right to left when explicitly enabled.
   bool trap{};
   bool entryReady{true};
-  NodeHandle preferred;
   bool operator==(const NavigationConfig&) const = default;
 };
 
@@ -28,7 +27,7 @@ inline bool validNavigationConfig(const NavigationConfig& config) noexcept {
   for (const auto handle : config.overrides) {
     if (bool(handle.slot) != bool(handle.generation)) { return false; }
   }
-  return bool(config.preferred.slot) == bool(config.preferred.generation);
+  return true;
 }
 
 }  // namespace itar

@@ -85,8 +85,12 @@ Proposal resolveEntry(const State& state, NodeHandle scope,
     if (const auto* history = state.history(scope)) { best = registry.find(*history); }
   }
   if (!eligible(best)) { best = {}; }
-  if (!best && entry.reason != EntryReason::adjacent && eligible(region->navigation.preferred)) {
-    best = region->navigation.preferred;
+  if (!best && entry.reason != EntryReason::adjacent) {
+    if (const auto* preferred = registry.preferred(scope)) {
+      const auto candidate = registry.find(*preferred);
+      if (eligible(candidate)) { best = candidate; }
+      else if (entry.reason == EntryReason::first) { return result; }
+    }
   }
   const bool horizontal = entry.direction == Direction::left || entry.direction == Direction::right;
   if (!entry.anchor && entry.reason == EntryReason::adjacent) {

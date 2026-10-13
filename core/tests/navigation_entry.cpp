@@ -1,5 +1,6 @@
 #include "navigation_fixture.hpp"
 
+#include <array>
 #include <limits>
 
 using namespace itar;
@@ -22,9 +23,8 @@ int main() {
   CHECK(resolveEntry(f.state, upper, input, {EntryReason::adjacent, Direction::up, 105}).target == b);
   CHECK(resolve(f.state, Direction::up, input).target == b);
   CHECK(resolveEntry(f.state, upper, input).reason == ProposalReason::existing_focus);
-  scope.navigation.preferred = b;
   scope.navigation.entryReady = false;
-  f.update(upper, scope);
+  f.update(upper, scope, OccurrenceKey{"b"});
   CHECK(resolveEntry(f.state, upper, input, {EntryReason::returning}).reason == ProposalReason::entry_not_ready);
   scope.navigation.entryReady = true;
   f.update(upper, scope);
@@ -44,4 +44,42 @@ int main() {
   CHECK(resolveEntry(f.state, upper, input).reason == ProposalReason::no_entry);
   CHECK(f.state.snapshot().inputFocus.kind == FocusKind::absent);
   CHECK(resolveEntry(f.state, lower, input).target == c);
+  NavigationFixture atomic;
+  Mutation rail;
+  rail.key = OccurrenceKey{"rail"};
+  rail.record.scope = true;
+  rail.preferred = OccurrenceKey{"preferred"};
+  Mutation first;
+  first.key = OccurrenceKey{"first"};
+  first.parent = rail.key;
+  first.record = atomic.item(1);
+  Mutation preferred = first;
+  preferred.key = *rail.preferred;
+  preferred.record.order = 2;
+  const auto batch = std::array{preferred, first, rail};
+  CHECK(atomic.state.apply({atomic.state.surface(), {}, batch}).status == BatchStatus::valid);
+  atomic.state.observeFocus({atomic.state.surface(), FocusChannel::input, {FocusKind::absent, {}, {}}});
+  const InputContext absent{atomic.state.surface(), {}, InputOwner::engine, atomic.state.snapshot().inputFocus};
+  const auto handle = atomic.state.snapshot().registry.find(preferred.key);
+  const auto scopeHandle = atomic.state.snapshot().registry.find(rail.key);
+  CHECK(resolveEntry(atomic.state, scopeHandle, absent).target == handle);
+  preferred.kind = MutationKind::replace;
+  preferred.expected = handle;
+  CHECK(atomic.state.apply({atomic.state.surface(), Revision{1}, std::span{&preferred, 1}}).status == BatchStatus::valid);
+  CHECK(resolveEntry(atomic.state, scopeHandle, absent).target != handle);
+  CHECK(resolveEntry(atomic.state, scopeHandle, absent).target == atomic.state.snapshot().registry.find(preferred.key));
+  rail.kind = MutationKind::update;
+  rail.expected = scopeHandle;
+  rail.preferred = OccurrenceKey{};
+  const auto cleared = atomic.state.apply({atomic.state.surface(), Revision{2}, std::span{&rail, 1}});
+  CHECK(cleared.status == BatchStatus::valid && cleared.changed.size() == 1);
+  CHECK(resolveEntry(atomic.state, scopeHandle, absent).target == atomic.state.snapshot().registry.find(first.key));
+  rail.preferred = OccurrenceKey{std::string(513, 'x')};
+  CHECK(atomic.state.apply({atomic.state.surface(), Revision{3}, std::span{&rail, 1}}).status == BatchStatus::invalid);
+  CHECK(atomic.state.snapshot().revision == Revision{3});
+  rail.preferred = OccurrenceKey{"not-yet-known"};
+  CHECK(atomic.state.apply({atomic.state.surface(), Revision{3}, std::span{&rail, 1}}).status == BatchStatus::valid);
+  CHECK(resolveEntry(atomic.state, scopeHandle, absent).reason == ProposalReason::no_entry);
+  CHECK(resolveEntry(atomic.state, scopeHandle, absent, {EntryReason::returning}).target
+        == atomic.state.snapshot().registry.find(first.key));
 }
