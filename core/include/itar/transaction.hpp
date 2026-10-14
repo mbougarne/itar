@@ -49,6 +49,7 @@ struct RequestRecord {
   SurfaceId surface;
   RequestPhase phase;
   FocusState source;  // Retained context; never activation authority.
+  std::optional<OccurrenceKey> originKey;  // Survives loss of the source handle.
   OccurrenceKey targetKey;
   NodeHandle target;
   std::optional<MountGeneration> mount;  // Empty for unrealized targets.

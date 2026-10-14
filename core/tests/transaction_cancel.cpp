@@ -27,12 +27,19 @@ int main() {
   CHECK(f.state.snapshot().inputFocus.node == f.b);
   TransactionFixture removed;
   removed.tx.requestFocus(OccurrenceKey{"20"}, removed.input, removed.options);
+  const auto retained = *removed.tx.active();  // Value context, never a live view.
+  CHECK(retained.originKey == OccurrenceKey{"19"});
   movement = removed.tx.drainEffects()[0];
   removed.tx.issue(movement.token);
   CHECK(removed.tx.observeAvailability({removed.state.surface(), removed.b,
                                         *movement.mount, AvailabilityKind::mount_lost, {}})
         == ObservationStatus::changed);
   CHECK(!removed.tx.active());
+  Mutation erase{MutationKind::erase, OccurrenceKey{"19"}, removed.a, {}, {}};
+  CHECK(removed.tx.apply({removed.state.surface(), removed.state.snapshot().revision,
+                          std::span{&erase, 1}}).status == BatchStatus::valid);
+  CHECK(!removed.state.snapshot().registry.lookup(removed.a));
+  CHECK(retained.originKey == OccurrenceKey{"19"});
   const auto afterRemoval = removed.tx.drainEffects()[0];
   CHECK(removed.tx.issue(afterRemoval.token).status == RequestStatus::issued);
   CHECK(removed.tx.complete({afterRemoval.token, OutcomeKind::cancelled, {}}).status

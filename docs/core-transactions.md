@@ -4,7 +4,9 @@
 
 Strong request, effect and surface-lifetime tokens identify value-only work.
 Reveal, focus and cancellation have individual tokens and outcome kinds;
-unrealized targets have no mount generation. Effect and focus-notification
+unrealized targets have no mount generation. The source occurrence key is owned
+recovery context after handle loss, without granting current-focus authority.
+Effect and focus-notification
 channels are distinct and draining them performs no platform operation.
 The owner thread and host retain views, callbacks, clocks and timers.
 `core.transaction_records` verifies identity separation and independent drains.

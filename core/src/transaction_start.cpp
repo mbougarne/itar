@@ -56,10 +56,13 @@ RequestResult Transactions::start(const Proposal& proposal, RequestOptions optio
   RequestRecord request{RequestId{nextRequest_}, lifetime_, state_.surface(),
                         proposal.kind == ProposalKind::ready ? RequestPhase::focusing
                                                             : RequestPhase::revealing,
-                        proposal.source, *state_.snapshot().registry.key(proposal.target),
+                        proposal.source, {}, *state_.snapshot().registry.key(proposal.target),
                         proposal.target, {}, proposal.authority, proposal.revision,
                         options.dataset, options.deadline, options.resource, options.direction};
   if (record->mounted) { request.mount = record->mount; }
+  if (const auto* origin = state_.snapshot().registry.key(proposal.source.node)) {
+    request.originKey = *origin;
+  }
   targetContext_ = *record;
   realized_ = revealComplete_ = false;
   active_ = std::move(request);
