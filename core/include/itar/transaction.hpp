@@ -83,4 +83,36 @@ std::vector<Value> drainValues(std::vector<Value>& values) {
   return drained;
 }
 
+// Borrowed State must outlive this owner; all calls use one serialized thread.
+class Transactions {
+ public:
+  Transactions(State& state, SurfaceLifetime lifetime)
+      : state_(state), lifetime_(lifetime) {}
+  RequestResult begin(const Proposal& proposal, RequestOptions options);
+  RequestResult requestFocus(const OccurrenceKey& key, const InputContext& input,
+                             RequestOptions options);
+  const std::optional<RequestRecord>& active() const noexcept { return active_; }
+  std::vector<Effect> drainEffects() { return drainValues(effects_); }
+  std::vector<FocusNotification> drainNotifications() {
+    return drainValues(notifications_);
+  }
+
+ private:
+  struct Operation {
+    Effect effect;
+    bool issued{};
+  };
+  RequestResult start(const Proposal& proposal, RequestOptions options);
+  bool authorized() const noexcept;
+  EffectToken emit(EffectKind kind, std::optional<EffectToken> cancels = {});
+  State& state_;
+  SurfaceLifetime lifetime_;
+  std::optional<RequestRecord> active_;
+  NodeRecord targetContext_;
+  std::uint64_t nextRequest_{1}, nextEffect_{1};
+  std::vector<Operation> operations_;
+  std::vector<Effect> effects_;
+  std::vector<FocusNotification> notifications_;
+};
+
 }  // namespace itar
