@@ -2,9 +2,12 @@
 #include <itar/geometry_view.hpp>
 #include <itar/topology.hpp>
 
+#include <new>
+
 namespace itar {
 
 EffectToken Transactions::emit(EffectKind kind, std::optional<EffectToken> cancels) {
+  if (!canEmit()) { resync_ = true; return {}; }
   const auto& request = *active_;
   Effect effect{{lifetime_, request.id, EffectId{nextEffect_++}, kind},
                 request.surface, request.target, request.mount, request.dataset,
@@ -37,11 +40,16 @@ bool Transactions::authorized() const noexcept {
 
 RequestResult Transactions::start(const Proposal& proposal, RequestOptions options) {
   if (!lifetime_ || !state_.surface()) { return {RequestStatus::disposed, {}}; }
+  if (resync_) { return {RequestStatus::resync, {}}; }
   if (active_) { return {RequestStatus::busy, active_->id}; }
   if (!options.deadline || !options.dataset) { return {RequestStatus::invalid, {}}; }
   if (options.deadline <= now_) { return {RequestStatus::expired, {}}; }
+  if (!canEmit() || !nextRequest_ || nextRequest_ > limits_.idCeiling) {
+    return {RequestStatus::exhausted, {}};
+  }
+  try {
   const auto* record = state_.snapshot().registry.lookup(proposal.target);
-  RequestRecord request{RequestId{nextRequest_++}, lifetime_, state_.surface(),
+  RequestRecord request{RequestId{nextRequest_}, lifetime_, state_.surface(),
                         proposal.kind == ProposalKind::ready ? RequestPhase::focusing
                                                             : RequestPhase::revealing,
                         proposal.source, *state_.snapshot().registry.key(proposal.target),
@@ -51,8 +59,10 @@ RequestResult Transactions::start(const Proposal& proposal, RequestOptions optio
   targetContext_ = *record;
   realized_ = revealComplete_ = false;
   active_ = std::move(request);
+  ++nextRequest_;
   emit(active_->phase == RequestPhase::focusing ? EffectKind::focus : EffectKind::reveal);
   return {RequestStatus::started, active_->id};
+  } catch (const std::bad_alloc&) { return {RequestStatus::exhausted, {}}; }
 }
 
 RequestResult Transactions::begin(const Proposal& proposal, RequestOptions options) {

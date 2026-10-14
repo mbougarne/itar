@@ -22,6 +22,8 @@ RequestResult Transactions::issue(EffectToken token) {
   if (!active_ || active_->id != token.request || !authorized()) {
     return {RequestStatus::stale, token.request};
   }
+  if (resync_) { return {RequestStatus::resync, token.request}; }
+  if (resourceBusy(found->effect)) { return {RequestStatus::waiting, token.request}; }
   const auto expected = active_->phase == RequestPhase::focusing ? EffectKind::focus
                                                                : EffectKind::reveal;
   if (token.kind != expected ||
@@ -53,19 +55,20 @@ RequestResult Transactions::realize(Realization realization) {
   active_->mount = realization.mount;
   realized_ = true;
   revealComplete_ = realization.revealComplete;
-  if (revealComplete_) { operations_.erase(found); }
+  if (revealComplete_) { retire(realization.reveal); }
   return refresh();
 }
 
 RequestResult Transactions::refresh() {
   if (!active_) { return {RequestStatus::unchanged, {}}; }
+  if (resync_) { return {RequestStatus::resync, active_->id}; }
   if (!authorized()) { return {RequestStatus::stale, active_->id}; }
   if (active_->phase != RequestPhase::revealing || !realized_ || !revealComplete_ ||
       !usableGeometry(state_.snapshot(), state_.surface(), active_->target)) {
     return {RequestStatus::waiting, active_->id};
   }
+  if (!emit(EffectKind::focus).effect) { return {RequestStatus::resync, active_->id}; }
   active_->phase = RequestPhase::focusing;
-  emit(EffectKind::focus);
   return {RequestStatus::started, active_->id};
 }
 

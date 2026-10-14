@@ -19,7 +19,7 @@ RequestResult Transactions::cancel(RequestId id) {
     if (token.request == id && token.kind != EffectKind::cancel) { emit(EffectKind::cancel, token); }
   }
   active_.reset();
-  return {RequestStatus::cancelled, id};
+  return {resync_ ? RequestStatus::resync : RequestStatus::cancelled, id};
 }
 
 RequestResult Transactions::completeCancellation(EffectOutcome outcome) {
@@ -30,9 +30,9 @@ RequestResult Transactions::completeCancellation(EffectOutcome outcome) {
       (outcome.kind != OutcomeKind::cancelled && outcome.kind != OutcomeKind::already_finished &&
        outcome.kind != OutcomeKind::not_cancellable)) { return {RequestStatus::stale, outcome.token.request}; }
   const auto old = *found->effect.cancels;
-  operations_.erase(found);
+  retire(outcome.token);
   if (outcome.kind != OutcomeKind::not_cancellable) {
-    std::erase_if(operations_, [&](const Operation& op) { return op.effect.token == old; });
+    retire(old);
   }
   if (outcome.focus) { observeHost({lifetime_, *outcome.focus, old}); }
   return {RequestStatus::reconciled, outcome.token.request};

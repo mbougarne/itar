@@ -13,18 +13,24 @@ RequestResult Transactions::observeHost(HostFocus host) {
            host.observation.channel == FocusChannel::input && focus.kind == FocusKind::managed &&
            focus.node == op.effect.target && op.effect.mount == focus.mount;
   });
-  const bool confirms = match != operations_.end() && active_ &&
+  const bool confirms = !resync_ && match != operations_.end() && active_ &&
                         active_->id == match->effect.token.request && authorized();
   const auto id = active_ ? active_->id : RequestId{};
   const auto status = state_.observeFocus(host.observation);
   if (status != ObservationStatus::changed && status != ObservationStatus::unchanged) {
+    if (status == ObservationStatus::resource) { resync_ = true; }
     return {status == ObservationStatus::resource ? RequestStatus::resync : RequestStatus::stale, id};
   }
   if (match != operations_.end()) {
     match->observed = true;
-    if (match->accepted) { operations_.erase(match); }
+    if (match->accepted) { retire(match->effect.token); }
   }
   if (status == ObservationStatus::changed) {
+    if (notifications_.size() == limits_.notifications) {
+      resync_ = true;
+      if (active_) { cancel(active_->id); }
+      return {RequestStatus::resync, id};
+    }
     notifications_.push_back({host.observation, confirms ? std::optional{id} : std::nullopt});
   }
   if (confirms) {
@@ -55,17 +61,17 @@ RequestResult Transactions::complete(EffectOutcome outcome) {
     if (outcome.focus) {
       return observeHost({lifetime_, *outcome.focus, outcome.token});
     }
-    if (found->observed) { operations_.erase(found); }
+    if (found->observed) { retire(outcome.token); }
     return {RequestStatus::waiting, outcome.token.request};
   }
   // Terminal focus outcomes may carry actual focus; reveal still needs realization.
-  if (outcome.kind == OutcomeKind::rejected) { operations_.erase(found); }
+  if (outcome.kind == OutcomeKind::rejected) { retire(outcome.token); }
   RequestResult observed{RequestStatus::unchanged, outcome.token.request};
   if (outcome.focus) {
     observed = observeHost({lifetime_, *outcome.focus,
                            outcome.token});
   }
-  std::erase_if(operations_, [&](const Operation& op) { return op.effect.token == outcome.token; });
+  retire(outcome.token);
   if (observed.status == RequestStatus::confirmed) { return observed; }
   if (active_ && active_->id == outcome.token.request) {
     active_.reset();

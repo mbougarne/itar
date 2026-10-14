@@ -97,6 +97,15 @@ struct HostFocus {
   std::optional<EffectToken> correlation;
 };
 
+struct TransactionLimits {
+  std::size_t operations{32}, effects{32}, notifications{32};
+  std::uint64_t idCeiling{std::numeric_limits<std::uint64_t>::max()};
+};
+
+struct TransactionUsage {
+  std::size_t operations, effects, notifications;
+};
+
 // Value-only channels. Draining never performs a host or application operation.
 template <class Value>
 std::vector<Value> drainValues(std::vector<Value>& values) {
@@ -108,8 +117,7 @@ std::vector<Value> drainValues(std::vector<Value>& values) {
 // Borrowed State must outlive this owner; all calls use one serialized thread.
 class Transactions {
  public:
-  Transactions(State& state, SurfaceLifetime lifetime)
-      : state_(state), lifetime_(lifetime) {}
+  Transactions(State& state, SurfaceLifetime lifetime, TransactionLimits limits = {});
   RequestResult begin(const Proposal& proposal, RequestOptions options);
   RequestResult requestFocus(const OccurrenceKey& key, const InputContext& input,
                              RequestOptions options);
@@ -130,9 +138,19 @@ class Transactions {
   void releaseInput() noexcept { held_.reset(); }
   std::optional<Direction> heldDirection() const noexcept { return held_; }
   const std::optional<RequestRecord>& active() const noexcept { return active_; }
-  std::vector<Effect> drainEffects() { return drainValues(effects_); }
+  bool resyncRequired() const noexcept { return resync_; }
+  TransactionUsage usage() const noexcept {
+    return {operations_.size(), effects_.size(), notifications_.size()};
+  }
+  std::vector<Effect> drainEffects() {
+    auto output = effects_;
+    effects_.clear();
+    return output;
+  }
   std::vector<FocusNotification> drainNotifications() {
-    return drainValues(notifications_);
+    auto output = notifications_;
+    notifications_.clear();
+    return output;
   }
 
  private:
@@ -147,8 +165,13 @@ class Transactions {
   bool authorized() const noexcept;
   EffectToken emit(EffectKind kind, std::optional<EffectToken> cancels = {});
   RequestResult completeCancellation(EffectOutcome outcome);
+  bool canEmit() const noexcept;
+  bool resourceBusy(const Effect& effect) const noexcept;
+  void retire(EffectToken token);
   State& state_;
   SurfaceLifetime lifetime_;
+  TransactionLimits limits_;
+  bool resync_{};
   std::optional<RequestRecord> active_;
   NodeRecord targetContext_;
   bool realized_{}, revealComplete_{};

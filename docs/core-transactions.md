@@ -67,3 +67,21 @@ observed focus, with no speculative cursor or future movement count. Loading
 completion never starts queued steps. `core.transaction_input` repeats 1,000
 presses in each phase, reverses at the real source, supersedes with an explicit
 key, releases held input and resolves the next move from confirmed focus.
+
+## Bounds and resources (ITAR-0043)
+
+Configured operation/effect/notification capacities bound retained value records.
+Entry exhaustion rejects work before allocating identity; cleanup/notification
+saturation returns or exposes `resyncRequired`, stops new movement dispatch and
+preserves issued-operation/current-focus evidence. The host must resynchronize
+and recreate the owner with a fresh lifetime, releasing old operations through
+its teardown contract. Construction and caller-owned output copies can allocate;
+failed output copies leave the internal queue intact. No retired-request list is
+kept. IDs exhaust without reuse, including test-configured ceilings.
+
+`issue` waits while an issued movement occupies the same declared resource.
+Not-cancellable retains that lock; newer intent can expire. Terminal completion,
+matching completed realization or cancellation releases the operation and stale
+cleanup tokens. `core.transaction_bounds` covers resource contention, expiry,
+all three capacity limits, ID exhaustion, 1,000 replacements and disposal.
+The cohesive limits/resource slice exceeds 250 lines but stays below 500.

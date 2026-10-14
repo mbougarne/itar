@@ -15,6 +15,7 @@ RequestResult Transactions::directionalInput(Direction direction, const InputCon
     return {RequestStatus::unavailable, {}};
   }
   synchronize();
+  if (resync_) { return {RequestStatus::resync, {}}; }
   held_ = direction;
   if (active_ && active_->direction == direction) {
     return {RequestStatus::joined, active_->id};
