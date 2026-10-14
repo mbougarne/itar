@@ -8,8 +8,18 @@ namespace itar {
 RequestResult Transactions::issue(EffectToken token) {
   const auto found = std::find_if(operations_.begin(), operations_.end(),
                                  [&](const Operation& op) { return op.effect.token == token; });
-  if (found == operations_.end() || found->issued || token.lifetime != lifetime_ ||
-      !active_ || active_->id != token.request || !authorized()) {
+  if (found == operations_.end() || found->issued || token.lifetime != lifetime_) {
+    return {RequestStatus::stale, token.request};
+  }
+  if (token.kind == EffectKind::cancel) {
+    const auto old = found->effect.cancels;
+    const bool valid = old && std::any_of(operations_.begin(), operations_.end(),
+                        [&](const Operation& op) { return op.issued && op.effect.token == *old; });
+    if (!valid) { return {RequestStatus::stale, token.request}; }
+    found->issued = true;
+    return {RequestStatus::issued, token.request};
+  }
+  if (!active_ || active_->id != token.request || !authorized()) {
     return {RequestStatus::stale, token.request};
   }
   const auto expected = active_->phase == RequestPhase::focusing ? EffectKind::focus

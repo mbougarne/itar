@@ -33,13 +33,14 @@ RequestResult Transactions::observeHost(HostFocus host) {
   }
   if (active_ && host.observation.channel == FocusChannel::input &&
       state_.snapshot().inputFocus != active_->source) {
-    active_.reset();
+    cancel(id);
     return {RequestStatus::reconciled, id};
   }
   return {RequestStatus::unchanged, id};
 }
 
 RequestResult Transactions::complete(EffectOutcome outcome) {
+  if (outcome.token.kind == EffectKind::cancel) { return completeCancellation(outcome); }
   auto found = std::find_if(operations_.begin(), operations_.end(), [&](const Operation& op) {
     return op.issued && op.effect.token == outcome.token;
   });

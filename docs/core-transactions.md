@@ -36,3 +36,15 @@ request once; repeated callback/outcome evidence produces one focus notification
 callback/return orders, rejected outcomes, unissued/wrong-kind/duplicate tokens
 and accepted-without-focus. The adapter must verify delayed observations against
 current host state before submitting them; this core harness does not run a host.
+
+## Cancellation and invalidation (ITAR-0040)
+
+Cancellation is request-specific and idempotent. Undispatched work is discarded;
+issued work receives an exact-operation cancellation token, still valid after
+replacement or mount loss. Cancelled/already-finished releases that operation;
+not-cancellable retains it for later completion. A late actual focus change is
+observed without completing revoked intent. `apply` and `observeAvailability`
+revalidate related logical changes; borrowed-State users call `synchronize` after
+mutations. Disposal revokes the lifetime and clears value bookkeeping; the host
+teardown contract releases native operations. `core.transaction_cancel` verifies
+replacement safety, late focus, removal cleanup, queued cancellation and reorder.

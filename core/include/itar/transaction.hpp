@@ -118,6 +118,11 @@ class Transactions {
   RequestResult refresh();  // After committing matching host geometry.
   RequestResult complete(EffectOutcome outcome);
   RequestResult observeHost(HostFocus observation);
+  RequestResult cancel(RequestId request);
+  RequestResult synchronize();  // Revalidate after borrowed State mutation.
+  ApplyResult apply(Batch batch);
+  ObservationStatus observeAvailability(AvailabilityObservation observation);
+  void dispose() noexcept;  // Host teardown releases its operations separately.
   const std::optional<RequestRecord>& active() const noexcept { return active_; }
   std::vector<Effect> drainEffects() { return drainValues(effects_); }
   std::vector<FocusNotification> drainNotifications() {
@@ -133,6 +138,7 @@ class Transactions {
   RequestResult start(const Proposal& proposal, RequestOptions options);
   bool authorized() const noexcept;
   EffectToken emit(EffectKind kind, std::optional<EffectToken> cancels = {});
+  RequestResult completeCancellation(EffectOutcome outcome);
   State& state_;
   SurfaceLifetime lifetime_;
   std::optional<RequestRecord> active_;
