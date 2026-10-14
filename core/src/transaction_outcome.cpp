@@ -31,7 +31,10 @@ RequestResult Transactions::observeHost(HostFocus host) {
       if (active_) { cancel(active_->id); }
       return {RequestStatus::resync, id};
     }
-    notifications_.push_back({host.observation, confirms ? std::optional{id} : std::nullopt});
+    auto canonical = host.observation;
+    canonical.focus = canonical.channel == FocusChannel::input
+                          ? state_.snapshot().inputFocus : state_.snapshot().accessibilityFocus;
+    notifications_.push_back({canonical, confirms ? std::optional{id} : std::nullopt});
   }
   if (confirms) {
     active_.reset();

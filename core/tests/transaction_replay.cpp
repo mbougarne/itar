@@ -115,7 +115,6 @@ std::optional<Replay> replay(const Fixture& fixture) {
   return result;
 }
 
-const NodeHandle row{NodeId{1}, Generation{1}};
 const NodeHandle a{NodeId{2}, Generation{1}};
 const NodeHandle b{NodeId{3}, Generation{1}};
 

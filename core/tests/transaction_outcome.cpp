@@ -77,4 +77,33 @@ int main() {
                                                 *rejectedEffect.mount}}}).status
         != RequestStatus::confirmed);
   CHECK(!rejected.tx.drainNotifications()[0].confirmedRequest);
+  TransactionFixture disposed;
+  disposed.tx.requestFocus(OccurrenceKey{"20"}, disposed.input, disposed.options);
+  const auto disposable = disposed.tx.drainEffects()[0];
+  disposed.tx.issue(disposable.token);
+  FakeHost host;
+  host.focus(disposable, {disposed.state.surface(), FocusChannel::input,
+                          {FocusKind::managed, disposed.b, *disposable.mount}}, true);
+  disposed.tx.dispose();  // Lifetime revoked before draining synchronous callbacks.
+  host.drain(disposed.tx);
+  CHECK(disposed.state.snapshot().inputFocus == disposed.input.source);
+  CHECK(disposed.tx.drainNotifications().empty() && disposed.tx.drainEffects().empty());
+  TransactionFixture accessibility;
+  accessibility.tx.requestFocus(OccurrenceKey{"20"}, accessibility.input, accessibility.options);
+  const auto accessible = accessibility.tx.drainEffects()[0];
+  accessibility.tx.issue(accessible.token);
+  accessibility.tx.observeHost({accessible.token.lifetime,
+    {accessibility.state.surface(), FocusChannel::accessibility,
+     {FocusKind::managed, accessibility.b, *accessible.mount}}, accessible.token});
+  CHECK(accessibility.tx.active() && accessibility.state.snapshot().inputFocus == accessibility.input.source);
+  CHECK(*accessibility.state.history(accessibility.row) == OccurrenceKey{"19"});
+  CHECK(!accessibility.tx.drainNotifications()[0].confirmedRequest);
+  accessibility.state.observeAvailability({accessibility.state.surface(), accessibility.b,
+                                           *accessible.mount, AvailabilityKind::geometry_dirty,
+                                           LayoutRevision{1}});
+  CHECK(accessibility.tx.observeHost({accessible.token.lifetime,
+    {accessibility.state.surface(), FocusChannel::input,
+     {FocusKind::managed, accessibility.b, *accessible.mount}}, accessible.token}).status
+    == RequestStatus::reconciled);
+  CHECK(!accessibility.tx.drainNotifications()[0].confirmedRequest);
 }

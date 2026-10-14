@@ -44,8 +44,8 @@ issued work receives an exact-operation cancellation token, still valid after
 replacement or mount loss. Cancelled/already-finished releases that operation;
 not-cancellable retains it for later completion. A late actual focus change is
 observed without completing revoked intent. `apply` and `observeAvailability`
-revalidate related logical changes; borrowed-State users call `synchronize` after
-mutations. Disposal revokes the lifetime and clears value bookkeeping; the host
+revalidate related logical changes. Use `apply` for declarative changes while
+active; call `synchronize` after directly committed host geometry. Disposal revokes the lifetime and clears value bookkeeping; the host
 teardown contract releases native operations. `core.transaction_cancel` verifies
 replacement safety, late focus, removal cleanup, queued cancellation and reorder.
 
@@ -101,3 +101,35 @@ late real focus without success. The rejected-batch fixture records geometry
 invalidation and mount loss separately; rejecting revival of the detached mount
 preserves both facts and the host's unmanaged focus. No core replay reproduces
 renderer scheduling, native focus APIs, animations, styles or reader speech.
+
+## Verification (2026-10-14)
+
+CMake 3.31.6 / Apple Clang 21.0.0; Node 22.14.0 / npm 10.9.2 on the connected Mac.
+Core sources remain independent of the disposable probes and React Native.
+
+| Check | Actual result |
+| --- | --- |
+| Release CMake build + CTest | 28/28 pass; `build/final-release-tests.log` |
+| `-Wall -Wextra -Wpedantic -Werror`, ASan/UBSan | 28/28 pass, no findings; `build/sanitizer-tests.log` |
+| `BUILD_TESTING=OFF` | Library build passes |
+| Android arm64 core, NDK 27.1.12297006 / API 24 | Compiles |
+| tvOS simulator arm64 core, SDK 27.0 | Compiles |
+| RN build/typecheck/lint/tests/Android bundle | Pass, 2/2 workspace tests |
+| Manual `npm audit --audit-level=high` | Fails: unchanged baseline 27 high / 5 moderate |
+| Frozen architecture SHA256 | `d3c8147c5e18e24a0ea6c840a247f57a3b7bb7699dbcf262ff20862dcca39915`, unchanged |
+
+Reproduce core configurations with [core/README](../core/README.md), adding the
+strict flags above to the sanitizer configuration. Construction may allocate;
+methods and output drains belong to one serialized owner thread. Use `apply`
+for declarative changes while a request is active; direct host geometry changes
+must be followed by `synchronize`. Resource identifiers and fresh, unique surface
+lifetimes are supplied by the adapter. No validated host replacement mechanism
+is assumed: shared resources wait for completion/cancellation evidence.
+
+Final regressions cover disposal before a fake synchronous callback inbox drains,
+accessibility observations preserving input/history, and stale geometry at focus
+confirmation. Physical TV/reader behavior, native focus dispatch and styles,
+source retention, renderer scheduling, performance and speech are unrun. These
+are later native adapter/device gates. No CI workflow, dependency or lock changed;
+the JavaScript audit remains manual and the known advisory roots remain in the
+[shell record](rn-probe-shell.md).

@@ -35,6 +35,10 @@ bool Transactions::authorized() const noexcept {
   if (request.mount && (!target->mounted || target->mount != *request.mount)) {
     return false;
   }
+  if (request.phase == RequestPhase::focusing &&
+      !usableGeometry(state_.snapshot(), state_.surface(), request.target)) {
+    return false;
+  }
   return state_.snapshot().inputFocus == request.source;
 }
 
