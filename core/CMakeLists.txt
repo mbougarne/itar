@@ -3,7 +3,7 @@ project(itar_core LANGUAGES CXX)
 
 add_library(itar_core STATIC
   src/build.cpp src/registry.cpp src/topology.cpp src/batch.cpp src/state.cpp
-  src/host.cpp src/geometry.cpp src/focus.cpp src/transaction_start.cpp src/transaction_reveal.cpp src/navigation.cpp
+  src/host.cpp src/geometry.cpp src/focus.cpp src/transaction_start.cpp src/transaction_reveal.cpp src/transaction_outcome.cpp src/navigation.cpp
   src/navigation_boundary.cpp src/navigation_order.cpp src/navigation_geometry.cpp
   src/navigation_entry.cpp src/navigation_recovery.cpp)
 add_library(itar::core ALIAS itar_core)
@@ -26,6 +26,7 @@ if(BUILD_TESTING)
     set_target_properties(itar_${name}_tests PROPERTIES CXX_EXTENSIONS OFF)
     add_test(NAME core.${name} COMMAND itar_${name}_tests)
   endfunction()
+  itar_core_test(transaction_outcome)
   itar_core_test(transaction_reveal)
   itar_core_test(transaction_start)
   itar_core_test(transaction_records)

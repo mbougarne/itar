@@ -25,3 +25,14 @@ request/item/dataset and live mount must be reported by `realize`; estimated,
 missing, dirty or clipped geometry cannot advance it. Completion of reveal is
 separate from mount arrival. Fresh committed geometry then allows exactly one
 focus effect. `core.transaction_reveal` covers 19→20, mismatches and clipped views.
+
+## Confirmation (ITAR-0039)
+
+Only issued, matching tokens accept operation outcomes; acceptance without actual
+focus evidence stays pending. Current host observations update input/history or
+the separate accessibility channel. Correlated target callbacks complete their
+request once; repeated callback/outcome evidence produces one focus notification.
+`core.transaction_outcome` uses an ordered, guarded fake-host inbox for both
+callback/return orders, rejected outcomes, unissued/wrong-kind/duplicate tokens
+and accepted-without-focus. The adapter must verify delayed observations against
+current host state before submitting them; this core harness does not run a host.

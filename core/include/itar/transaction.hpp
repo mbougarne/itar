@@ -85,6 +85,18 @@ struct Realization {
   bool revealComplete{};
 };
 
+struct EffectOutcome {
+  EffectToken token;
+  OutcomeKind kind;
+  std::optional<FocusObservation> focus;  // Current, verified host evidence only.
+};
+
+struct HostFocus {
+  SurfaceLifetime lifetime;
+  FocusObservation observation;
+  std::optional<EffectToken> correlation;
+};
+
 // Value-only channels. Draining never performs a host or application operation.
 template <class Value>
 std::vector<Value> drainValues(std::vector<Value>& values) {
@@ -104,6 +116,8 @@ class Transactions {
   RequestResult issue(EffectToken token);  // Call immediately before host invocation.
   RequestResult realize(Realization realization);
   RequestResult refresh();  // After committing matching host geometry.
+  RequestResult complete(EffectOutcome outcome);
+  RequestResult observeHost(HostFocus observation);
   const std::optional<RequestRecord>& active() const noexcept { return active_; }
   std::vector<Effect> drainEffects() { return drainValues(effects_); }
   std::vector<FocusNotification> drainNotifications() {
@@ -114,6 +128,7 @@ class Transactions {
   struct Operation {
     Effect effect;
     bool issued{};
+    bool accepted{}, observed{};
   };
   RequestResult start(const Proposal& proposal, RequestOptions options);
   bool authorized() const noexcept;
