@@ -80,11 +80,11 @@ RequestResult Transactions::begin(const Proposal& proposal, RequestOptions optio
   if (input.source.kind == FocusKind::unknown || input.source.kind == FocusKind::unmanaged) {
     return {RequestStatus::unavailable, {}};
   }
-  return requestFocus(*state_.snapshot().registry.key(proposal.target), input, options);
+  return startKey(*state_.snapshot().registry.key(proposal.target), input, options);
 }
 
-RequestResult Transactions::requestFocus(const OccurrenceKey& key, const InputContext& input,
-                                         RequestOptions options) {
+RequestResult Transactions::startKey(const OccurrenceKey& key, const InputContext& input,
+                                     RequestOptions options) {
   if (input.surface != state_.surface() || input.source != state_.snapshot().inputFocus) {
     return {RequestStatus::stale, {}};
   }

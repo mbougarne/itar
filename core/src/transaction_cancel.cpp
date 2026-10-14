@@ -94,6 +94,7 @@ void Transactions::dispose() noexcept {
   operations_.clear();
   effects_.clear();
   notifications_.clear();
+  held_.reset();
 }
 
 }  // namespace itar

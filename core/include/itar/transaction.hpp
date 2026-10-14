@@ -125,6 +125,10 @@ class Transactions {
   void dispose() noexcept;  // Host teardown releases its operations separately.
   RequestResult advanceTo(TimePoint now);
   std::optional<TimePoint> nextDeadline() const noexcept;
+  RequestResult directionalInput(Direction direction, const InputContext& input,
+                                  RequestOptions options);
+  void releaseInput() noexcept { held_.reset(); }
+  std::optional<Direction> heldDirection() const noexcept { return held_; }
   const std::optional<RequestRecord>& active() const noexcept { return active_; }
   std::vector<Effect> drainEffects() { return drainValues(effects_); }
   std::vector<FocusNotification> drainNotifications() {
@@ -138,6 +142,8 @@ class Transactions {
     bool accepted{}, observed{};
   };
   RequestResult start(const Proposal& proposal, RequestOptions options);
+  RequestResult startKey(const OccurrenceKey& key, const InputContext& input,
+                         RequestOptions options);
   bool authorized() const noexcept;
   EffectToken emit(EffectKind kind, std::optional<EffectToken> cancels = {});
   RequestResult completeCancellation(EffectOutcome outcome);
@@ -147,6 +153,7 @@ class Transactions {
   NodeRecord targetContext_;
   bool realized_{}, revealComplete_{};
   TimePoint now_{};
+  std::optional<Direction> held_;
   std::uint64_t nextRequest_{1}, nextEffect_{1};
   std::vector<Operation> operations_;
   std::vector<Effect> effects_;

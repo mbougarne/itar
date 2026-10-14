@@ -57,3 +57,13 @@ state change. Expiry occurs at `now >= original deadline` through cancellation;
 in caller order: a confirmation submitted before the expiry event can complete,
 while expiry submitted first revokes intent. No engine clock/thread or sleep is
 used. `core.transaction_time` tests both phases and completion at the boundary.
+
+## Pending input (ITAR-0042)
+
+Same-direction input joins the current authorized request and keeps its destination
+and original deadline. Release clears held input without cancelling movement.
+Direction changes and explicit keys revoke prior intent; directions resolve from
+observed focus, with no speculative cursor or future movement count. Loading
+completion never starts queued steps. `core.transaction_input` repeats 1,000
+presses in each phase, reverses at the real source, supersedes with an explicit
+key, releases held input and resolves the next move from confirmed focus.
