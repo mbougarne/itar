@@ -7,6 +7,8 @@ int main() {
   using namespace itar;
   static_assert(!std::is_convertible_v<RequestId, EffectId>);
   static_assert(!std::is_convertible_v<SurfaceId, SurfaceLifetime>);
+  static_assert(!std::is_copy_constructible_v<Transactions>);
+  static_assert(!std::is_move_constructible_v<Transactions>);
   RequestRecord request{};
   request.targetKey = OccurrenceKey{"rail:20"};
   CHECK(!request.mount);

@@ -119,6 +119,8 @@ std::vector<Value> drainValues(std::vector<Value>& values) {
 class Transactions {
  public:
   Transactions(State& state, SurfaceLifetime lifetime, TransactionLimits limits = {});
+  Transactions(const Transactions&) = delete;
+  Transactions& operator=(const Transactions&) = delete;
   RequestResult begin(const Proposal& proposal, RequestOptions options);
   RequestResult requestFocus(const OccurrenceKey& key, const InputContext& input,
                              RequestOptions options);
