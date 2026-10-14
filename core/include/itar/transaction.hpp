@@ -123,6 +123,8 @@ class Transactions {
   ApplyResult apply(Batch batch);
   ObservationStatus observeAvailability(AvailabilityObservation observation);
   void dispose() noexcept;  // Host teardown releases its operations separately.
+  RequestResult advanceTo(TimePoint now);
+  std::optional<TimePoint> nextDeadline() const noexcept;
   const std::optional<RequestRecord>& active() const noexcept { return active_; }
   std::vector<Effect> drainEffects() { return drainValues(effects_); }
   std::vector<FocusNotification> drainNotifications() {
@@ -144,6 +146,7 @@ class Transactions {
   std::optional<RequestRecord> active_;
   NodeRecord targetContext_;
   bool realized_{}, revealComplete_{};
+  TimePoint now_{};
   std::uint64_t nextRequest_{1}, nextEffect_{1};
   std::vector<Operation> operations_;
   std::vector<Effect> effects_;

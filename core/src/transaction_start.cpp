@@ -39,6 +39,7 @@ RequestResult Transactions::start(const Proposal& proposal, RequestOptions optio
   if (!lifetime_ || !state_.surface()) { return {RequestStatus::disposed, {}}; }
   if (active_) { return {RequestStatus::busy, active_->id}; }
   if (!options.deadline || !options.dataset) { return {RequestStatus::invalid, {}}; }
+  if (options.deadline <= now_) { return {RequestStatus::expired, {}}; }
   const auto* record = state_.snapshot().registry.lookup(proposal.target);
   RequestRecord request{RequestId{nextRequest_++}, lifetime_, state_.surface(),
                         proposal.kind == ProposalKind::ready ? RequestPhase::focusing

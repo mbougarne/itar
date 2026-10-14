@@ -48,3 +48,12 @@ revalidate related logical changes; borrowed-State users call `synchronize` afte
 mutations. Disposal revokes the lifetime and clears value bookkeeping; the host
 teardown contract releases native operations. `core.transaction_cancel` verifies
 replacement safety, late focus, removal cleanup, queued cancellation and reorder.
+
+## Host time (ITAR-0041)
+
+`advanceTo` consumes monotonic host units and rejects backward time without a
+state change. Expiry occurs at `now >= original deadline` through cancellation;
+`nextDeadline` returns the active wakeup or none. Equal timestamps are processed
+in caller order: a confirmation submitted before the expiry event can complete,
+while expiry submitted first revokes intent. No engine clock/thread or sleep is
+used. `core.transaction_time` tests both phases and completion at the boundary.
