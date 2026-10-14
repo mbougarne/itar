@@ -16,5 +16,12 @@ The owner thread and host retain views, callbacks, clocks and timers.
 from unknown/absent host focus. Scope activity is never changed implicitly.
 Starting queues a movement effect without changing focus/history or notifying.
 `core.transaction_start` covers stale proposals, mounted/unmounted keys, missing
-keys and inactive scopes. This cohesive API/fixture slice exceeds 250 lines but
-stays below 500 including local ticket evidence.
+keys and inactive scopes. The entry API and shared fixtures remain below the per-ticket ceiling.
+
+## Realization (ITAR-0038)
+
+Dispatch calls `issue` immediately before invoking the host. A reveal's matching
+request/item/dataset and live mount must be reported by `realize`; estimated,
+missing, dirty or clipped geometry cannot advance it. Completion of reveal is
+separate from mount arrival. Fresh committed geometry then allows exactly one
+focus effect. `core.transaction_reveal` covers 19→20, mismatches and clipped views.

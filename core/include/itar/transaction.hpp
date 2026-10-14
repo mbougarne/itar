@@ -18,7 +18,8 @@ enum class OutcomeKind {
 };
 enum class RequestStatus {
   started, joined, busy, unavailable, stale, invalid, cancelled, unchanged,
-  confirmed, reconciled, expired, backward_time, exhausted, resync, disposed
+  confirmed, reconciled, expired, backward_time, exhausted, resync, disposed,
+  issued, waiting
 };
 
 struct RequestResult {
@@ -75,6 +76,15 @@ struct FocusNotification {
   std::optional<RequestId> confirmedRequest;
 };
 
+struct Realization {
+  EffectToken reveal;
+  SurfaceId surface;
+  NodeHandle target;
+  MountGeneration mount;
+  DatasetRevision dataset;
+  bool revealComplete{};
+};
+
 // Value-only channels. Draining never performs a host or application operation.
 template <class Value>
 std::vector<Value> drainValues(std::vector<Value>& values) {
@@ -91,6 +101,9 @@ class Transactions {
   RequestResult begin(const Proposal& proposal, RequestOptions options);
   RequestResult requestFocus(const OccurrenceKey& key, const InputContext& input,
                              RequestOptions options);
+  RequestResult issue(EffectToken token);  // Call immediately before host invocation.
+  RequestResult realize(Realization realization);
+  RequestResult refresh();  // After committing matching host geometry.
   const std::optional<RequestRecord>& active() const noexcept { return active_; }
   std::vector<Effect> drainEffects() { return drainValues(effects_); }
   std::vector<FocusNotification> drainNotifications() {
@@ -109,6 +122,7 @@ class Transactions {
   SurfaceLifetime lifetime_;
   std::optional<RequestRecord> active_;
   NodeRecord targetContext_;
+  bool realized_{}, revealComplete_{};
   std::uint64_t nextRequest_{1}, nextEffect_{1};
   std::vector<Operation> operations_;
   std::vector<Effect> effects_;

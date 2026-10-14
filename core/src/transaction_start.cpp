@@ -48,6 +48,7 @@ RequestResult Transactions::start(const Proposal& proposal, RequestOptions optio
                         options.dataset, options.deadline, options.resource, options.direction};
   if (record->mounted) { request.mount = record->mount; }
   targetContext_ = *record;
+  realized_ = revealComplete_ = false;
   active_ = std::move(request);
   emit(active_->phase == RequestPhase::focusing ? EffectKind::focus : EffectKind::reveal);
   return {RequestStatus::started, active_->id};
