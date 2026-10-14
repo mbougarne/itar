@@ -6,7 +6,9 @@ and the C++20 usage requirement. It has no React, JNI, UIKit, JavaScript, or
 downloaded dependency. The [registry spike](../docs/core-registry-spike.md)
 implements bounded identity, topology, committed geometry and observed focus
 state. The [navigation policy](../docs/core-navigation.md) adds pure destination,
-scope-entry and deletion-recovery proposals; requests and production adapters follow.
+scope-entry and deletion-recovery proposals. [Portable transactions](../docs/core-transactions.md)
+add validated requests, effects, cancellation, host time and replay; production
+adapters follow.
 
 From the repository root:
 
