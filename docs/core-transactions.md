@@ -84,4 +84,20 @@ Not-cancellable retains that lock; newer intent can expire. Terminal completion,
 matching completed realization or cancellation releases the operation and stale
 cleanup tokens. `core.transaction_bounds` covers resource contention, expiry,
 all three capacity limits, ID exhaustion, 1,000 replacements and disposal.
-The cohesive limits/resource slice exceeds 250 lines but stays below 500.
+The cohesive limits/resource slice stays below the per-ticket ceiling.
+
+## Internal replay (ITAR-0044)
+
+`core.transaction_replay` defines test-local fixture version 1 with configuration,
+initial state and ordered protocol-value events: batches, directional input,
+release, key/cancel commands, issue/outcome/realization, host focus, availability
+and host time. Effect indices refer to earlier emitted tokens. Unsupported fixture
+versions fail explicitly. Each replay checks declared decisions and compares all
+decisions, IDs/effect order, notifications and final state across two executions.
+
+The loading/cancellation fixture realizes item 20, cancels its issued focus,
+blocks a replacement on that resource, then adopts the cancelled operation's
+late real focus without success. The rejected-batch fixture records geometry
+invalidation and mount loss separately; rejecting revival of the detached mount
+preserves both facts and the host's unmanaged focus. No core replay reproduces
+renderer scheduling, native focus APIs, animations, styles or reader speech.
