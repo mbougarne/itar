@@ -86,3 +86,16 @@ There is no animation/scale/shadow path, hence no motion scheduled to compete
 with reduced-motion settings or platform effects. Debug style assertions are
 included in CallbackTest's style scenario. Their execution and visible feedback
 under busy JavaScript remain operator-run and **unrun** for this head.
+
+## Owned dialogs (ITAR-0050)
+
+Each owned Dialog hosts its own core surface; nesting is bounded to two windows.
+Presentation captures core recovery context and a value-only lifetime/key token,
+cancels pending opener authority and hides covered descendants from input and the
+accessibility tree. Failed presentation releases its new surface and uncovers the
+opener. Dismissal waits for the real opener window, adopts any native restoration,
+and requests a valid key or the existing core deletion-recovery policy only when
+native focus is confirmed absent. Disposed or replaced opener lifetimes reject
+restoration. This coordinator supplies explicit owned native dialogs, not an RN
+Modal/router integration claim. Dialog fixtures are authored but **unrun**; reader
+hiding, failed native presentation, nesting and restoration remain operator gates.

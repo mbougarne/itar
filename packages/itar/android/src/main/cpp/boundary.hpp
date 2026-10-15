@@ -20,6 +20,7 @@ struct Session {
   std::vector<Effect> effects;
   std::vector<FocusNotification> notifications;
   std::size_t effectIndex{}, notificationIndex{};
+  std::optional<RecoveryOrigin> recovery;
 };
 
 // One UI-thread owner, bounded surfaces, no host/JNI objects or pointer tokens.
