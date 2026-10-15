@@ -46,3 +46,15 @@ remeasurement. No third-party registration or collection realization is supplied
 Strict `android.registration` passes duplicate-key, distinct-occurrence, detach,
 reuse, invalid geometry and stale-layout cases. Codegen and Kotlin compilation
 pass. The narrow schema prerequisite does not complete the Phase 09 public API.
+
+## Queries and input (ITAR-0047)
+
+`focusSearch` reads committed core state and validates the returned mount mapping;
+it never drains the dispatcher, measures geometry or starts a request. The owned
+D-pad path consumes matching releases and forwards directions/repeats to the
+existing core coalescing policy. Other controls and accessibility-enabled input
+fall through. There is no Kotlin movement queue. Deferred collection reveal is
+outside this mounted-only increment. The new `android.input` fixture checks pure
+queries and 1,000 joined repeats; its local run was stopped after configuration
+when the user paused heavy testing. Final native acceptance is operator-run via
+[the manual checklist](android-adapter-manual-testing.md).

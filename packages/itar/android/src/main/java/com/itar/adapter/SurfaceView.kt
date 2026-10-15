@@ -3,6 +3,7 @@ package com.itar.adapter
 import android.content.Context
 import android.graphics.Rect
 import android.view.View
+import android.view.KeyEvent
 import android.view.ViewTreeObserver
 import com.facebook.react.views.view.ReactViewGroup
 import java.lang.ref.WeakReference
@@ -12,11 +13,19 @@ class SurfaceView(context: Context) : ReactViewGroup(context) {
     private var serial = 0L
     private var epoch = 1L
     internal val targets = LinkedHashMap<Mount, WeakReference<TargetView>>()
+    private val input = Input(this)
     private var refreshPosted = false
     var closed = false
         private set
     private val focusObserver = ViewTreeObserver.OnGlobalFocusChangeListener { _, target -> observe(target) }
     private val scrollObserver = ViewTreeObserver.OnScrollChangedListener { geometryChanged() }
+    internal fun live(mount: Mount?): TargetView? = targets[mount]?.get()?.takeIf {
+        it.mount == mount && it.isAttachedToWindow && it.isShown && it.isEnabled && it.isFocusable &&
+            it.matrix.isIdentity && (it.clipBounds == null || it.clipBounds == Rect(0, 0, it.width, it.height))
+    }
+    override fun focusSearch(focused: View?, direction: Int): View? =
+        input.query(focused, direction) ?: super.focusSearch(focused, direction)
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean = input.dispatch(event) || super.dispatchKeyEvent(event)
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         if (closed) { connection = Connection(); closed = false }

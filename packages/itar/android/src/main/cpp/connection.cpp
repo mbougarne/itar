@@ -1,4 +1,4 @@
-#include "registration.hpp"
+#include "input.hpp"
 #include <jni.h>
 #include <algorithm>
 
@@ -44,6 +44,7 @@ Java_com_itar_adapter_Connection_exchangeNative(JNIEnv* env, jobject, jlong toke
         ~Text() { if (chars) env->ReleaseStringUTFChars(key, chars); }
       } text{env, key, key ? env->GetStringUTFChars(key, nullptr) : nullptr};
       if (key && !text.chars) return resource;
+      if (operation >= 6 && operation <= 8) return itar::android::input(session, operation, std::span{copied}.first(size), response);
       return registration(session, operation, std::span{copied}.first(size),
                           text.chars ? text.chars : "", response);
     });
