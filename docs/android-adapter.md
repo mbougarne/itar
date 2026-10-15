@@ -31,3 +31,18 @@ SDK 36, NDK 27.1.12297006; `assembleDebug assembleAndroidTest` passes.
 Android TV API 36 arm64 emulator, reader off: both explicit BoundaryTest cases
 pass (2/2); the legacy runner enumerates private Kotlin synthetic methods when
 given a whole class. New tests use named scenario helpers to avoid that issue.
+
+## Mounted registration (ITAR-0046)
+
+Owned `ItarTarget` carriers use generated RN TV 0.83 declarations. Occurrence
+keys are opaque and surface-wide; content IDs never stand in for occurrence keys.
+Labels and enabled props commit before eligibility. Detach revokes the weak host
+mapping before reporting mount loss independently of a configuration batch.
+Root/window loss preserves unknown focus; surviving foreign controls are unmanaged.
+The initial geometry subset uses untransformed, fully visible rectangles; clipped
+or unmeasured views remain ineligible. Layout/scroll invalidation precedes posted
+remeasurement. No third-party registration or collection realization is supplied.
+
+Strict `android.registration` passes duplicate-key, distinct-occurrence, detach,
+reuse, invalid geometry and stale-layout cases. Codegen and Kotlin compilation
+pass. The narrow schema prerequisite does not complete the Phase 09 public API.

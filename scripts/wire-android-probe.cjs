@@ -19,7 +19,7 @@ android {
     useLibrary 'android.test.base'
     defaultConfig { testInstrumentationRunner 'android.test.InstrumentationTestRunner' }
     sourceSets.androidTest.java.srcDirs += file('../../../../probes/android/tests')
-    sourceSets.androidTest.java.srcDirs += file('../../../../packages/itar/android/tests')
+    sourceSets.androidTest.java.srcDirs += file('../../../../packages/itar/android/tests/com')
 }
 `);
   const application = path.join(android, 'app/src/main/java/com/itarprobe/MainApplication.kt');
