@@ -6,6 +6,7 @@ import android.view.View
 import android.view.KeyEvent
 import android.view.ViewTreeObserver
 import android.os.SystemClock
+import android.view.accessibility.AccessibilityEvent
 import com.facebook.react.views.view.ReactViewGroup
 import java.lang.ref.WeakReference
 
@@ -22,6 +23,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     private var savedImportance = IMPORTANT_FOR_ACCESSIBILITY_AUTO
     private var savedDescendants = FOCUS_BEFORE_DESCENDANTS
     private var restoration: Restoration? = null
+    private var accessibilityTarget: WeakReference<View>? = null
     var active = true
         set(value) { if (field != value) { field = value; updateActivity() } }
     internal val acceptsInput get() = active && !covered && !closed
@@ -94,6 +96,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         if (closed) { connection = Connection(); dispatcher = Dispatcher(this); closed = false }
+        input.start()
         viewTreeObserver.addOnGlobalFocusChangeListener(focusObserver)
         viewTreeObserver.addOnScrollChangedListener(scrollObserver)
     }
@@ -173,7 +176,17 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         return longArrayOf(channel, kind, mount?.slot ?: 0, mount?.generation ?: 0, mount?.serial ?: 0)
     }
     internal fun focusRecord(channel: Long) = record(if (channel == 0L) rootView.findFocus()
-        else targets.values.mapNotNull { it.get() }.firstOrNull { it.isAccessibilityFocused }, channel)
+        else accessibilityTarget?.get()?.takeIf { it.isAttachedToWindow && it.isAccessibilityFocused }
+            ?: targets.values.mapNotNull { it.get() }.firstOrNull { it.isAccessibilityFocused }, channel)
+    internal fun accessibilityObserved(target: View) {
+        accessibilityTarget = if (target.isAccessibilityFocused) WeakReference(target) else null
+        observe(target, 1)
+    }
+    override fun requestSendAccessibilityEvent(child: View, event: AccessibilityEvent): Boolean {
+        if (event.eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED ||
+            event.eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED) accessibilityObserved(child)
+        return super.requestSendAccessibilityEvent(child, event)
+    }
     internal fun observe(target: View? = rootView.findFocus(), channel: Long = 0) {
         if (!closed) dispatcher.submit(4, record(target, channel))
     }
@@ -186,6 +199,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         if (closed) return
         closed = true
         restoration = null
+        accessibilityTarget = null
         dialogs.close()
         targets.values.mapNotNull { it.get() }.forEach { it.mount = null; it.isFocusable = false; it.resetStyle() }
         targets.clear()

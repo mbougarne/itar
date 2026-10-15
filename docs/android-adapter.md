@@ -99,3 +99,17 @@ native focus is confirmed absent. Disposed or replaced opener lifetimes reject
 restoration. This coordinator supplies explicit owned native dialogs, not an RN
 Modal/router integration claim. Dialog fixtures are authored but **unrun**; reader
 hiding, failed native presentation, nesting and restoration remain operator gates.
+
+## Accessibility ownership and activation (ITAR-0051)
+
+Native accessibility state/change listeners cancel pending authority without
+waiting for JS. The conservative ownership gate falls through whenever a native
+accessibility service is enabled; no claim is made that every enabled service is
+a screen reader. Input and accessibility focus use separate core channels. A
+missing semantic registration remains unknown rather than proving absence.
+The semantics subset is native Button role, committed label, enabled state and
+click. Owned Select down/up carries a value-only mount/lifetime lease, rejecting
+recycling between events. Accessibility click validates its semantic element
+without first moving input focus. The native click path emits one identity record;
+framework click notifications do not emit a duplicate. No announcement is posted.
+Activation fixture execution, TalkBack and VoiceView acceptance are **unrun**.
