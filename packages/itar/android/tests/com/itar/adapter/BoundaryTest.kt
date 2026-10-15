@@ -4,7 +4,8 @@ package com.itar.adapter
 import android.test.InstrumentationTestCase
 
 class BoundaryTest : InstrumentationTestCase() {
-    fun testLifetimeAndConversions() {
+    fun testLifetimeAndConversions() = lifetimeAndConversions()
+    private fun lifetimeAndConversions() {
         instrumentation.runOnMainSync {
             repeat(32) {
                 val first = Connection()

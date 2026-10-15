@@ -25,3 +25,9 @@ Focused check: strict Apple Clang 21 / CMake 3.31.6 Release build and
 It covers create/use/dispose, stale replacement, capacity, wrong-thread entry,
 allocation failure and contained exceptions. Native conversion/lifetime tests
 are compiled into the consumer instrumentation APK; execution is recorded below.
+
+Boundary consumer build: Gradle 9 / AGP 8.12 / Kotlin 2.1.20, JDK 17.0.15,
+SDK 36, NDK 27.1.12297006; `assembleDebug assembleAndroidTest` passes.
+Android TV API 36 arm64 emulator, reader off: both explicit BoundaryTest cases
+pass (2/2); the legacy runner enumerates private Kotlin synthetic methods when
+given a whole class. New tests use named scenario helpers to avoid that issue.
