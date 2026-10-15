@@ -16,5 +16,13 @@
   "peerDependencies": {
     "react": "19.2.0",
     "react-native": "0.83.0-0"
+  },
+  "codegenConfig": {
+    "name": "ItarSpec",
+    "type": "components",
+    "jsSrcsDir": "src/specs",
+    "android": {
+      "javaPackageName": "com.itar.adapter"
+    }
   }
 }
