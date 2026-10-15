@@ -11,9 +11,11 @@ internal class Input(private val root: SurfaceView) {
     private val reader = root.context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
     private data class Activation(val keyCode: Int, val lifetime: Long, val mount: Mount)
     private var activation: Activation? = null
+    private var selectKey: Int? = null
     private var listening = false
     private val stateListener = AccessibilityManager.AccessibilityStateChangeListener { ownershipChanged() }
     private val explorationListener = AccessibilityManager.TouchExplorationStateChangeListener { ownershipChanged() }
+    val owner get() = if (reader.isEnabled) 3L else 0L
     fun start() {
         if (listening) return
         listening = true
@@ -42,16 +44,22 @@ internal class Input(private val root: SurfaceView) {
     }
     fun dispatch(event: KeyEvent): Boolean {
         val press = activation
-        if (event.action == KeyEvent.ACTION_UP && press?.keyCode == event.keyCode) {
+        if (event.action == KeyEvent.ACTION_UP && selectKey == event.keyCode) {
+            selectKey = null
             activation = null
-            if (!event.isCanceled) root.live(press.mount)?.activateInput(press.mount, press.lifetime)
+            if (!event.isCanceled && press != null) root.live(press.mount)?.activateInput(press.mount, press.lifetime)
             return true
         }
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 && reader.isEnabled &&
+            (selectKey == event.keyCode || ownedKeys.contains(event.keyCode))) return true
         if (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER ||
             event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
             val target = root.findFocus() as? TargetView
             if (event.action != KeyEvent.ACTION_DOWN || !owns(target)) return false
-            if (event.repeatCount == 0) target?.mount?.let { activation = Activation(event.keyCode, root.connection.lifetime, it) }
+            if (event.repeatCount == 0) target?.mount?.let {
+                selectKey = event.keyCode
+                activation = Activation(event.keyCode, root.connection.lifetime, it)
+            }
             return true
         }
         if (event.action == KeyEvent.ACTION_UP && ownedKeys.remove(event.keyCode)) {
@@ -76,6 +84,7 @@ internal class Input(private val root: SurfaceView) {
     fun clear() {
         ownedKeys.clear()
         activation = null
+        selectKey = null
         if (listening) {
             reader.removeAccessibilityStateChangeListener(stateListener)
             reader.removeTouchExplorationStateChangeListener(explorationListener)

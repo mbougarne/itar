@@ -46,7 +46,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     fun focus(key: String) {
         if (!acceptsInput) return
         val now = SystemClock.uptimeMillis()
-        dispatcher.batch { refreshGeometry(); observe(); dispatcher.submit(9, longArrayOf(0, now, now + 500), key) }
+        dispatcher.batch { refreshGeometry(); observe(); dispatcher.submit(9, longArrayOf(input.owner, now, now + 500), key) }
     }
     fun cancel(request: Long) { if (request > 0) dispatcher.submit(13, longArrayOf(request)) }
     fun showDialog() = dialogs.show()
