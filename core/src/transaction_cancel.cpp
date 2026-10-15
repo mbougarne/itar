@@ -83,8 +83,23 @@ ApplyResult Transactions::apply(Batch batch) {
 }
 
 ObservationStatus Transactions::observeAvailability(AvailabilityObservation observation) {
+  const auto inputBefore = state_.snapshot().inputFocus;
+  const auto accessibilityBefore = state_.snapshot().accessibilityFocus;
   const auto result = state_.observeAvailability(observation);
-  if (result == ObservationStatus::changed) { synchronize(); }
+  if (result == ObservationStatus::changed) {
+    for (const auto channel : {FocusChannel::input, FocusChannel::accessibility}) {
+      const auto before = channel == FocusChannel::input ? inputBefore : accessibilityBefore;
+      const auto after = channel == FocusChannel::input ? state_.snapshot().inputFocus : state_.snapshot().accessibilityFocus;
+      if (before == after) { continue; }
+      if (notifications_.size() == limits_.notifications) {
+        resync_ = true;
+        if (active_) { cancel(active_->id); }
+        break;
+      }
+      notifications_.push_back({{state_.surface(), channel, after}, {}});
+    }
+    synchronize();
+  }
   return result;
 }
 

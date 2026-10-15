@@ -1,0 +1,12 @@
+// Task-local init script: cap every Ninja compile/link pool, including RN Codegen.
+gradle.beforeProject { project ->
+    ['com.android.application', 'com.android.library'].each { plugin ->
+        project.pluginManager.withPlugin(plugin) {
+            project.extensions.getByName('android').defaultConfig.externalNativeBuild.cmake.arguments.addAll([
+                '-DCMAKE_JOB_POOLS=itar_serial=1',
+                '-DCMAKE_JOB_POOL_COMPILE=itar_serial',
+                '-DCMAKE_JOB_POOL_LINK=itar_serial'
+            ])
+        }
+    }
+}

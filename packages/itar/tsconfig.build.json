@@ -5,7 +5,10 @@
     "module": "commonjs",
     "declaration": true,
     "outDir": "lib",
-    "types": []
+    "types": [],
+    "lib": [
+      "ES2020"
+    ]
   },
   "include": [
     "src"

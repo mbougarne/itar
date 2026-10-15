@@ -7,7 +7,7 @@
     "strict": true
   },
   "include": [
-    "apps/probe/App.tsx",
+    "apps/probe/*.tsx",
     "packages/itar/src/**/*.ts"
   ]
 }
