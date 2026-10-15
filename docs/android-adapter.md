@@ -58,3 +58,19 @@ outside this mounted-only increment. The new `android.input` fixture checks pure
 queries and 1,000 joined repeats; its local run was stopped after configuration
 when the user paused heavy testing. Final native acceptance is operator-run via
 [the manual checklist](android-adapter-manual-testing.md).
+
+## Guarded dispatch (ITAR-0048)
+
+The copied-value inbox is bounded at 32; a turn does at most 64 units before
+posting continuation. Native mapping revocation is immediate; JNI destruction
+waits until a synchronous host call unwinds. Inline observations are checked
+against current host focus before entering core, so an intermediate redirect
+cannot confirm a superseded destination. Every outcome carries lifetime/request/
+effect/kind; disposal and old-operation cancellation cannot authorize a replacement.
+One uptime deadline callback is rescheduled from core state, with no idle polling.
+Inbox/core saturation closes the surface and requires a fresh native root; no
+uncertain lifecycle fact is silently accepted. This mounted-only adapter rejects
+reveal effects and reports completed synchronous focus operations accurately.
+The new effect protocol fixture and native callback acceptance are **unrun** after
+the user's memory-pressure pause; use the manual checklist. Earlier boundary and
+registration results do not validate these subsequent changes.

@@ -5,6 +5,7 @@ import android.graphics.Rect
 import android.view.View
 import android.view.KeyEvent
 import android.view.ViewTreeObserver
+import android.os.SystemClock
 import com.facebook.react.views.view.ReactViewGroup
 import java.lang.ref.WeakReference
 
@@ -13,12 +14,29 @@ class SurfaceView(context: Context) : ReactViewGroup(context) {
     private var serial = 0L
     private var epoch = 1L
     internal val targets = LinkedHashMap<Mount, WeakReference<TargetView>>()
+    internal var dispatcher = Dispatcher(this)
+    internal var onFocusRecord: ((LongArray) -> Unit)? = null
     private val input = Input(this)
+    private val deferred = ArrayList<WeakReference<TargetView>>()
     private var refreshPosted = false
     var closed = false
         private set
     private val focusObserver = ViewTreeObserver.OnGlobalFocusChangeListener { _, target -> observe(target) }
     private val scrollObserver = ViewTreeObserver.OnScrollChangedListener { geometryChanged() }
+    private val refreshTask = Runnable {
+        refreshPosted = false
+        if (!closed) dispatcher.batch {
+            val pending = deferred.mapNotNull { it.get() }
+            deferred.clear()
+            refreshGeometry()
+            pending.filter { it.isAttachedToWindow && it.surface === this }.forEach { it.commitProps() }
+        }
+    }
+    fun focus(key: String) {
+        val now = SystemClock.uptimeMillis()
+        dispatcher.batch { refreshGeometry(); observe(); dispatcher.submit(9, longArrayOf(0, now, now + 500), key) }
+    }
+    fun cancel(request: Long) { if (request > 0) dispatcher.submit(13, longArrayOf(request)) }
     internal fun live(mount: Mount?): TargetView? = targets[mount]?.get()?.takeIf {
         it.mount == mount && it.isAttachedToWindow && it.isShown && it.isEnabled && it.isFocusable &&
             it.matrix.isIdentity && (it.clipBounds == null || it.clipBounds == Rect(0, 0, it.width, it.height))
@@ -28,7 +46,7 @@ class SurfaceView(context: Context) : ReactViewGroup(context) {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean = input.dispatch(event) || super.dispatchKeyEvent(event)
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        if (closed) { connection = Connection(); closed = false }
+        if (closed) { connection = Connection(); dispatcher = Dispatcher(this); closed = false }
         viewTreeObserver.addOnGlobalFocusChangeListener(focusObserver)
         viewTreeObserver.addOnScrollChangedListener(scrollObserver)
     }
@@ -40,6 +58,14 @@ class SurfaceView(context: Context) : ReactViewGroup(context) {
     }
     internal fun register(target: TargetView) {
         if (closed) return
+        if (dispatcher.busy) {
+            if (deferred.none { it.get() === target }) {
+                if (deferred.size == 32) { close(); return }
+                deferred.add(WeakReference(target))
+            }
+            scheduleRefresh()
+            return
+        }
         val old = target.mount
         check(old != null || serial < Long.MAX_VALUE) { "Mount serial exhausted" }
         val mountSerial = old?.serial ?: ++serial
@@ -65,33 +91,41 @@ class SurfaceView(context: Context) : ReactViewGroup(context) {
             target.isFocusable = false
             old?.let { connection.exchange(3, it.values(epoch)) }
         }
+        dispatcher.kick()
     }
     internal fun detach(target: TargetView) {
         val old = target.mount ?: return
         target.mount = null // Host authority is revoked before any engine/configuration work.
         targets.remove(old)
         target.isFocusable = false
-        if (!closed) connection.exchange(2, old.values(epoch))
+        if (!closed) dispatcher.submit(2, old.values(epoch))
     }
     internal fun geometryChanged() {
         if (closed) return
-        for (mount in targets.keys.toList()) connection.exchange(3, mount.values(epoch))
+        dispatcher.batch { for (mount in targets.keys.toList()) dispatcher.submit(3, mount.values(epoch)) }
+        scheduleRefresh()
+    }
+    private fun scheduleRefresh() {
         if (!refreshPosted) {
             refreshPosted = true
-            post { refreshPosted = false; refreshGeometry() }
+            post(refreshTask)
         }
     }
     internal fun refreshGeometry() {
         if (closed) return
         check(epoch < Long.MAX_VALUE) { "Layout epoch exhausted" }
         epoch++
-        targets.values.mapNotNull { it.get() }.forEach { register(it) }
+        dispatcher.batch { targets.values.mapNotNull { it.get() }.forEach { register(it) } }
     }
-    internal fun observe(target: View? = rootView.findFocus(), channel: Long = 0) {
-        if (closed) return
+    private fun record(target: View?, channel: Long): LongArray {
         val mount = (target as? TargetView)?.takeIf { it.surface === this }?.mount
-        val kind = when { !hasWindowFocus() -> 3L; target == null -> 2L; mount != null -> 0L; else -> 1L }
-        connection.exchange(4, longArrayOf(channel, kind, mount?.slot ?: 0, mount?.generation ?: 0, mount?.serial ?: 0))
+        val kind = when { !hasWindowFocus() -> 3L; target == null -> if (channel == 0L) 2L else 3L; mount != null -> 0L; else -> 1L }
+        return longArrayOf(channel, kind, mount?.slot ?: 0, mount?.generation ?: 0, mount?.serial ?: 0)
+    }
+    internal fun focusRecord(channel: Long) = record(if (channel == 0L) rootView.findFocus()
+        else targets.values.mapNotNull { it.get() }.firstOrNull { it.isAccessibilityFocused }, channel)
+    internal fun observe(target: View? = rootView.findFocus(), channel: Long = 0) {
+        if (!closed) dispatcher.submit(4, record(target, channel))
     }
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
         super.onWindowFocusChanged(hasWindowFocus)
@@ -102,6 +136,11 @@ class SurfaceView(context: Context) : ReactViewGroup(context) {
         closed = true
         targets.values.mapNotNull { it.get() }.forEach { it.mount = null; it.isFocusable = false }
         targets.clear()
-        connection.close()
+        deferred.clear()
+        removeCallbacks(refreshTask)
+        refreshPosted = false
+        onFocusRecord = null
+        input.clear()
+        dispatcher.close()
     }
 }

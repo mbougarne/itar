@@ -27,7 +27,7 @@ internal class Input(private val root: SurfaceView) {
     }
     fun dispatch(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_UP && ownedKeys.remove(event.keyCode)) {
-            root.connection.exchange(8)
+            root.dispatcher.submit(8)
             return true
         }
         val value = when (event.keyCode) {
@@ -37,10 +37,13 @@ internal class Input(private val root: SurfaceView) {
         }
         if (event.action != KeyEvent.ACTION_DOWN || !owns(root.findFocus())) return false
         ownedKeys.add(event.keyCode)
-        root.refreshGeometry()
-        root.observe()
-        val now = SystemClock.uptimeMillis()
-        root.connection.exchange(7, longArrayOf(value, 0, now, now + 500))
+        root.dispatcher.batch {
+            root.refreshGeometry()
+            root.observe()
+            val now = SystemClock.uptimeMillis()
+            root.dispatcher.submit(7, longArrayOf(value, 0, now, now + 500))
+        }
         return true
     }
+    fun clear() { ownedKeys.clear() }
 }

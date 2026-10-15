@@ -14,9 +14,12 @@ enum Error : std::int64_t { ok = 0, stale = -1, conversion = -2, resource = -3,
 
 struct Session {
   explicit Session(std::uint64_t token)
-      : state(SurfaceId{token}), transactions(state, SurfaceLifetime{token}) {}
+      : state(SurfaceId{token}), transactions(state, SurfaceLifetime{token}, {32, 32, 32, INT64_MAX}) {}
   State state;
   Transactions transactions;  // Destroyed before its borrowed state.
+  std::vector<Effect> effects;
+  std::vector<FocusNotification> notifications;
+  std::size_t effectIndex{}, notificationIndex{};
 };
 
 // One UI-thread owner, bounded surfaces, no host/JNI objects or pointer tokens.
