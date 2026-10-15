@@ -1,4 +1,5 @@
 #include "../src/main/cpp/input.hpp"
+
 #include <cassert>
 
 int main() {
@@ -25,7 +26,8 @@ int main() {
   assert(input(s, 7, press, out) == ok);
   const auto request = s.transactions.active()->id;
   for (int i = 0; i < 1000; ++i) assert(input(s, 7, press, out) == ok);
-  assert(s.transactions.active()->id == request && s.transactions.active()->deadline == 100);
+  assert(s.transactions.active()->id == request &&
+         s.transactions.active()->deadline == 100);
   assert(input(s, 8, {}, out) == ok && !s.transactions.heldDirection());
   const std::array<std::int64_t, 2> nativeControl{1, 2};
   assert(input(s, 6, nativeControl, out) == ok);

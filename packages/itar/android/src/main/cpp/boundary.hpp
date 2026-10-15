@@ -1,20 +1,26 @@
 #pragma once
 
-#include <itar/transaction.hpp>
-
 #include <array>
 #include <atomic>
+#include <itar/transaction.hpp>
 #include <memory>
 #include <thread>
 
 namespace itar::android {
 
-enum Error : std::int64_t { ok = 0, stale = -1, conversion = -2, resource = -3,
-                          failure = -4, wrong_thread = -5 };
+enum Error : std::int64_t {
+  ok = 0,
+  stale = -1,
+  conversion = -2,
+  resource = -3,
+  failure = -4,
+  wrong_thread = -5
+};
 
 struct Session {
   explicit Session(std::uint64_t token)
-      : state(SurfaceId{token}), transactions(state, SurfaceLifetime{token}, {32, 32, 32, INT64_MAX}) {}
+      : state(SurfaceId{token}),
+        transactions(state, SurfaceLifetime{token}, {32, 32, 32, INT64_MAX}) {}
   State state;
   Transactions transactions;  // Destroyed before its borrowed state.
   std::vector<Effect> effects;
@@ -40,8 +46,11 @@ class Boundary {
         return entry.token;
       }
       return resource;
-    } catch (const std::bad_alloc&) { return resource; }
-    catch (...) { return failure; }
+    } catch (const std::bad_alloc&) {
+      return resource;
+    } catch (...) {
+      return failure;
+    }
   }
 
   template <class Function>
@@ -54,8 +63,11 @@ class Boundary {
         }
       }
       return stale;
-    } catch (const std::bad_alloc&) { return resource; }
-    catch (...) { return failure; }
+    } catch (const std::bad_alloc&) {
+      return resource;
+    } catch (...) {
+      return failure;
+    }
   }
 
   std::int64_t close(std::int64_t token) noexcept {

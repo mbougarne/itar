@@ -1,4 +1,5 @@
 #include "../src/main/cpp/effects.hpp"
+
 #include <cassert>
 
 int main() {
@@ -24,7 +25,8 @@ int main() {
   assert(!s.transactions.active());
   // Late actual focus is reconciled without resurrecting the cancelled request.
   assert(registration(s, 4, b, "", out) == ok);
-  const std::array<std::int64_t, 5> completed{issued[0], issued[1], issued[2], issued[3], 2};
+  const std::array<std::int64_t, 5> completed{issued[0], issued[1], issued[2],
+                                              issued[3], 2};
   assert(effects(s, 12, completed, "", out) == ok);
   assert(effects(s, 12, completed, "", out) == ok);
   for (;;) {
@@ -33,7 +35,8 @@ int main() {
     if (!out[1]) break;
     assert(out[7] == 0);
   }
-  auto staleToken = issued; staleToken[0]++;
+  auto staleToken = issued;
+  staleToken[0]++;
   assert(effects(s, 11, staleToken, "", out) == ok && out[3] == 0);
   assert(effects(s, 16, {}, "", out) == ok);
   s.transactions.drainNotifications();

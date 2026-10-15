@@ -1,4 +1,5 @@
 #include "../src/main/cpp/boundary.hpp"
+
 #include <cassert>
 #include <stdexcept>
 
@@ -10,8 +11,12 @@ int main() {
   assert(boundary.access(first, [](Session& s) {
     return s.state.surface().value > 0 ? ok : failure;
   }) == ok);
-  assert(boundary.access(first, [](Session&) -> int { throw std::bad_alloc{}; }) == resource);
-  assert(boundary.access(first, [](Session&) -> int { throw std::runtime_error("contained"); }) == failure);
+  assert(boundary.access(first, [](Session&) -> int {
+    throw std::bad_alloc{};
+  }) == resource);
+  assert(boundary.access(first, [](Session&) -> int {
+    throw std::runtime_error("contained");
+  }) == failure);
   std::thread other([&] {
     assert(boundary.create() == wrong_thread);
     assert(boundary.close(first) == wrong_thread);
