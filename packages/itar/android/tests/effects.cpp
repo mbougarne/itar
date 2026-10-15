@@ -44,6 +44,13 @@ int main() {
   assert(registration(s, 2, lost, "", out) == ok);
   const auto notifications = s.transactions.drainNotifications();
   assert(notifications.size() == 1);
-  assert(notifications[0].observation.focus.kind == FocusKind::unmanaged);
+  assert(notifications[0].observation.focus.kind == FocusKind::unknown);
+  assert(!notifications[0].observation.focus.node &&
+         !notifications[0].observation.focus.mount);
   assert(!notifications[0].confirmedRequest);
+  const std::array<std::int64_t, 5> unmanaged{0, 1, 0, 0, 0};
+  assert(registration(s, 4, unmanaged, "", out) == ok);
+  const auto actual = s.transactions.drainNotifications();
+  assert(actual.size() == 1 &&
+         actual[0].observation.focus.kind == FocusKind::unmanaged);
 }
