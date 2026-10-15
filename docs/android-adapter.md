@@ -74,3 +74,15 @@ reveal effects and reports completed synchronous focus operations accurately.
 The new effect protocol fixture and native callback acceptance are **unrun** after
 the user's memory-pressure pause; use the manual checklist. Earlier boundary and
 registration results do not validate these subsequent changes.
+
+## Native text color (ITAR-0049)
+
+The supported subset is `baseColor` plus optional `focusColor` on owned buttons.
+The native input-focus callback applies it directly; a changed base property is
+retained while focused and restored on blur, detach, disposal or reset. Clearing
+the configured base restores the original native ColorStateList. Native button
+backgrounds, navigation rectangles and accessibility highlights stay native.
+There is no animation/scale/shadow path, hence no motion scheduled to compete
+with reduced-motion settings or platform effects. Debug style assertions are
+included in CallbackTest's style scenario. Their execution and visible feedback
+under busy JavaScript remain operator-run and **unrun** for this head.

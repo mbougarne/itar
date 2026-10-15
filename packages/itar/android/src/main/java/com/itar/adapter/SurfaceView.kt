@@ -87,13 +87,16 @@ class SurfaceView(context: Context) : ReactViewGroup(context) {
             target.mount = mount
             targets[mount] = WeakReference(target)
             target.isFocusable = target.isEnabled && measured
+            target.resumeStyle()
         } else {
             target.isFocusable = false
+            target.resetStyle()
             old?.let { connection.exchange(3, it.values(epoch)) }
         }
         dispatcher.kick()
     }
     internal fun detach(target: TargetView) {
+        target.resetStyle()
         val old = target.mount ?: return
         target.mount = null // Host authority is revoked before any engine/configuration work.
         targets.remove(old)
@@ -134,7 +137,7 @@ class SurfaceView(context: Context) : ReactViewGroup(context) {
     fun close() {
         if (closed) return
         closed = true
-        targets.values.mapNotNull { it.get() }.forEach { it.mount = null; it.isFocusable = false }
+        targets.values.mapNotNull { it.get() }.forEach { it.mount = null; it.isFocusable = false; it.resetStyle() }
         targets.clear()
         deferred.clear()
         removeCallbacks(refreshTask)

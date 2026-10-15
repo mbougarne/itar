@@ -9,7 +9,7 @@ class CallbackTest : ActivityInstrumentationTestCase2<MainActivity>(MainActivity
     fun testSynchronousCallbacks() = callbacks()
     private fun callbacks() {
         instrumentation.setInTouchMode(false)
-        for (variant in listOf("normal", "redirect", "detach", "dispose", "overflow")) {
+        for (variant in listOf("normal", "redirect", "detach", "dispose", "overflow", "style")) {
             val host = activity
             lateinit var root: SurfaceView
             lateinit var a: TargetView
@@ -29,7 +29,8 @@ class CallbackTest : ActivityInstrumentationTestCase2<MainActivity>(MainActivity
                 try {
                     root.layout(0, 0, 800, 600)
                     a.layout(0, 0, 200, 80); b.layout(250, 0, 450, 80); foreign.layout(0, 150, 200, 230)
-                    CallbackChecks.run(root, a, b, foreign, variant)
+                    if (variant == "style") StyleChecks.run(root, a, b)
+                    else CallbackChecks.run(root, a, b, foreign, variant)
                 } catch (error: Throwable) { failure = error; root.close() }
             }
             failure?.let { throw it }
