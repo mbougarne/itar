@@ -1,17 +1,19 @@
 import React, {useState} from 'react';
 import {Button, Platform, requireNativeComponent, StyleSheet, Text, View, type ViewProps, type NativeSyntheticEvent} from 'react-native';
 import {packageStage} from 'itar';
+import AndroidAdapterScreen from './AndroidAdapterScreen';
 
-const HostProbe = Platform.OS === 'android' || Platform.OS === 'ios' ? requireNativeComponent<ViewProps & {
+const HostProbe = Platform.OS === 'ios' ? requireNativeComponent<ViewProps & {
   onNativeActivation: (event: NativeSyntheticEvent<{target: string; targetAlias?: string}>) => void;
-}>(Platform.OS === 'android' ? 'ItarHostProbe' : 'ItarAppleProbe') : null;
+}>('ItarAppleProbe') : null;
 export default function App() {
   const [showB, setShowB] = useState(true);
   const [activation, setActivation] = useState('None');
   return (
     <View style={styles.screen}>
-      <Text style={styles.title}>Itar: {packageStage}</Text>
-      <Text>Probe only; production Itar adapters are not installed.</Text>
+      <Text style={styles.title}>Itar: {Platform.OS === 'android' ? 'Android adapter preview' : packageStage}</Text>
+      {Platform.OS !== 'android' && <Text>Native adapter work; unrun acceptance remains explicit.</Text>}
+      {Platform.OS === 'android' && <AndroidAdapterScreen />}
       {HostProbe && <>
         <Button title="Busy JS for 2 seconds" onPress={() => {
           console.info("ItarProbe JS busy start");
@@ -22,7 +24,7 @@ export default function App() {
         <HostProbe style={styles.nativeProbe}
           onNativeActivation={event => setActivation(event.nativeEvent.targetAlias ?? event.nativeEvent.target)} />
       </>}
-      {!HostProbe && <>
+      {!HostProbe && Platform.OS !== 'android' && <>
       <View style={styles.row}>
         <View style={styles.column}>
           <View style={styles.slot}>
@@ -39,15 +41,15 @@ export default function App() {
       </View>
       <Button title={showB ? 'Hide B' : 'Mount B'} onPress={() => setShowB(!showB)} />
       </>}
-      <Text>Last JS activation: {activation}</Text>
+      {Platform.OS !== 'android' && <Text>Last JS activation: {activation}</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   nativeProbe: {height: Platform.OS === 'ios' ? 300 : 220, width: 700},
-  screen: {flex: 1, padding: 60, gap: 24, backgroundColor: '#eeeeee'},
-  title: {fontSize: 32, color: '#111111'},
+  screen: {flex: 1, padding: Platform.OS === 'android' ? 16 : 60, gap: Platform.OS === 'android' ? 8 : 24, backgroundColor: '#eeeeee'},
+  title: {fontSize: Platform.OS === 'android' ? 22 : 32, color: '#111111'},
   row: {flexDirection: 'row', gap: 80, alignItems: 'flex-end'},
   column: {width: 280, gap: 24},
   slot: {height: 70, justifyContent: 'center'},

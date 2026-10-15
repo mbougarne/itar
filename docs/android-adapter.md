@@ -38,6 +38,11 @@ Owned `ItarTarget` carriers use generated RN TV 0.83 declarations. Occurrence
 keys are opaque and surface-wide; content IDs never stand in for occurrence keys.
 Labels and enabled props commit before eligibility. Detach revokes the weak host
 mapping before reporting mount loss independently of a configuration batch.
+Physical unmount retains the logical node and key history; remount updates that
+node with a fresh mount generation. Explicit React instance deletion removes the
+logical record. Key changes apply an atomic erase/insert batch, so rejection
+cannot revive the detached host or partly rename an occurrence. Delayed old-mount
+updates and deletion packets cannot modify a replacement.
 Root/window loss preserves unknown focus; surviving foreign controls are unmanaged.
 The initial geometry subset uses untransformed, fully visible rectangles; clipped
 or unmeasured views remain ineligible. Layout/scroll invalidation precedes posted
@@ -55,9 +60,8 @@ D-pad path consumes matching releases and forwards directions/repeats to the
 existing core coalescing policy. Other controls and accessibility-enabled input
 fall through. There is no Kotlin movement queue. Deferred collection reveal is
 outside this mounted-only increment. The new `android.input` fixture checks pure
-queries and 1,000 joined repeats; its local run was stopped after configuration
-when the user paused heavy testing. Final native acceptance is operator-run via
-[the manual checklist](android-adapter-manual-testing.md).
+queries, 1,000 joined repeats and expired queued input; the strict Release
+fixture passes. Final native acceptance remains operator-run and unrun.
 
 ## Guarded dispatch (ITAR-0048)
 
@@ -71,9 +75,9 @@ One uptime deadline callback is rescheduled from core state, with no idle pollin
 Inbox/core saturation closes the surface and requires a fresh native root; no
 uncertain lifecycle fact is silently accepted. This mounted-only adapter rejects
 reveal effects and reports completed synchronous focus operations accurately.
-The new effect protocol fixture and native callback acceptance are **unrun** after
-the user's memory-pressure pause; use the manual checklist. Earlier boundary and
-registration results do not validate these subsequent changes.
+The strict Release effect protocol fixture passes, including expired queued
+commands and mount-loss reconciliation. Native callback-order acceptance remains
+**unrun** for the final implementation.
 
 ## Native text color (ITAR-0049)
 
@@ -116,7 +120,44 @@ Activation fixture execution, TalkBack and VoiceView acceptance are **unrun**.
 
 Availability-to-subscriber prerequisite: `Transactions::observeAvailability` now
 queues a bounded canonical focus notification when mount loss reconciles a managed
-input/accessibility target. Without it, a following identical native observation
-was deduplicated and subscribers could retain the detached identity. Saturation
+input/accessibility target to unknown. Without it, subscribers could retain the
+detached identity until another native focus callback arrived. An explicit host
+observation is still required to establish unmanaged focus or confirmed absence. Saturation
 still requires resynchronization; no notification is labelled request success.
-The focused effect fixture now covers this case; its new execution is unrun.
+The focused effect fixture covers this case and passes in strict Release.
+
+## Consumer wiring (ITAR-0052)
+
+The provisional `itar/android` entry exports typed `AndroidSurface`,
+`AndroidTarget` and `AndroidCommands`. Android autolinking installs AdapterPackage
+and its generated carrier managers; the earlier manual Gradle adapter inclusion
+is removed to avoid duplicate project registration. The reference screen exercises
+four occurrences (repeated content across two rails), focus/request records,
+lifetime-specific cancellation, unmount, activity, owned dialogs, activation and
+a delayed two-second JS block. It does not complete the Phase09 provider/hooks or
+certify route, list or reader support. IDs cross JS as strings to retain precision.
+Event delivery follows engine transitions and cannot coalesce identity records.
+Use
+`scripts/serial-native.gradle` plus one Gradle worker for bounded local native
+compilation; the script configures per-project Ninja compile/link pools.
+
+
+## PR checkpoint evidence
+
+Local checks use one worker and bounded compiler pools; no browser, UI or
+emulator was launched for the final checkpoint.
+
+| Check | Result |
+| --- | --- |
+| Strict Release C++20 suite, Apple Clang 21 / CMake 3.31.6 | 32/32 pass |
+| Focused retained-node remount / effect regression | 2/2 pass |
+| Package build, TypeScript, ESLint, workspace tests | Pass; two workspace tests; unchanged JS evidence reused |
+| Android Metro bundle, one worker | Pass; unchanged JS evidence reused |
+| Consumer and instrumentation APK assembly, adapter lint | Pass; Gradle9, AGP8.12, Kotlin2.1.20, JDK17, SDK36, NDK27.1.12297006, arm64-v8a |
+| Earlier API36 arm64 Android TV emulator, reader off | Boundary2/2 and registration1/1 passed before later lifecycle changes; final-head acceptance unrun |
+
+Native query/dispatch, styles under busy JS, dialog timing/restoration, activation,
+TalkBack, VoiceView and physical Android TV/Fire TV acceptance remain unrun for
+the final implementation. The adapter is provisional; no runtime support or
+performance claim follows from compilation or deterministic core fixtures.
+Dependencies are unchanged; this increment does not add a JavaScript audit Action.

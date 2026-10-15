@@ -6,13 +6,10 @@ module.exports = root => {
   appendFileSync(path.join(android, 'settings.gradle'), `
 include ':itar-host-probe'
 project(':itar-host-probe').projectDir = file('../../../probes/android')
-include ':itar-adapter'
-project(':itar-adapter').projectDir = file('../../../packages/itar/android')
 `);
   appendFileSync(path.join(android, 'app/build.gradle'), `
 dependencies {
     implementation project(':itar-host-probe')
-    implementation project(':itar-adapter')
 }
 android {
     useLibrary 'android.test.runner'

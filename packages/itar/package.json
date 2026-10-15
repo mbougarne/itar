@@ -2,13 +2,14 @@
   "name": "itar",
   "version": "0.0.0",
   "private": true,
-  "description": "React Native TV focus package; foundation shell only",
+  "description": "React Native TV focus package; Android adapter preview",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "react-native": "src/index.ts",
   "files": [
     "lib",
-    "src"
+    "src",
+    "android"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json"
@@ -24,5 +25,18 @@
     "android": {
       "javaPackageName": "com.itar.adapter"
     }
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "react-native": "./src/index.ts",
+      "default": "./lib/index.js"
+    },
+    "./android": {
+      "types": "./lib/android.d.ts",
+      "react-native": "./src/android.ts",
+      "default": "./lib/android.js"
+    },
+    "./package.json": "./package.json"
   }
 }
