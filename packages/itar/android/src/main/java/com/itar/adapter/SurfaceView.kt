@@ -17,9 +17,13 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     internal val targets = LinkedHashMap<Mount, WeakReference<TargetView>>()
     internal var dispatcher = Dispatcher(this)
     internal var onFocusRecord: ((LongArray) -> Unit)? = null
-    internal val dialogs = Dialogs(this)
+    internal var onRequestRecord: ((LongArray) -> Unit)? = null
+    internal var bindRecords: ((SurfaceView) -> Unit)? = null
+    internal var dialogs = Dialogs(this)
     private var covered = false
     private var hiddenForActivity = false
+    private var appliedActivity: Boolean? = null
+    private var geometryDirty = true
     private var savedImportance = IMPORTANT_FOR_ACCESSIBILITY_AUTO
     private var savedDescendants = FOCUS_BEFORE_DESCENDANTS
     private var restoration: Restoration? = null
@@ -44,16 +48,24 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         }
     }
     fun focus(key: String) {
-        if (!acceptsInput) return
+        if (closed) return
+        if (!acceptsInput) { onRequestRecord?.invoke(longArrayOf(0, 3, 0)); return }
         val now = SystemClock.uptimeMillis()
         dispatcher.batch { refreshGeometry(); observe(); dispatcher.submit(9, longArrayOf(input.owner, now, now + 500), key) }
     }
-    fun cancel(request: Long) { if (request > 0) dispatcher.submit(13, longArrayOf(request)) }
+    fun cancel(lifetime: Long, request: Long) {
+        if (closed) return
+        if (lifetime != connection.lifetime) { onRequestRecord?.invoke(longArrayOf(0, 4, request)); return }
+        if (request > 0) dispatcher.submit(13, longArrayOf(request)) else rejectCommand()
+    }
+    internal fun rejectCommand() { if (!closed) onRequestRecord?.invoke(longArrayOf(0, 5, 0)) }
     fun showDialog() = dialogs.show()
     fun dismissDialog() = dialogs.dismiss()
     internal fun cover(value: Boolean) { covered = value; updateActivity() }
     internal fun updateActivity() {
         if (closed) return
+        val activityChanged = appliedActivity != acceptsInput
+        appliedActivity = acceptsInput
         if (!acceptsInput) {
             if (!hiddenForActivity) { savedImportance = importantForAccessibility; savedDescendants = descendantFocusability }
             hiddenForActivity = true
@@ -65,7 +77,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             importantForAccessibility = savedImportance
             descendantFocusability = savedDescendants
         }
-        refreshGeometry()
+        if (activityChanged) { geometryDirty = true; refreshGeometry() }
     }
     internal fun resume(token: Restoration) {
         if (closed || connection.lifetime != token.lifetime) return
@@ -88,14 +100,23 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     }
     internal fun live(mount: Mount?): TargetView? = targets[mount]?.get()?.takeIf {
         acceptsInput && it.mount == mount && it.isAttachedToWindow && it.isShown && it.isEnabled && it.isFocusable &&
-            it.matrix.isIdentity && (it.clipBounds == null || it.clipBounds == Rect(0, 0, it.width, it.height))
+            matrix.isIdentity && generateSequence<View>(it) { view -> view.parent as? View }.takeWhile { view -> view !== this }
+                .all { view -> view.matrix.isIdentity && (view.clipBounds == null || view.clipBounds == Rect(0, 0, view.width, view.height)) }
     }
-    override fun focusSearch(focused: View?, direction: Int): View? =
-        input.query(focused, direction) ?: super.focusSearch(focused, direction)
+    override fun focusSearch(focused: View, direction: Int): View? =
+        if (!acceptsInput) focused else input.query(focused, direction) ?: super.focusSearch(focused, direction)
     override fun dispatchKeyEvent(event: KeyEvent): Boolean = acceptsInput && (input.dispatch(event) || super.dispatchKeyEvent(event))
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        if (closed) { connection = Connection(); dispatcher = Dispatcher(this); closed = false }
+        if (closed) {
+            connection = Connection()
+            dispatcher = Dispatcher(this)
+            dialogs = Dialogs(this)
+            covered = false
+            closed = false
+            bindRecords?.invoke(this)
+            updateActivity()
+        }
         input.start()
         viewTreeObserver.addOnGlobalFocusChangeListener(focusObserver)
         viewTreeObserver.addOnScrollChangedListener(scrollObserver)
@@ -105,6 +126,10 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         viewTreeObserver.removeOnScrollChangedListener(scrollObserver)
         close()
         super.onDetachedFromWindow()
+    }
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        geometryChanged()
     }
     internal fun register(target: TargetView) {
         if (closed) return
@@ -117,6 +142,8 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             return
         }
         val old = target.mount
+        val logical = target.logicalMount
+        if (old == null) { check(epoch < Long.MAX_VALUE); epoch++ }
         check(old != null || serial < Long.MAX_VALUE) { "Mount serial exhausted" }
         val mountSerial = old?.serial ?: ++serial
         val rect = Rect(0, 0, target.width, target.height)
@@ -127,17 +154,22 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         val measured = untransformed && target.isShown && target.getGlobalVisibleRect(visible) &&
             visible.width() == target.width && visible.height() == target.height &&
             (target.clipBounds == null || target.clipBounds == Rect(0, 0, target.width, target.height))
-        val values = longArrayOf(old?.slot ?: 0, old?.generation ?: 0, mountSerial,
+        val values = longArrayOf(logical?.slot ?: 0, logical?.generation ?: 0, mountSerial,
             target.order.toLong(), if (target.isEnabled && acceptsInput) 1 else 0, epoch,
             if (target.width <= 0 || target.height <= 0) 0 else if (measured) 2 else 4,
-            rect.left.toLong(), rect.top.toLong(), rect.width().toLong(), rect.height().toLong())
+            rect.left.toLong(), rect.top.toLong(), rect.width().toLong(), rect.height().toLong(), logical?.serial ?: 0)
         val result = connection.exchange(1, values, target.occurrenceKey)
         if (result[0] == 0L) {
             val mount = Mount(result[1], result[2], result[3], target.occurrenceKey)
             target.mount = mount
+            target.logicalMount = mount
+            target.logicalOwner = WeakReference(this)
+            target.logicalLifetime = connection.lifetime
             targets[mount] = WeakReference(target)
             target.isFocusable = target.isEnabled && measured && acceptsInput
             target.resumeStyle()
+            if (target.hasFocus()) observe(target)
+            if (target.isAccessibilityFocused) observe(target, 1)
         } else {
             target.isFocusable = false
             target.resetStyle()
@@ -153,8 +185,12 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         target.isFocusable = false
         if (!closed) dispatcher.submit(2, old.values(epoch))
     }
+    internal fun dropLogical(identity: Mount, lifetime: Long) {
+        if (!closed && connection.lifetime == lifetime) dispatcher.submit(19, identity.values(epoch))
+    }
     internal fun geometryChanged() {
         if (closed) return
+        geometryDirty = true
         dispatcher.batch { for (mount in targets.keys.toList()) dispatcher.submit(3, mount.values(epoch)) }
         scheduleRefresh()
     }
@@ -165,7 +201,9 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         }
     }
     internal fun refreshGeometry() {
-        if (closed) return
+        if (closed || !geometryDirty) return
+        if (dispatcher.busy) { scheduleRefresh(); return }
+        geometryDirty = false
         check(epoch < Long.MAX_VALUE) { "Layout epoch exhausted" }
         epoch++
         dispatcher.batch { targets.values.mapNotNull { it.get() }.forEach { register(it) } }
@@ -198,6 +236,8 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     fun close() {
         if (closed) return
         closed = true
+        appliedActivity = null
+        geometryDirty = true
         restoration = null
         accessibilityTarget = null
         dialogs.close()
@@ -207,6 +247,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         removeCallbacks(refreshTask)
         refreshPosted = false
         onFocusRecord = null
+        onRequestRecord = null
         input.clear()
         dispatcher.close()
     }

@@ -30,7 +30,7 @@ inline std::int64_t input(Session& s, int operation,
     out[3] = proposal.target.generation.value;
     out[4] = proposal.mount.value;
   } else {
-    if (v[2] < 0 || v[3] <= v[2]) return conversion;
+    if (v[2] < 0 || v[3] <= 0) return conversion;
     if (s.transactions.advanceTo(v[2]).status == RequestStatus::backward_time)
       return conversion;
     const auto result = s.transactions.directionalInput(

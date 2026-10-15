@@ -6,12 +6,13 @@ import android.os.SystemClock
 
 /** Bounded copied-value inbox; host calls run only after engine entry returns. */
 internal class Dispatcher(private val root: SurfaceView) {
-    private data class Message(val op: Int, val values: LongArray, val key: String?)
+    private data class Message(val op: Int, val values: LongArray, val key: String?, val at: Long)
     private val inbox = ArrayDeque<Message>()
     private val handler = Handler(Looper.getMainLooper())
     private var active = false
     private var draining = false
     private var batches = 0
+    private var lastTime = 0L
     val busy get() = active || draining
     private val wakeup = Runnable { submit(14, longArrayOf(SystemClock.uptimeMillis())) }
     private val continuation = Runnable { kick() }
@@ -22,7 +23,9 @@ internal class Dispatcher(private val root: SurfaceView) {
     fun submit(op: Int, values: LongArray = longArrayOf(), key: String? = null) {
         if (root.closed) return
         if (inbox.size == 32) { root.close(); return }
-        inbox.addLast(Message(op, values.copyOf(), key))
+        val boundedKey = if (key != null && key.length > 512) "" else key
+        val at = when (op) { 7 -> values[2]; 9 -> values[1]; 14, 18 -> values[0]; else -> SystemClock.uptimeMillis() }
+        inbox.addLast(Message(op, values.copyOf(), boundedKey, at))
         kick()
     }
     fun kick() {
@@ -35,9 +38,27 @@ internal class Dispatcher(private val root: SurfaceView) {
                     val message = inbox.removeFirst()
                     // Intermediate inline focus cannot authorize confirmation after a redirect.
                     val values = if (message.op == 4) root.focusRecord(message.values[0]) else message.values
+                    var at = maxOf(lastTime, message.at)
+                    // Superseded callback evidence is re-read at current host time.
+                    if (message.op == 4 && !values.contentEquals(message.values)) at = maxOf(at, SystemClock.uptimeMillis())
+                    lastTime = at
+                    if (message.op == 7) values[2] = at else if (message.op == 9) values[1] = at
+                    else if (message.op == 14 || message.op == 18) values[0] = at
+                    if (message.op != 14) {
+                        val time = root.connection.exchange(14, longArrayOf(at))
+                        if (time[0] < 0) { root.close(); break }
+                        if (time[1] == 10L) root.onRequestRecord?.invoke(time.copyOf())
+                        if (root.closed) break
+                    }
                     val result = root.connection.exchange(message.op, values, message.key)
-                    val staleAvailability = result[0] == -1L && (message.op == 2 || message.op == 3)
+                    if (result[0] == -2L && message.op == 9) {
+                        root.onRequestRecord?.invoke(longArrayOf(0, 5, 0))
+                        continue
+                    }
+                    val staleAvailability = result[0] == -1L && (message.op == 2 || message.op == 3 || message.op == 19)
                     if (result[0] < 0 && !staleAvailability) { root.close(); break }
+                    if (message.op == 4 && result[13] != 0L) root.onRequestRecord?.invoke(longArrayOf(0, result[12], result[13]))
+                    else if (message.op in listOf(7, 9, 12, 13, 14, 16) && result[2] != 0L) root.onRequestRecord?.invoke(result.copyOf())
                     continue
                 }
                 if (batches > 0) break

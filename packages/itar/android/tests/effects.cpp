@@ -7,7 +7,7 @@ int main() {
   using namespace itar::android;
   Session s{1};
   std::array<std::int64_t, 64> out{};
-  std::array<std::int64_t, 11> view{0, 0, 1, 0, 1, 1, 2, 0, 0, 20, 20};
+  std::array<std::int64_t, 12> view{0, 0, 1, 0, 1, 1, 2, 0, 0, 20, 20};
   assert(registration(s, 1, view, "a", out) == ok);
   const std::array<std::int64_t, 5> a{0, 0, out[1], out[2], 1};
   view[7] = 100;

@@ -1,6 +1,6 @@
 import type {ColorValue, ViewProps, HostComponent} from 'react-native';
 import type {DirectEventHandler, Int32, WithDefault} from 'react-native/Libraries/Types/CodegenTypes';
-import codegenNativeComponent from 'react-native/Libraries/Utilities/codegenNativeComponent';
+import {codegenNativeComponent} from 'react-native';
 
 export interface NativeProps extends ViewProps {
   occurrenceKey: string;
@@ -17,4 +17,4 @@ export interface NativeProps extends ViewProps {
     source: string;
   }>>;
 }
-export default codegenNativeComponent<NativeProps>('ItarTarget') as HostComponent<NativeProps>;
+export default codegenNativeComponent<NativeProps>('ItarTarget', {excludedPlatforms: ['iOS']}) as HostComponent<NativeProps>;

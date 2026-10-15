@@ -7,7 +7,7 @@ int main() {
   using namespace itar::android;
   Session s{1};
   std::array<std::int64_t, 64> out{}, before{};
-  std::array<std::int64_t, 11> v{0, 0, 1, 0, 1, 1, 2, 0, 0, 20, 20};
+  std::array<std::int64_t, 12> v{0, 0, 1, 0, 1, 1, 2, 0, 0, 20, 20};
   assert(registration(s, 1, v, "a", out) == ok);
   const std::array<std::int64_t, 5> focus{0, 0, out[1], out[2], 1};
   v[7] = 100;
@@ -32,4 +32,8 @@ int main() {
   const std::array<std::int64_t, 2> nativeControl{1, 2};
   assert(input(s, 6, nativeControl, out) == ok);
   assert(out[1] == static_cast<std::int64_t>(ProposalKind::host_owned));
+  const std::array<std::int64_t, 4> late{1, 0, 200, 50};
+  assert(input(s, 7, late, out) == ok);
+  assert(out[1] == static_cast<std::int64_t>(RequestStatus::expired));
+  assert(!s.transactions.active());
 }

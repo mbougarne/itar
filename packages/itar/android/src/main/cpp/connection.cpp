@@ -54,6 +54,9 @@ Java_com_itar_adapter_Connection_exchangeNative(JNIEnv* env, jobject,
       if (operation >= 6 && operation <= 8)
         return itar::android::input(session, operation,
                                     std::span{copied}.first(size), response);
+      if (operation == 19)
+        return registration(session, operation, std::span{copied}.first(size),
+                            "", response);
       if (operation >= 17)
         return presentation(session, operation, std::span{copied}.first(size));
       if (operation >= 9)

@@ -7,18 +7,22 @@ import android.os.Bundle
 import android.view.View
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import java.lang.ref.WeakReference
 import androidx.appcompat.widget.AppCompatButton
 
 class TargetView(context: Context) : AppCompatButton(context) {
     var occurrenceKey = ""
     var order = 0
-    private val originalColors = currentTextColors
+    private val originalColors: ColorStateList = textColors
     private var baseColors = originalColors
     private var styling = true
     var focusColor: Int? = null
         set(value) { field = value; applyFocusStyle() }
     internal var mount: Mount? = null
     internal var surface: SurfaceView? = null
+    internal var logicalMount: Mount? = null
+    internal var logicalOwner: WeakReference<SurfaceView>? = null
+    internal var logicalLifetime = 0L
     internal var onActivation: ((Long, Mount, Long, String) -> Unit)? = null
     private var activationSerial = 0L
     init { isFocusable = false }
@@ -65,10 +69,23 @@ class TargetView(context: Context) : AppCompatButton(context) {
     }
     fun commitProps() {
         val parentSurface = generateSequence(parent) { it.parent }.filterIsInstance<SurfaceView>().firstOrNull()
+        if (logicalOwner?.get() !== parentSurface || logicalOwner?.get()?.connection?.lifetime != logicalLifetime) dropLogical()
         if (surface !== parentSurface || mount?.key != occurrenceKey || contentDescription.isNullOrEmpty()) surface?.detach(this)
         surface = parentSurface
         if (isAttachedToWindow && occurrenceKey.isNotEmpty() && contentDescription?.isNotEmpty() == true) {
             surface?.register(this)
+        }
+    }
+    internal fun dropLogical() {
+        val identity = logicalMount
+        val owner = logicalOwner?.get()
+        val lifetime = logicalLifetime
+        surface?.detach(this)
+        if (identity != null) owner?.dropLogical(identity, lifetime)
+        if (logicalMount == identity && logicalLifetime == lifetime && logicalOwner?.get() === owner) {
+            logicalMount = null
+            logicalOwner = null
+            logicalLifetime = 0
         }
     }
     override fun onAttachedToWindow() { super.onAttachedToWindow(); commitProps() }

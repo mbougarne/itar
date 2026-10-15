@@ -9,7 +9,7 @@ inline std::int64_t presentation(Session& s, int operation,
     s.recovery = captureRecovery(s.state);
     return ok;
   }
-  if (operation == 18 && v.size() == 2 && v[0] >= 0 && v[1] > v[0]) {
+  if (operation == 18 && v.size() == 2 && v[0] >= 0 && v[1] > 0) {
     if (!s.recovery) return ok;
     if (s.transactions.advanceTo(v[0]).status == RequestStatus::backward_time)
       return conversion;

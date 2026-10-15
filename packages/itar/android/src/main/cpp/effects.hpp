@@ -19,7 +19,7 @@ inline std::int64_t effects(Session& s, int operation,
   auto& tx = s.transactions;
   RequestResult result{RequestStatus::unchanged, {}};
   if (operation == 9 && v.size() == 3 && !key.empty() && v[0] >= 0 &&
-      v[0] <= 4 && v[1] >= 0 && v[2] > v[1]) {
+      v[0] <= 4 && v[1] >= 0 && v[2] > 0) {
     if (tx.advanceTo(v[1]).status == RequestStatus::backward_time)
       return conversion;
     result = tx.requestFocus(
