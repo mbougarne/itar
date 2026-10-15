@@ -43,6 +43,8 @@
 build/
 Build/
 build-*/
+.cxx/
+.gradle/
 
 # CMake generated files
 CMakeFiles/

@@ -6,14 +6,20 @@ module.exports = root => {
   appendFileSync(path.join(android, 'settings.gradle'), `
 include ':itar-host-probe'
 project(':itar-host-probe').projectDir = file('../../../probes/android')
+include ':itar-adapter'
+project(':itar-adapter').projectDir = file('../../../packages/itar/android')
 `);
   appendFileSync(path.join(android, 'app/build.gradle'), `
-dependencies { implementation project(':itar-host-probe') }
+dependencies {
+    implementation project(':itar-host-probe')
+    implementation project(':itar-adapter')
+}
 android {
     useLibrary 'android.test.runner'
     useLibrary 'android.test.base'
     defaultConfig { testInstrumentationRunner 'android.test.InstrumentationTestRunner' }
     sourceSets.androidTest.java.srcDirs += file('../../../../probes/android/tests')
+    sourceSets.androidTest.java.srcDirs += file('../../../../packages/itar/android/tests')
 }
 `);
   const application = path.join(android, 'app/src/main/java/com/itarprobe/MainApplication.kt');
