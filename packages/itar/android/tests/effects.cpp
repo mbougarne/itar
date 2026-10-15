@@ -36,4 +36,11 @@ int main() {
   auto staleToken = issued; staleToken[0]++;
   assert(effects(s, 11, staleToken, "", out) == ok && out[3] == 0);
   assert(effects(s, 16, {}, "", out) == ok);
+  s.transactions.drainNotifications();
+  const std::array<std::int64_t, 4> lost{b[2], b[3], 1, 1};
+  assert(registration(s, 2, lost, "", out) == ok);
+  const auto notifications = s.transactions.drainNotifications();
+  assert(notifications.size() == 1);
+  assert(notifications[0].observation.focus.kind == FocusKind::unmanaged);
+  assert(!notifications[0].confirmedRequest);
 }

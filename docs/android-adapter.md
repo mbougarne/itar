@@ -113,3 +113,10 @@ recycling between events. Accessibility click validates its semantic element
 without first moving input focus. The native click path emits one identity record;
 framework click notifications do not emit a duplicate. No announcement is posted.
 Activation fixture execution, TalkBack and VoiceView acceptance are **unrun**.
+
+Availability-to-subscriber prerequisite: `Transactions::observeAvailability` now
+queues a bounded canonical focus notification when mount loss reconciles a managed
+input/accessibility target. Without it, a following identical native observation
+was deduplicated and subscribers could retain the detached identity. Saturation
+still requires resynchronization; no notification is labelled request success.
+The focused effect fixture now covers this case; its new execution is unrun.
