@@ -56,6 +56,7 @@ export type ActivationRecord = Readonly<{
   mount: string;
   sequence: string;
   source: string;
+  registration: string;
 }>;
 
 // Application occurrence identity is independent of a movie/content identifier.
@@ -75,7 +76,8 @@ export function publicTargetKey(key: string): string | null {
   } catch { return null; }
 }
 export function decimal(value: string, zero = false): boolean {
-  return /^(0|[1-9][0-9]*)$/.test(value) && value.length <= 20 && (zero || value !== '0');
+  return typeof value === 'string' && /^(0|[1-9][0-9]*)$/.test(value) && value.length <= 20 &&
+    (value.length < 20 || value <= '18446744073709551615') && (zero || value !== '0');
 }
 export function newer(value: string, previous: string): boolean {
   return value.length > previous.length || (value.length === previous.length && value > previous);
