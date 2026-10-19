@@ -35,6 +35,12 @@ boundaries, traps, entry readiness and an optional preferred occurrence. Inactiv
 scope descendants leave navigation and the accessibility tree. Scope IDs are
 local to their parent; full scope paths address restoration.
 
+The mounted preview retains inactive routes with positioning and opacity, while
+`active` removes their native navigation and accessibility eligibility. Fabric can
+recycle a scope hidden with `display: none`; unmounting or recycling a scope
+disposes its native history. `restoreScope` does not persist history across a
+recreated scope, so retain the scope for route return in this initial mounted API.
+
 Android uses the engine's mounted directional policy. UIKit retains directional
 selection and gestures, with explicit engine preferences and the owned directional
 trap constraint. A layout/wrap declaration does not establish identical UIKit
@@ -81,8 +87,12 @@ unavailable outcomes. Unselected runtimes return unsupported. Delayed events mus
 match provider, surface lifetime and monotonic sequence; stale records cannot
 revive a disposed owner or overwrite newer observations.
 
-`restoreScope` asks the engine for its observed scope history, then the declared
-returning entry policy. It does not reconstruct an opener from JS focus callbacks
+`restoreScope` first revalidates the engine's return key captured when a scope
+deactivates, then uses observed history and the returning entry policy. A native
+default focus change during reactivation remains an actual observation; the
+retained key lets an explicit return request address the previous entry. This
+does not establish prevention of an intermediate host focus jump. It does not
+reconstruct an opener from JS focus callbacks
 or implicitly activate an inactive scope. `showDialog`/`dismissDialog` exercise the
 owned native dialog coordinator and opener restoration. They currently use the
 native fixture contents; arbitrary React Native Modal content is separate work.

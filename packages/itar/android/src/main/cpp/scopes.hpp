@@ -14,9 +14,12 @@ inline std::int64_t scope(Session &s, int operation, std::span<const std::int64_
     if (record && record->scope && record->active && record->navigation.entryReady && v[0] == 0) {
       const InputContext input{s.state.surface(), node, InputOwner::engine, s.state.snapshot().inputFocus};
       const RequestOptions options{static_cast<TimePoint>(v[2]), DatasetRevision{1}, {}, {}};
-      if (const auto *remembered = s.state.history(node); remembered && logicalTarget(s.state, registry.find(*remembered)))
+      const auto *remembered = s.state.returningHistory(node);
+      if (!remembered) remembered = s.state.history(node);
+      if (remembered && logicalTarget(s.state, registry.find(*remembered)))
         result = s.transactions.requestFocus(*remembered, input, options);
       else result = s.transactions.begin(resolveEntry(s.state, node, input, {EntryReason::returning}), options);
+      if (result.status == RequestStatus::started) s.state.consumeReturningHistory(node);
     }
     out[1] = static_cast<std::int64_t>(result.status); out[2] = result.request.value;
     return ok;

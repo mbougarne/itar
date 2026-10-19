@@ -103,5 +103,5 @@ export default function ReactApiScreen() {
 const styles = StyleSheet.create({
   provider: {flex: 1, width: '100%'}, screen: {gap: 8}, controls: {flexDirection: 'row', flexWrap: 'wrap', gap: 8},
   home: {width: '100%', gap: 12}, rail: {flexDirection: 'row', gap: 20, height: 70},
-  card: {width: '45%', height: 64}, details: {height: 70}, hidden: {display: 'none'},
+  card: {width: '45%', height: 64}, details: {height: 70}, hidden: {position: 'absolute', opacity: 0},
 });

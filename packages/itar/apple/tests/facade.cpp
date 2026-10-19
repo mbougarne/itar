@@ -221,6 +221,7 @@ void scopeRestoration() {
   ItarMutation scope{};
   scope.key = bytes("rail");
   scope.record.scope = scope.record.active = scope.record.enabled = scope.record.entry_ready = 1;
+  scope.has_preferred = 1;
   scope.preferred = bytes("a");
   std::array batch{a, scope, b};
   CHECK(itar_engine_apply(f.engine, 10, 1, batch.data(), batch.size()).code == 0);
@@ -236,6 +237,12 @@ void scopeRestoration() {
   scope.record.active = 0;
   CHECK(itar_engine_apply(f.engine, 10, 2, &scope, 1).code == 0);
   CHECK(itar_engine_restore_scope(f.engine, 10, bytes("rail"), 100, 1).code == 3);
+  scope.record.active = 1;
+  CHECK(itar_engine_apply(f.engine, 10, 3, &scope, 1).code == 0);
+  CHECK(itar_engine_observe_focus(f.engine, 10, 0, {0, f.a, 1}, 0, {}).call == ITAR_OK);
+  const auto returning = itar_engine_restore_scope(f.engine, 10, bytes("rail"), 100, 1);
+  CHECK(returning.code == ITAR_REQUEST_STARTED && f.effects()[0].target.slot == f.b.slot);
+  CHECK(itar_engine_cancel(f.engine, 10, returning.request).call == ITAR_OK);
   CHECK(itar_engine_restore_scope(f.engine, 10, {nullptr, 2}, 100, 1).call == ITAR_INVALID);
   CHECK(itar_engine_snapshot(f.engine, 10).active_request == 0);
 }
