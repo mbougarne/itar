@@ -184,4 +184,31 @@ import UIKit
         XCTAssertEqual(root.classify(UIButton()).kind, 1)
         XCTAssertEqual(root.classify(nil).kind, 2)
     }
+    func testCommittedScopeActivityAndNativeHistory() async throws {
+        let scope = ItarScopeHost(frame: root.bounds)
+        scope.configure("rail", parent: "", active: true, layout: 1, boundary: 0, trap: false, entryReady: true, preferred: "")
+        root.addSubview(scope)
+        scope.addSubview(a)
+        scope.addSubview(b)
+        a.scopeKey = "rail"; b.scopeKey = "rail"
+        root.commitGeometry()
+        root.focus("b")
+        let focused = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.b.isFocused }, object: nil)
+        await fulfillment(of: [focused], timeout: 3)
+        scope.configure("rail", parent: "", active: false, layout: 1, boundary: 0, trap: false, entryReady: true, preferred: "")
+        root.commitGeometry()
+        XCTAssertFalse(b.canBecomeFocused)
+        XCTAssertTrue(scope.accessibilityElementsHidden)
+        scope.configure("rail", parent: "", active: true, layout: 1, boundary: 0, trap: false, entryReady: true, preferred: "")
+        root.commitGeometry()
+        var statuses: [String] = []
+        root.onRequestRecord = { if $0["command"] as? String == "restore" { statuses.append($0["status"] as? String ?? "") } }
+        root.restoreScopeRequest("rail", command: "restore")
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.b.isFocused && statuses.contains("confirmed") }, object: nil)
+        await fulfillment(of: [restored], timeout: 3)
+        scope.removeFromSuperview()
+        scope.recycle()
+        XCTAssertEqual(try root.dispatcher?.connection.find("b").slot, 0)
+        XCTAssertFalse(b.accessibilityActivate())
+    }
 }

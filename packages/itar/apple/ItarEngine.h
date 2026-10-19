@@ -85,7 +85,7 @@ typedef struct {
 } ItarNotification;
 typedef struct {
   ItarCallStatus call;
-  uint64_t revision, deadline; // zero deadline means no pending request
+  uint64_t revision, deadline, active_request; // zero deadline/request means no pending request
   ItarFocus input, accessibility;
   uint8_t resync_required;
 } ItarSnapshot;
@@ -110,6 +110,8 @@ ItarCallStatus itar_engine_invalidate(ItarEngine *, uint64_t lifetime, ItarNode,
 ItarRequestResult itar_engine_request_focus(ItarEngine *, uint64_t lifetime,
     ItarBytes key, ItarNode authority, int32_t owner, uint64_t deadline,
     uint64_t dataset) ITAR_NOEXCEPT;
+ItarRequestResult itar_engine_restore_scope(ItarEngine *, uint64_t lifetime,
+    ItarBytes scope_key, uint64_t deadline, uint64_t dataset) ITAR_NOEXCEPT;
 ItarRequestResult itar_engine_issue(ItarEngine *, uint64_t lifetime, ItarToken) ITAR_NOEXCEPT;
 // Outcome: accepted/rejected/completed/cancelled/already_finished/not_cancellable = 0..5.
 // Real host focus is observed separately, including late callbacks after cancel.

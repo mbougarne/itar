@@ -212,6 +212,33 @@ void restoration() {
   CHECK(itar_engine_restore(host.engine, 10, token, 0, 100, 1).code != ITAR_REQUEST_STARTED);
   CHECK(host.effects().empty());
 }
+void scopeRestoration() {
+  Fixture f;
+  auto a = item("a"), b = item("b", 1);
+  a.kind = b.kind = 1;
+  a.expected = f.a; b.expected = f.b;
+  a.parent = b.parent = bytes("rail");
+  ItarMutation scope{};
+  scope.key = bytes("rail");
+  scope.record.scope = scope.record.active = scope.record.enabled = scope.record.entry_ready = 1;
+  scope.preferred = bytes("a");
+  std::array batch{a, scope, b};
+  CHECK(itar_engine_apply(f.engine, 10, 1, batch.data(), batch.size()).code == 0);
+  CHECK(itar_engine_observe_focus(f.engine, 10, 0, {0, f.b, 1}, 0, {}).call == ITAR_OK);
+  CHECK(itar_engine_observe_focus(f.engine, 10, 0, {1, {}, 0}, 0, {}).call == ITAR_OK);
+  const auto restored = itar_engine_restore_scope(f.engine, 10, bytes("rail"), 100, 1);
+  CHECK(restored.code == ITAR_REQUEST_STARTED);
+  CHECK(itar_engine_snapshot(f.engine, 10).active_request == restored.request);
+  CHECK(f.effects()[0].target.slot == f.b.slot); // Observed history precedes preferred entry.
+  CHECK(itar_engine_cancel(f.engine, 10, restored.request).call == ITAR_OK);
+  scope.kind = 1;
+  CHECK(itar_engine_find(f.engine, 10, bytes("rail"), &scope.expected) == ITAR_OK);
+  scope.record.active = 0;
+  CHECK(itar_engine_apply(f.engine, 10, 2, &scope, 1).code == 0);
+  CHECK(itar_engine_restore_scope(f.engine, 10, bytes("rail"), 100, 1).code == 3);
+  CHECK(itar_engine_restore_scope(f.engine, 10, {nullptr, 2}, 100, 1).call == ITAR_INVALID);
+  CHECK(itar_engine_snapshot(f.engine, 10).active_request == 0);
+}
 } // namespace
 
 // Test-only allocation failure at the C++ exception boundary.
@@ -230,4 +257,5 @@ int main() {
   invalidationAndReuse();
   deadlinesAndResources();
   restoration();
+  scopeRestoration();
 }

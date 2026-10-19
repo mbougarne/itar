@@ -138,6 +138,7 @@ extern "C" ItarSnapshot itar_engine_snapshot(ItarEngine *engine, uint64_t life) 
   output.revision = snapshot.revision.value;
   output.input = native(snapshot.inputFocus); output.accessibility = native(snapshot.accessibilityFocus);
   output.deadline = engine->transactions.nextDeadline().value_or(0);
+  output.active_request = engine->transactions.active() ? engine->transactions.active()->id.value : 0;
   output.resync_required = engine->transactions.resyncRequired();
   return output;
 }
@@ -210,6 +211,21 @@ extern "C" ItarRequestResult itar_engine_request_focus(ItarEngine *engine, uint6
 }
 extern "C" ItarRequestResult itar_engine_issue(ItarEngine *engine, uint64_t life, ItarToken value) noexcept {
   return request(engine, life, [&] { return engine->transactions.issue(token(value)); });
+}
+extern "C" ItarRequestResult itar_engine_restore_scope(ItarEngine *engine, uint64_t life,
+    ItarBytes bytes, uint64_t deadline, uint64_t dataset) noexcept {
+  return request(engine, life, [&]() -> RequestResult {
+    const auto scope = engine->state.snapshot().registry.find(key(bytes));
+    const auto *record = engine->state.snapshot().registry.lookup(scope);
+    if (!record || !record->scope || !record->active || !record->navigation.entryReady) return {RequestStatus::unavailable, {}};
+    const InputContext input{engine->state.surface(), scope, InputOwner::engine, engine->state.snapshot().inputFocus};
+    const RequestOptions options{deadline, {dataset}, {}, {}};
+    if (const auto *remembered = engine->state.history(scope);
+        remembered && logicalTarget(engine->state, engine->state.snapshot().registry.find(*remembered))) {
+      return engine->transactions.requestFocus(*remembered, input, options);
+    }
+    return engine->transactions.begin(resolveEntry(engine->state, scope, input, {EntryReason::returning}), options);
+  });
 }
 extern "C" ItarRequestResult itar_engine_complete(ItarEngine *engine, uint64_t life,
     ItarToken value, int32_t outcome) noexcept {

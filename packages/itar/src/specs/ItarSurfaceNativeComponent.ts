@@ -39,6 +39,7 @@ interface NativeCommands {
   dismissDialog(viewRef: React.ElementRef<HostComponent<NativeProps>>): void;
   focusRequest(viewRef: React.ElementRef<HostComponent<NativeProps>>, occurrenceKey: string, command: string): void;
   cancelRequest(viewRef: React.ElementRef<HostComponent<NativeProps>>, command: string): void;
+  restoreScopeRequest(viewRef: React.ElementRef<HostComponent<NativeProps>>, scopeKey: string, command: string): void;
 }
-export const Commands = codegenNativeCommands<NativeCommands>({supportedCommands: ['focus', 'cancel', 'showDialog', 'dismissDialog', 'focusRequest', 'cancelRequest']});
+export const Commands = codegenNativeCommands<NativeCommands>({supportedCommands: ['focus', 'cancel', 'showDialog', 'dismissDialog', 'focusRequest', 'cancelRequest', 'restoreScopeRequest']});
 export default codegenNativeComponent<NativeProps>('ItarSurface') as HostComponent<NativeProps>;

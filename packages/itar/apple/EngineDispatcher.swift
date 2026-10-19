@@ -11,6 +11,9 @@ final class EngineDispatcher {
         case focus(ItarFocus, Int32, ItarToken?)
         case invalidate(ItarNode, UInt64, Int32, UInt64)
         case request(String, Int32, UInt64, UInt64)
+        case requestCommand(String, String, UInt64, UInt64)
+        case restoreScopeCommand(String, String, UInt64, UInt64)
+        case cancelCommand(String)
         case cancel(UInt64)
         case time(UInt64)
         case complete(ItarToken, Int32)
@@ -20,6 +23,9 @@ final class EngineDispatcher {
     var invoke: ((ItarEffect) -> Int32)?
     var notify: ((ItarNotification) -> Void)?
     var requested: ((ItarRequestResult) -> Void)?
+    var commandBegan: ((String, ItarRequestResult) -> Void)?
+    var commandRequest: ((String) -> UInt64?)?
+    var reconciled: ((UInt64) -> Void)?
     var failed: (() -> Void)?
     var clock: () -> UInt64 = { UInt64(ProcessInfo.processInfo.systemUptime * 1000) }
     private var inbox: [Event] = []
@@ -51,9 +57,31 @@ final class EngineDispatcher {
         case .invalidate(let node, let mount, let kind, let through):
             _ = try connection.invalidate(node, mount: mount, kind: kind, through: through)
         case .request(let key, let owner, let now, let deadline):
-            _ = try connection.advance(to: now)
+            let time = try connection.advance(to: now)
+            if time.code == 10 { requested?(time) }
             let result = try connection.requestFocus(key, owner: owner, deadline: deadline, dataset: 1)
             requested?(result)
+        case .requestCommand(let key, let command, let now, let deadline),
+             .restoreScopeCommand(let key, let command, let now, let deadline):
+            let time = try connection.advance(to: now)
+            if time.code == 10 { requested?(time) }
+            // Emit cancellation for the previous caller before assigning a new
+            // native request identity; requestFocus's internal cancel is silent.
+            let request = try connection.snapshot().active_request
+            if request != 0 {
+                let cancelled = try connection.cancel(request)
+                requested?(cancelled)
+            }
+            let result: ItarRequestResult
+            if case .restoreScopeCommand = event { result = try connection.restoreScope(key, deadline: deadline) }
+            else { result = try connection.requestFocus(key, deadline: deadline, dataset: 1) }
+            commandBegan?(command, result)
+            requested?(result)
+        case .cancelCommand(let command):
+            if let request = commandRequest?(command) {
+                let result = try connection.cancel(request)
+                requested?(result)
+            }
         case .cancel(let request):
             let result = try connection.cancel(request)
             requested?(result)
@@ -69,7 +97,8 @@ final class EngineDispatcher {
                 requested?(result)
             }
         case .restore(let token, let owner, let now, let deadline):
-            _ = try connection.advance(to: now)
+            let time = try connection.advance(to: now)
+            if time.code == 10 { requested?(time) }
             let result = try connection.restore(token, owner: owner, deadline: deadline)
             requested?(result)
         }
@@ -87,7 +116,11 @@ final class EngineDispatcher {
             while !closed {
                 turns += 1
                 guard turns <= 128 else { fail(overflow: true); break }
-                if !inbox.isEmpty { try process(inbox.removeFirst()); continue }
+                if !inbox.isEmpty {
+                    try process(inbox.removeFirst())
+                    if !closed { reconciled?(try connection.snapshot().active_request) }
+                    continue
+                }
                 let next = try connection.effects()
                 guard effects.count + next.count <= 32 else { fail(overflow: true); break }
                 effects.append(contentsOf: next)
@@ -145,6 +178,9 @@ final class EngineDispatcher {
         invoke = nil
         notify = nil
         requested = nil
+        commandBegan = nil
+        commandRequest = nil
+        reconciled = nil
         try? connection.revoke() // Immediate revocation, even inside UIKit callbacks.
         if !pumping { try? connection.close() }
     }

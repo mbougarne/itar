@@ -8,6 +8,7 @@ final class AppleRegistration {
     weak var target: ItarTargetHost?
     var available = false
     var bounds: CGRect?
+    var scopeKey = ""
     init(_ key: String) { self.key = key }
 }
 
@@ -16,6 +17,7 @@ public final class ItarSurfaceHost: UIView {
     private static var nextLifetime: UInt64 = 0
     private(set) var dispatcher: EngineDispatcher?
     var registrations: [String: AppleRegistration] = [:]
+    var scopes: [String: AppleScopeRegistration] = [:]
     private var mountSequence: UInt64 = 0
     private var epoch: UInt64 = 1
     private var posted = false
@@ -27,6 +29,18 @@ public final class ItarSurfaceHost: UIView {
     weak var preferred: ItarTargetHost?
     var covered = false
     var presentation: ApplePresentation?
+    var eventSequence: UInt64 = 0
+    var commandRequests: [UInt64: String] = [:]
+    @objc public var providerId = "" {
+        didSet {
+            guard oldValue != providerId else { return }
+            if !oldValue.isEmpty {
+                shutdown()
+                if window != nil { start(); geometryChanged() }
+            } else if dispatcher?.closed == false { surfaceRecord("ready") }
+        }
+    }
+    @objc public var onSurfaceRecord: ((NSDictionary) -> Void)?
     @objc public var active = true { didSet { if oldValue != active { activityChanged() } } }
     @objc public var onFocusRecord: ((NSDictionary) -> Void)?
     @objc public var onRequestRecord: ((NSDictionary) -> Void)?
@@ -65,14 +79,25 @@ public final class ItarSurfaceHost: UIView {
         owner.invoke = { [weak self] in self?.invoke($0) ?? 1 }
         owner.notify = { [weak self] in self?.deliver($0) }
         owner.requested = { [weak self] in self?.requestRecord($0) }
+        owner.commandBegan = { [weak self] in self?.beganCommand($0, result: $1) }
+        owner.commandRequest = { [weak self] command in self?.commandRequests.first { $0.value == command }?.key }
+        owner.reconciled = { [weak self] active in
+            guard let self else { return }
+            for request in Array(self.commandRequests.keys) where request != active {
+                self.requestRecord(ItarRequestResult(call: ITAR_OK, code: 9, request: request))
+            }
+        }
         owner.failed = { [weak self] in
+            self?.surfaceRecord("disposed")
             self?.preferred = nil
             self?.preferredToken = nil
             self?.registrations.values.forEach { $0.available = false; $0.target?.restoreBaseStyle() }
         }
+        surfaceRecord("ready")
     }
 
     @objc public func shutdown() {
+        if dispatcher?.closed == false { surfaceRecord("disposed") }
         preferred = nil
         preferredToken = nil
         dispatcher?.close()
@@ -86,6 +111,9 @@ public final class ItarSurfaceHost: UIView {
             registration.target?.clearLogicalIdentity()
         }
         registrations.removeAll()
+        scopes.values.forEach { $0.view?.owner = nil; $0.view?.registeredKey = "" }
+        scopes.removeAll()
+        commandRequests.removeAll()
         scrollObservers.removeAll()
     }
 
@@ -117,8 +145,9 @@ public final class ItarSurfaceHost: UIView {
         geometryChanged()
     }
 
-    func descendants() -> [ItarTargetHost]? {
+    func descendants() -> (targets: [ItarTargetHost], scopes: [ItarScopeHost])? {
         var output: [ItarTargetHost] = []
+        var groups: [ItarScopeHost] = []
         var pending = subviews
         var visited = 0
         while let view = pending.popLast() {
@@ -126,15 +155,19 @@ public final class ItarSurfaceHost: UIView {
             guard visited <= 4096, pending.count <= 4096 else { return nil }
             if let root = view as? ItarSurfaceHost, root !== self { continue }
             if let target = view as? ItarTargetHost {
-                guard output.count < 256 else { return nil }
+                guard output.count + groups.count < 256 else { return nil }
                 output.append(target)
                 continue
+            }
+            if let scope = view as? ItarScopeHost {
+                guard output.count + groups.count < 256 else { return nil }
+                groups.append(scope)
             }
             let children = view.subviews
             guard pending.count + children.count <= 4096 else { return nil }
             pending.append(contentsOf: children)
         }
-        return output
+        return (output, groups)
     }
 
     func geometryChanged() {
@@ -178,6 +211,7 @@ public final class ItarSurfaceHost: UIView {
         guard acceptsInput, registration.available, registration.node.slot != 0,
               registrations[registration.key] === registration, let target = registration.target,
               target.registration === registration, target.owner === self,
+              scopeActive(registration.scopeKey),
               target.occurrenceKey == registration.key, measured(target) != nil else { return nil }
         return target
     }
@@ -190,9 +224,23 @@ public final class ItarSurfaceHost: UIView {
         refreshing = true
         defer { refreshing = false }
         var mutations: [EngineMutation] = []
-        guard let targets = descendants() else { shutdown(); return }
+        guard let content = descendants() else { shutdown(); return }
+        for view in content.scopes {
+            if view.owner !== self { view.owner?.dropScope(view); view.owner = self }
+            guard !view.scopeKey.isEmpty else { shutdown(); return }
+            let scope = scopes[view.scopeKey] ?? AppleScopeRegistration(view.scopeKey)
+            if let existing = scope.view, existing !== view, existing.window != nil { shutdown(); return }
+            scope.view = view
+            scopes[view.scopeKey] = scope
+            var record = ItarRecord()
+            record.scope = 1; record.active = view.active ? 1 : 0; record.enabled = 1
+            record.entry_ready = view.entryReady ? 1 : 0
+            record.layout = view.layout; record.boundary = view.boundary; record.trap = view.trap ? 1 : 0
+            mutations.append(EngineMutation(kind: scope.node.slot == 0 ? 0 : 1, key: scope.key,
+                parent: view.parentKey, expected: scope.node, record: record, preferred: view.preferred))
+        }
         var scrolls: [ObjectIdentifier: UIScrollView] = [:]
-        for target in targets {
+        for target in content.targets {
             var ancestor = target.superview
             while let view = ancestor {
                 if let scroll = view as? UIScrollView { scrolls[ObjectIdentifier(scroll)] = scroll }
@@ -211,6 +259,7 @@ public final class ItarSurfaceHost: UIView {
                 registration.mount = mountSequence
             }
             registration.target = target
+            registration.scopeKey = target.scopeKey
             registrations[registration.key] = registration
             target.registration = registration
             var record = ItarRecord()
@@ -227,7 +276,7 @@ public final class ItarSurfaceHost: UIView {
                                      width: Double(rect.width), height: Double(rect.height)), state: 2)
             } else { registration.bounds = nil }
             mutations.append(EngineMutation(kind: registration.node.slot == 0 ? 0 : 1, key: registration.key,
-                                             expected: registration.node, record: record))
+                                             parent: target.scopeKey, expected: registration.node, record: record))
         }
         scrollObservers = scrollObservers.filter { scrolls[$0.key] != nil }
         for (id, scroll) in scrolls where scrollObservers[id] == nil {
@@ -237,11 +286,17 @@ public final class ItarSurfaceHost: UIView {
         }
         if !mutations.isEmpty { dispatcher.enqueue(.apply(mutations)) }
         guard !dispatcher.closed else { return }
+        for scope in scopes.values {
+            guard let node = try? dispatcher.connection.find(scope.key) else { shutdown(); return }
+            scope.node = node
+            scope.parent = scope.view?.parentKey ?? ""
+            scope.view?.registeredKey = scope.key
+        }
         for registration in registrations.values {
             guard let target = registration.target else { continue }
             guard let node = try? dispatcher.connection.find(registration.key) else { shutdown(); return }
             registration.node = node
-            registration.available = node.slot != 0 && measured(target) != nil && acceptsInput
+            registration.available = node.slot != 0 && measured(target) != nil && acceptsInput && scopeActive(registration.scopeKey)
             target.logicalOwner = self
             target.logicalKey = registration.key
             target.logicalNode = node
@@ -332,10 +387,7 @@ public final class ItarSurfaceHost: UIView {
     func requestRecord(_ result: ItarRequestResult) {
         if result.code == ITAR_REQUEST_STARTED { pendingRequest = result.request }
         if (try? dispatcher?.connection.snapshot().deadline) == 0 { pendingRequest = 0 }
-        let names = ["started", "joined", "busy", "unavailable", "stale", "invalid", "cancelled", "unchanged",
-                     "confirmed", "reconciled", "expired", "backward_time", "exhausted", "resync", "disposed", "issued", "waiting"]
-        let status = names.indices.contains(Int(result.code)) ? names[Int(result.code)] : "invalid"
-        onRequestRecord?(["lifetime": String(lifetime), "request": String(result.request), "status": status])
+        emitRequest(result, command: commandRequests[result.request] ?? "")
     }
     func deliver(_ value: ItarNotification) {
         let registration = registrations.values.first {
@@ -343,9 +395,9 @@ public final class ItarSurfaceHost: UIView {
         }
         if value.confirmed_request != 0 { pendingRequest = 0 }
         let kinds = ["managed", "unmanaged", "absent", "unknown"]
-        onFocusRecord?(["lifetime": String(lifetime), "request": String(value.confirmed_request),
+        if let record = stamp(["lifetime": String(lifetime), "request": String(value.confirmed_request),
             "occurrenceKey": registration?.key ?? "", "mount": String(value.focus.mount),
             "kind": kinds.indices.contains(Int(value.focus.kind)) ? kinds[Int(value.focus.kind)] : "unknown",
-            "channel": value.channel == 0 ? "input" : "accessibility"])
+            "channel": value.channel == 0 ? "input" : "accessibility"]) { onFocusRecord?(record) }
     }
 }

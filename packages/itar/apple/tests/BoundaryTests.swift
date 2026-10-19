@@ -59,6 +59,7 @@ struct BoundaryTests {
         try owner.close()
         try owner.close()
         try DispatcherTests.run()
+        try ScopeTests.run()
         print("Swift production boundary checks passed")
     }
 }

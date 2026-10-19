@@ -34,22 +34,30 @@ static std::string value(NSDictionary *record, NSString *key) {
   _host = [[ItarSurfaceHost alloc] initWithFrame:self.bounds];
   self.contentView = _host;
   __weak ItarSurfaceComponentView *weakSelf = self;
+  _host.onSurfaceRecord = ^(NSDictionary *record) {
+    ItarSurfaceComponentView *owner = weakSelf;
+    if (!owner || !owner->_eventEmitter) return;
+    static_cast<const ItarSurfaceEventEmitter &>(*owner->_eventEmitter).onSurfaceRecord({
+      value(record, @"lifetime"), value(record, @"provider"), value(record, @"sequence"), value(record, @"state")});
+  };
   _host.onFocusRecord = ^(NSDictionary *record) {
     ItarSurfaceComponentView *owner = weakSelf;
     if (!owner || !owner->_eventEmitter) return;
     static_cast<const ItarSurfaceEventEmitter &>(*owner->_eventEmitter).onFocusRecord({
       value(record, @"lifetime"), value(record, @"request"), value(record, @"occurrenceKey"),
-      value(record, @"mount"), value(record, @"kind"), value(record, @"channel")});
+      value(record, @"mount"), value(record, @"kind"), value(record, @"channel"), value(record, @"provider"), value(record, @"sequence")});
   };
   _host.onRequestRecord = ^(NSDictionary *record) {
     ItarSurfaceComponentView *owner = weakSelf;
     if (!owner || !owner->_eventEmitter) return;
     static_cast<const ItarSurfaceEventEmitter &>(*owner->_eventEmitter).onRequestRecord({
-      value(record, @"lifetime"), value(record, @"request"), value(record, @"status")});
+      value(record, @"lifetime"), value(record, @"request"), value(record, @"status"), value(record, @"command"),
+      value(record, @"provider"), value(record, @"sequence")});
   };
 }
 - (void)updateProps:(const Props::Shared &)props oldProps:(const Props::Shared &)oldProps {
   const auto &next = static_cast<const ItarSurfaceProps &>(*props);
+  _host.providerId = [[NSString alloc] initWithBytes:next.providerId.data() length:next.providerId.size() encoding:NSUTF8StringEncoding];
   _host.active = next.active;
   [super updateProps:props oldProps:oldProps];
 }
@@ -61,10 +69,11 @@ static std::string value(NSDictionary *record, NSString *key) {
 }
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args {
   // Codegen's argument checks are debug-only; keep the release boundary typed.
-  NSUInteger count = [commandName isEqualToString:@"cancel"] ? 2 :
-      [commandName isEqualToString:@"focus"] ? 1 : 0;
+  NSUInteger count = ([commandName isEqualToString:@"cancel"] || [commandName isEqualToString:@"focusRequest"] || [commandName isEqualToString:@"restoreScopeRequest"]) ? 2 :
+      ([commandName isEqualToString:@"focus"] || [commandName isEqualToString:@"cancelRequest"]) ? 1 : 0;
   BOOL known = [commandName isEqualToString:@"focus"] || [commandName isEqualToString:@"cancel"] ||
-      [commandName isEqualToString:@"showDialog"] || [commandName isEqualToString:@"dismissDialog"];
+      [commandName isEqualToString:@"showDialog"] || [commandName isEqualToString:@"dismissDialog"] ||
+      [commandName isEqualToString:@"focusRequest"] || [commandName isEqualToString:@"cancelRequest"] || [commandName isEqualToString:@"restoreScopeRequest"];
   if (!known || args.count != count) { [_host rejectCommand:5]; return; }
   for (id argument in args) {
     if (![argument isKindOfClass:NSString.class]) { [_host rejectCommand:5]; return; }
@@ -75,6 +84,9 @@ static std::string value(NSDictionary *record, NSString *key) {
 - (void)cancel:(NSString *)lifetime request:(NSString *)request { [_host cancel:lifetime request:request]; }
 - (void)showDialog { [_host showDialog]; }
 - (void)dismissDialog { [_host dismissDialog]; }
+- (void)focusRequest:(NSString *)key command:(NSString *)command { [_host focusRequest:key command:command]; }
+- (void)cancelRequest:(NSString *)command { [_host cancelRequest:command]; }
+- (void)restoreScopeRequest:(NSString *)key command:(NSString *)command { [_host restoreScopeRequest:key command:command]; }
 - (BOOL)isAccessibilityElement { return NO; }
 - (void)prepareForRecycle {
   [_host shutdown];
@@ -111,13 +123,15 @@ static std::string value(NSDictionary *record, NSString *key) {
     if (!owner || !owner->_eventEmitter) return;
     static_cast<const ItarTargetEventEmitter &>(*owner->_eventEmitter).onActivate({
       value(record, @"lifetime"), value(record, @"occurrenceKey"), value(record, @"mount"),
-      value(record, @"sequence"), value(record, @"source")});
+      value(record, @"sequence"), value(record, @"source"), value(record, @"provider"), value(record, @"registration")});
   };
 }
 - (void)updateProps:(const Props::Shared &)props oldProps:(const Props::Shared &)oldProps {
   const auto &next = static_cast<const ItarTargetProps &>(*props);
   [super updateProps:props oldProps:oldProps];
   _host.occurrenceKey = [[NSString alloc] initWithBytes:next.occurrenceKey.data() length:next.occurrenceKey.size() encoding:NSUTF8StringEncoding];
+  _host.scopeKey = [[NSString alloc] initWithBytes:next.scopeKey.data() length:next.scopeKey.size() encoding:NSUTF8StringEncoding];
+  _host.registrationId = [[NSString alloc] initWithBytes:next.registrationId.data() length:next.registrationId.size() encoding:NSUTF8StringEncoding];
   _host.label = [[NSString alloc] initWithBytes:next.label.data() length:next.label.size() encoding:NSUTF8StringEncoding];
   _host.order = next.order;
   _host.targetEnabled = next.enabled;
@@ -137,5 +151,43 @@ static std::string value(NSDictionary *record, NSString *key) {
 }
 @end
 
+@interface ItarScopeComponentView : RCTViewComponentView
+@end
+@implementation ItarScopeComponentView {
+  ItarScopeHost *_host;
+}
++ (ComponentDescriptorProvider)componentDescriptorProvider {
+  return concreteComponentDescriptorProvider<ItarScopeComponentDescriptor>();
+}
+- (instancetype)initWithFrame:(CGRect)frame {
+  if ((self = [super initWithFrame:frame])) {
+    _props = std::make_shared<const ItarScopeProps>();
+    _host = [[ItarScopeHost alloc] initWithFrame:self.bounds];
+    self.contentView = _host;
+  }
+  return self;
+}
+- (void)updateProps:(const Props::Shared &)props oldProps:(const Props::Shared &)oldProps {
+  const auto &next = static_cast<const ItarScopeProps &>(*props);
+  [super updateProps:props oldProps:oldProps];
+  auto text = [](const std::string &s) { return [[NSString alloc] initWithBytes:s.data() length:s.size() encoding:NSUTF8StringEncoding]; };
+  int32_t layout = next.layout == ItarScopeLayout::Row ? 1 : next.layout == ItarScopeLayout::Column ? 2 : 0;
+  int32_t boundary = next.boundary == ItarScopeBoundary::Wrap ? 1 : next.boundary == ItarScopeBoundary::Parent ? 2 : 0;
+  [_host configure:text(next.scopeKey) parent:text(next.parentScopeKey) active:next.active layout:layout
+          boundary:boundary trap:next.trap entryReady:next.entryReady preferred:text(next.preferredKey)];
+}
+- (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)child index:(NSInteger)index { [_host insertSubview:child atIndex:index]; }
+- (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)child index:(NSInteger)index { [child removeFromSuperview]; }
+- (BOOL)isAccessibilityElement { return NO; }
+- (void)prepareForRecycle {
+  [_host recycle];
+  [super prepareForRecycle];
+  _host = [[ItarScopeHost alloc] initWithFrame:self.bounds];
+  self.contentView = _host;
+}
+- (void)invalidate { [_host recycle]; [super invalidate]; }
+@end
+
 Class<RCTComponentViewProtocol> ItarSurfaceCls(void) { return ItarSurfaceComponentView.class; }
 Class<RCTComponentViewProtocol> ItarTargetCls(void) { return ItarTargetComponentView.class; }
+Class<RCTComponentViewProtocol> ItarScopeCls(void) { return ItarScopeComponentView.class; }

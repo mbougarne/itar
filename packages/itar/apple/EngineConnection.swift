@@ -138,6 +138,12 @@ final class EngineConnection {
         try checked(result.call)
         return result
     }
+    func restoreScope(_ key: String, deadline: UInt64) throws -> ItarRequestResult {
+        precondition(Thread.isMainThread)
+        let result = try withKey(key) { itar_engine_restore_scope(handle, lifetime, $0, deadline, 1) }
+        try checked(result.call)
+        return result
+    }
 
     func complete(_ token: ItarToken, outcome: Int32) throws -> ItarRequestResult {
         precondition(Thread.isMainThread)

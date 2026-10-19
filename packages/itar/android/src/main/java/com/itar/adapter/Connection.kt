@@ -11,9 +11,9 @@ class Connection : AutoCloseable {
         token = createNative()
         check(token > 0) { "Itar surface creation failed: $token" }
     }
-    fun exchange(operation: Int, values: LongArray = longArrayOf(), key: String? = null): LongArray {
+    fun exchange(operation: Int, values: LongArray = longArrayOf(), key: String? = null, extra: String? = null): LongArray {
         owner()
-        return exchangeNative(token, operation, values, key)
+        return exchangeNative(token, operation, values, key, extra)
     }
     override fun close() {
         owner()
@@ -24,7 +24,7 @@ class Connection : AutoCloseable {
     }
     private external fun createNative(): Long
     private external fun closeNative(token: Long): Long
-    private external fun exchangeNative(token: Long, operation: Int, values: LongArray, key: String?): LongArray
+    private external fun exchangeNative(token: Long, operation: Int, values: LongArray, key: String?, extra: String?): LongArray
     companion object {
         init { System.loadLibrary("itar_android") }
         fun owner() { check(Looper.myLooper() == Looper.getMainLooper()) { "UI thread required" } }

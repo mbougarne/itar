@@ -13,6 +13,7 @@ extension ItarSurfaceHost {
     // implement explicit engine effects only; no swipe/press interception or
     // cross-platform directional parity is claimed by this subset.
     func allowsFocus(_ context: UIFocusUpdateContext) -> Bool {
+        guard scopeAllows(context) else { return false }
         if let next = context.nextFocusedView as? ItarTargetHost, next.owner === self {
             guard acceptsInput else { return false }
             if UIAccessibility.isVoiceOverRunning { return true }
