@@ -35,17 +35,6 @@ const OccurrenceKey* State::history(NodeHandle scope) const noexcept {
   return nullptr;
 }
 
-const OccurrenceKey* State::returningHistory(NodeHandle scope) const noexcept {
-  for (const auto& entry : returning_) {
-    if (entry.scope == scope) { return &entry.occurrence; }
-  }
-  return nullptr;
-}
-
-void State::consumeReturningHistory(NodeHandle scope) noexcept {
-  std::erase_if(returning_, [&](const ScopeHistory& entry) { return entry.scope == scope; });
-}
-
 ObservationStatus State::observeFocus(FocusObservation observation) {
   if (!surface_ || observation.surface != surface_) {
     return ObservationStatus::stale_surface;

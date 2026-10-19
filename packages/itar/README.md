@@ -87,12 +87,8 @@ unavailable outcomes. Unselected runtimes return unsupported. Delayed events mus
 match provider, surface lifetime and monotonic sequence; stale records cannot
 revive a disposed owner or overwrite newer observations.
 
-`restoreScope` first revalidates the engine's return key captured when a scope
-deactivates, then uses observed history and the returning entry policy. A native
-default focus change during reactivation remains an actual observation; the
-retained key lets an explicit return request address the previous entry. This
-does not establish prevention of an intermediate host focus jump. It does not
-reconstruct an opener from JS focus callbacks
+`restoreScope` asks the engine for its observed scope history, then the declared
+returning entry policy. It does not reconstruct an opener from JS focus callbacks
 or implicitly activate an inactive scope. `showDialog`/`dismissDialog` exercise the
 owned native dialog coordinator and opener restoration. They currently use the
 native fixture contents; arbitrary React Native Modal content is separate work.

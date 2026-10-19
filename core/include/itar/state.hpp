@@ -50,15 +50,10 @@ class State {
       AvailabilityObservation observation) noexcept;
   ObservationStatus observeFocus(FocusObservation observation);
   const OccurrenceKey* history(NodeHandle scope) const noexcept;
-  // One value-only return key per live scope generation, captured atomically
-  // on deactivation. Native reassignment must still update observed history.
-  const OccurrenceKey* returningHistory(NodeHandle scope) const noexcept;
-  void consumeReturningHistory(NodeHandle scope) noexcept;
 
  private:
   SurfaceId surface_;
   Snapshot committed_;
-  std::vector<ScopeHistory> returning_;
   std::uint64_t revisionCeiling_;
 };
 

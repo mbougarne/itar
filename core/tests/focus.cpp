@@ -6,47 +6,7 @@
 
 using namespace itar;
 
-void returningHistory() {
-  State state{SurfaceId{1}, {4}};
-  Mutation root; root.key = OccurrenceKey{"root"}; root.record.scope = true;
-  Mutation inner = root; inner.key = OccurrenceKey{"inner"}; inner.parent = root.key;
-  Mutation a; a.key = OccurrenceKey{"a"}; a.parent = inner.key;
-  a.record.mounted = true; a.record.mount = MountGeneration{1};
-  Mutation b = a; b.key = OccurrenceKey{"b"};
-  const std::array initial{root, inner, a, b};
-  CHECK(state.apply({state.surface(), {}, initial}).status == BatchStatus::valid);
-  const auto outer = state.snapshot().registry.find(root.key);
-  const auto nested = state.snapshot().registry.find(inner.key);
-  const auto observe = [&](const OccurrenceKey& key) {
-    return state.observeFocus({state.surface(), FocusChannel::input,
-        {FocusKind::managed, state.snapshot().registry.find(key), MountGeneration{1}}});
-  };
-  CHECK(observe(b.key) == ObservationStatus::changed);
-  root.kind = MutationKind::update; root.expected = outer; root.record.active = false;
-  const std::array rejected{root, root};
-  CHECK(state.apply({state.surface(), state.snapshot().revision, rejected}).status == BatchStatus::duplicate);
-  CHECK(!state.returningHistory(outer) && !state.returningHistory(nested));
-  CHECK(state.apply({state.surface(), state.snapshot().revision, std::span{&root, 1}}).status == BatchStatus::valid);
-  CHECK(*state.returningHistory(outer) == b.key && *state.returningHistory(nested) == b.key);
-  root.record.active = true;
-  CHECK(state.apply({state.surface(), state.snapshot().revision, std::span{&root, 1}}).status == BatchStatus::valid);
-  CHECK(observe(a.key) == ObservationStatus::changed); // UIKit's default must remain a real observation.
-  CHECK(*state.history(outer) == a.key && *state.returningHistory(outer) == b.key);
-  state.consumeReturningHistory(nested);
-  CHECK(!state.returningHistory(nested) && *state.returningHistory(outer) == b.key);
-  b.kind = MutationKind::erase; b.expected = state.snapshot().registry.find(b.key);
-  CHECK(state.apply({state.surface(), state.snapshot().revision, std::span{&b, 1}}).status == BatchStatus::valid);
-  CHECK(!state.returningHistory(outer));
-  root.record.active = false;
-  CHECK(state.apply({state.surface(), state.snapshot().revision, std::span{&root, 1}}).status == BatchStatus::valid);
-  CHECK(*state.returningHistory(outer) == a.key);
-  root.kind = MutationKind::replace; root.record.active = true;
-  CHECK(state.apply({state.surface(), state.snapshot().revision, std::span{&root, 1}}).status == BatchStatus::valid);
-  CHECK(!state.returningHistory(outer)); // A replaced scope cannot inherit the retired generation's token.
-}
-
 int main() {
-  returningHistory();
   State state{SurfaceId{1}};
   Mutation scope;
   scope.key = OccurrenceKey{"scope"};

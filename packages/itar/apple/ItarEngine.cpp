@@ -220,13 +220,11 @@ extern "C" ItarRequestResult itar_engine_restore_scope(ItarEngine *engine, uint6
     if (!record || !record->scope || !record->active || !record->navigation.entryReady) return {RequestStatus::unavailable, {}};
     const InputContext input{engine->state.surface(), scope, InputOwner::engine, engine->state.snapshot().inputFocus};
     const RequestOptions options{deadline, {dataset}, {}, {}};
-    const auto *remembered = engine->state.returningHistory(scope);
-    if (!remembered) remembered = engine->state.history(scope);
-    const auto result = remembered && logicalTarget(engine->state, engine->state.snapshot().registry.find(*remembered))
-        ? engine->transactions.requestFocus(*remembered, input, options)
-        : engine->transactions.begin(resolveEntry(engine->state, scope, input, {EntryReason::returning}), options);
-    if (result.status == RequestStatus::started) engine->state.consumeReturningHistory(scope);
-    return result;
+    if (const auto *remembered = engine->state.history(scope);
+        remembered && logicalTarget(engine->state, engine->state.snapshot().registry.find(*remembered))) {
+      return engine->transactions.requestFocus(*remembered, input, options);
+    }
+    return engine->transactions.begin(resolveEntry(engine->state, scope, input, {EntryReason::returning}), options);
   });
 }
 extern "C" ItarRequestResult itar_engine_complete(ItarEngine *engine, uint64_t life,

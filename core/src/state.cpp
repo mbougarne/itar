@@ -1,7 +1,5 @@
 #include <itar/state.hpp>
-#include <itar/topology.hpp>
 
-#include <algorithm>
 #include <new>
 #include <type_traits>
 #include <utility>
@@ -45,19 +43,6 @@ ApplyResult State::apply(Batch batch) {
     }
     auto history = committed_.history;
     pruneHistory(*validation.prepared, history);
-    auto returning = returning_;
-    for (const auto& saved : committed_.history) {
-      const auto before = saved.scope;
-      const auto* old = committed_.registry.lookup(before);
-      const auto* next = validation.prepared->lookup(before);
-      if (!old || !old->scope || !next || !next->scope ||
-          !effectivelyActive(committed_.registry, before) || effectivelyActive(*validation.prepared, before)) { continue; }
-      const auto found = std::find_if(returning.begin(), returning.end(),
-          [&](const ScopeHistory& entry) { return entry.scope == before; });
-      if (found == returning.end()) { returning.push_back(saved); }
-      else { found->occurrence = saved.occurrence; }
-    }
-    pruneHistory(*validation.prepared, returning);
     const auto input =
         reconcileFocus(*validation.prepared, committed_.inputFocus);
     const auto accessibility =
@@ -67,7 +52,6 @@ ApplyResult State::apply(Batch batch) {
                   std::move(history)};
     static_assert(std::is_nothrow_swappable_v<Snapshot>);
     std::swap(committed_, next);
-    returning_.swap(returning);
     return {BatchStatus::valid, committed_.revision, {}, std::move(changed)};
   } catch (const std::bad_alloc&) {
     return rejected(BatchStatus::resource);
