@@ -36,7 +36,7 @@ inline std::int64_t registration(Session &s, int operation,
     out[11] = s.transactions.resyncRequired();
     return ok;
   }
-  if (operation == 1 && v.size() == 12 && !key.empty() && key.size() <= 512) {
+  if (operation == 1 && (v.size() == 12 || v.size() == 14) && !key.empty() && key.size() <= 512) {
     if (v[2] <= 0 || v[3] < INT32_MIN || v[3] > INT32_MAX || v[4] < 0 ||
         v[4] > 1 || v[5] <= 0 || v[6] < 0 || v[6] > 4 ||
         (v[0] == 0 && v[1] != 0))
@@ -45,6 +45,11 @@ inline std::int64_t registration(Session &s, int operation,
       if (v[i] < INT32_MIN || v[i] > INT32_MAX)
         return conversion;
     Mutation mutation;
+    if (v.size() == 14 && (v[12] || v[13])) {
+      const auto parent = handle(v.subspan(12));
+      if (!parent || !registry.lookup(parent) || !registry.lookup(parent)->scope) return stale;
+      mutation.parent = *registry.key(parent);
+    }
     mutation.key = OccurrenceKey{std::string(key)};
     mutation.expected = handle(v);
     if (v[0] != 0 && !mutation.expected)

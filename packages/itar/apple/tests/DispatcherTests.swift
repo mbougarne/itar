@@ -77,6 +77,44 @@ enum DispatcherTests {
         }
         bounded.enqueue(.request("b", 0, 0, 100))
         precondition(bounded.closed && bounded.overflow, "Unbounded callback inbox")
+        try invalidatedCommand()
         print("Swift dispatcher checks passed")
+    }
+
+    static func invalidatedCommand() throws {
+        let (owner, _) = try fixture(55)
+        defer { owner.close() }
+        let source = try owner.connection.find("a")
+        var commandRequest: UInt64 = 0
+        var retired: [UInt64] = []
+        owner.commandBegan = { command, result in
+            precondition(command == "client" && result.code == ITAR_REQUEST_STARTED)
+            commandRequest = result.request
+        }
+        owner.reconciled = { active in
+            if commandRequest != 0 && active != commandRequest {
+                retired.append(commandRequest)
+                commandRequest = 0
+            }
+        }
+        owner.invoke = { effect in
+            if effect.token.kind == 2 { return 5 }
+            // Both events arrive inside one host call; the configuration retires
+            // the new command before its first effect can be dispatched.
+            owner.enqueue(.requestCommand("a", "client", 0, 100))
+            var update = EngineMutation(kind: 1, key: "a", expected: source)
+            update.record.active = 1
+            update.record.enabled = 0
+            update.record.mounted = 1
+            update.record.mount = 1
+            update.record.entry_ready = 1
+            update.record.geometry = ItarGeometry(surface: 55, mount: 1, layout: 1,
+                bounds: ItarRect(x: 0, y: 0, width: 10, height: 10), state: 2)
+            owner.enqueue(.apply([update]))
+            return 0
+        }
+        owner.enqueue(.request("b", 0, 0, 100))
+        precondition(!owner.closed && retired.count == 1 && commandRequest == 0,
+                     "Silently invalidated command retained a pending caller")
     }
 }

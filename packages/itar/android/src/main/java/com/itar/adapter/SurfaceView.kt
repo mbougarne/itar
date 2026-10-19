@@ -3,6 +3,7 @@ package com.itar.adapter
 import android.content.Context
 import android.graphics.Rect
 import android.view.View
+import android.view.ViewGroup
 import android.view.KeyEvent
 import android.view.ViewTreeObserver
 import android.os.SystemClock
@@ -15,9 +16,17 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     private var serial = 0L
     private var epoch = 1L
     internal val targets = LinkedHashMap<Mount, WeakReference<TargetView>>()
+    private val logicalTargets = LinkedHashMap<String, WeakReference<TargetView>>()
+    internal val scopes = LinkedHashMap<String, WeakReference<ScopeView>>()
+    private var scopesDirty = true
     internal var dispatcher = Dispatcher(this)
     internal var onFocusRecord: ((LongArray) -> Unit)? = null
     internal var onRequestRecord: ((LongArray) -> Unit)? = null
+    internal var onSurfaceRecord: ((String) -> Unit)? = null
+    internal var eventSequence = 0L
+    internal val commandRequests = LinkedHashMap<Long, String>()
+    internal var providerId = ""
+        private set
     internal var bindRecords: ((SurfaceView) -> Unit)? = null
     internal var dialogs = Dialogs(this)
     private var covered = false
@@ -52,6 +61,38 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         if (!acceptsInput) { onRequestRecord?.invoke(longArrayOf(0, 3, 0)); return }
         val now = SystemClock.uptimeMillis()
         dispatcher.batch { refreshGeometry(); observe(); dispatcher.submit(9, longArrayOf(input.owner, now, now + 500), key) }
+    }
+    fun focusRequest(key: String, command: String) {
+        if (command.isEmpty() || command.length > 64) return
+        if (!acceptsInput || commandRequests.size >= 32) { emitRequest(longArrayOf(0, 3, 0), command); return }
+        val now = SystemClock.uptimeMillis()
+        dispatcher.batch { refreshGeometry(); observe(); dispatcher.submit(9, longArrayOf(input.owner, now, now + 500), key, command) }
+    }
+    fun cancelRequest(command: String) { if (!closed) dispatcher.submit(22, command = command) }
+    fun restoreScopeRequest(key: String, command: String) {
+        if (!acceptsInput || command.isEmpty() || command.length > 64) { emitRequest(longArrayOf(0, 3, 0), command); return }
+        val now = SystemClock.uptimeMillis()
+        dispatcher.batch { refreshGeometry(); observe(); dispatcher.submit(23, longArrayOf(input.owner, now, now + 500), key, command) }
+    }
+    fun configureProvider(value: String) {
+        if (providerId == value) return
+        if (providerId.isNotEmpty()) close()
+        providerId = value
+        if (isAttachedToWindow) {
+            reopen()
+            val pending = ArrayDeque<View>()
+            for (i in 0 until childCount) pending.addLast(getChildAt(i))
+            var visited = 0
+            while (pending.isNotEmpty()) {
+                if (++visited > 4096 || pending.size > 4096) { close(); return }
+                val view = pending.removeFirst()
+                if (view is SurfaceView) continue
+                if (view is TargetView) view.commitProps()
+                else if (view is ViewGroup) for (i in 0 until view.childCount) pending.addLast(view.getChildAt(i))
+            }
+            onSurfaceRecord?.invoke("ready")
+            observe()
+        }
     }
     fun cancel(lifetime: Long, request: Long) {
         if (closed) return
@@ -100,6 +141,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     }
     internal fun live(mount: Mount?): TargetView? = targets[mount]?.get()?.takeIf {
         acceptsInput && it.mount == mount && it.isAttachedToWindow && it.isShown && it.isEnabled && it.isFocusable &&
+            scopeActive(it.scopeKey) &&
             matrix.isIdentity && generateSequence<View>(it) { view -> view.parent as? View }.takeWhile { view -> view !== this }
                 .all { view -> view.matrix.isIdentity && (view.clipBounds == null || view.clipBounds == Rect(0, 0, view.width, view.height)) }
     }
@@ -108,6 +150,13 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean = acceptsInput && (input.dispatch(event) || super.dispatchKeyEvent(event))
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        reopen()
+        input.start()
+        viewTreeObserver.addOnGlobalFocusChangeListener(focusObserver)
+        viewTreeObserver.addOnScrollChangedListener(scrollObserver)
+        onSurfaceRecord?.invoke("ready")
+    }
+    private fun reopen() {
         if (closed) {
             connection = Connection()
             dispatcher = Dispatcher(this)
@@ -116,10 +165,8 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             closed = false
             bindRecords?.invoke(this)
             updateActivity()
+            input.start()
         }
-        input.start()
-        viewTreeObserver.addOnGlobalFocusChangeListener(focusObserver)
-        viewTreeObserver.addOnScrollChangedListener(scrollObserver)
     }
     override fun onDetachedFromWindow() {
         viewTreeObserver.removeOnGlobalFocusChangeListener(focusObserver)
@@ -141,6 +188,9 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             scheduleRefresh()
             return
         }
+        if (!refreshScopes()) return
+        val scope = if (target.scopeKey.isEmpty()) longArrayOf(0, 0) else scopes[target.scopeKey]?.get()?.node
+        if (scope == null) { target.isFocusable = false; return }
         val old = target.mount
         val logical = target.logicalMount
         if (old == null) { check(epoch < Long.MAX_VALUE); epoch++ }
@@ -157,7 +207,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         val values = longArrayOf(logical?.slot ?: 0, logical?.generation ?: 0, mountSerial,
             target.order.toLong(), if (target.isEnabled && acceptsInput) 1 else 0, epoch,
             if (target.width <= 0 || target.height <= 0) 0 else if (measured) 2 else 4,
-            rect.left.toLong(), rect.top.toLong(), rect.width().toLong(), rect.height().toLong(), logical?.serial ?: 0)
+            rect.left.toLong(), rect.top.toLong(), rect.width().toLong(), rect.height().toLong(), logical?.serial ?: 0) + scope
         val result = connection.exchange(1, values, target.occurrenceKey)
         if (result[0] == 0L) {
             val mount = Mount(result[1], result[2], result[3], target.occurrenceKey)
@@ -165,8 +215,11 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             target.logicalMount = mount
             target.logicalOwner = WeakReference(this)
             target.logicalLifetime = connection.lifetime
+            target.logicalScopeKey = target.scopeKey
+            logical?.key?.takeIf { it != target.occurrenceKey && logicalTargets[it]?.get() === target }?.let { logicalTargets.remove(it) }
+            logicalTargets[target.occurrenceKey] = WeakReference(target)
             targets[mount] = WeakReference(target)
-            target.isFocusable = target.isEnabled && measured && acceptsInput
+            target.isFocusable = target.isEnabled && measured && acceptsInput && scopeActive(target.scopeKey)
             target.resumeStyle()
             if (target.hasFocus()) observe(target)
             if (target.isAccessibilityFocused) observe(target, 1)
@@ -186,6 +239,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         if (!closed) dispatcher.submit(2, old.values(epoch))
     }
     internal fun dropLogical(identity: Mount, lifetime: Long) {
+        if (logicalTargets[identity.key]?.get()?.logicalMount == identity) logicalTargets.remove(identity.key)
         if (!closed && connection.lifetime == lifetime) dispatcher.submit(19, identity.values(epoch))
     }
     internal fun geometryChanged() {
@@ -198,6 +252,81 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         if (!refreshPosted) {
             refreshPosted = true
             post(refreshTask)
+        }
+    }
+    internal fun scopeChanged() { scopesDirty = true; geometryChanged() }
+    internal fun scopeActive(key: String): Boolean {
+        var current = key
+        repeat(257) {
+            if (current.isEmpty()) return true
+            val scope = scopes[current]?.get() ?: return false
+            if (!scope.active) return false
+            current = scope.parentScopeKey
+        }
+        return false
+    }
+    private fun refreshScopes(): Boolean {
+        if (closed || dispatcher.busy) return false
+        if (!scopesDirty) return true
+        val pending = ArrayDeque<View>()
+        for (i in 0 until childCount) pending.addLast(getChildAt(i))
+        val groups = ArrayList<ScopeView>()
+        var visited = 0
+        while (pending.isNotEmpty()) {
+            if (++visited > 4096 || groups.size >= 256 || pending.size > 4096) { close(); return false }
+            val view = pending.removeFirst()
+            if (view is SurfaceView) continue
+            if (view is ScopeView) groups.add(view)
+            if (view is ViewGroup) for (i in 0 until view.childCount) pending.addLast(view.getChildAt(i))
+        }
+        val remaining = groups.toMutableList()
+        val published = HashSet<String>()
+        repeat(groups.size + 1) {
+            val ready = remaining.filter { it.parentScopeKey.isEmpty() || published.contains(it.parentScopeKey) }
+            for (scope in ready) {
+                val old = scopes[scope.scopeKey]?.get()
+                if (scope.scopeKey.isEmpty() || (old != null && old !== scope && old.isAttachedToWindow)) { close(); return false }
+                if (old != null && old !== scope) {
+                    scope.node = old.node.copyOf()
+                    scope.committedKey = old.committedKey
+                    scope.committedParent = old.committedParent
+                }
+                if (scope.owner !== this) scope.owner?.dropScope(scope)
+                scope.owner = this
+                val parent = if (scope.parentScopeKey.isEmpty()) longArrayOf(0, 0)
+                    else scopes[scope.parentScopeKey]?.get()?.node ?: return false
+                if (!scope.publish(parent)) { close(); return false }
+                scopes[scope.scopeKey] = WeakReference(scope)
+                published.add(scope.scopeKey)
+                remaining.remove(scope)
+            }
+            if (remaining.isEmpty()) { scopesDirty = false; return true }
+        }
+        close()
+        return false
+    }
+    internal fun dropScope(scope: ScopeView) {
+        val retiredKey = scope.committedKey
+        if (retiredKey.isEmpty() || scopes[retiredKey]?.get() !== scope) return
+        fun inside(key: String): Boolean {
+            var current = key
+            repeat(257) {
+                if (current == retiredKey) return true
+                if (current.isEmpty()) return false
+                current = scopes[current]?.get()?.committedParent ?: return false
+            }
+            return false
+        }
+        val retired = scopes.keys.filter { inside(it) }.toSet()
+        scopesDirty = true
+        dispatcher.batch {
+            logicalTargets.values.mapNotNull { it.get() }.filter { retired.contains(it.logicalScopeKey) }.forEach {
+                detach(it)
+                logicalTargets.remove(it.logicalMount?.key ?: it.occurrenceKey)
+                it.logicalMount = null; it.logicalOwner = null; it.logicalLifetime = 0; it.logicalScopeKey = ""
+            }
+            if (!closed && scope.node[0] != 0L) dispatcher.submit(21, scope.node)
+            retired.forEach { key -> scopes.remove(key)?.get()?.let { it.owner = null; it.node = longArrayOf(0, 0) } }
         }
     }
     internal fun refreshGeometry() {
@@ -236,6 +365,8 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     fun close() {
         if (closed) return
         closed = true
+        onSurfaceRecord?.invoke("disposed")
+        commandRequests.clear()
         appliedActivity = null
         geometryDirty = true
         restoration = null
@@ -243,6 +374,10 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         dialogs.close()
         targets.values.mapNotNull { it.get() }.forEach { it.mount = null; it.isFocusable = false; it.resetStyle() }
         targets.clear()
+        logicalTargets.clear()
+        scopes.values.mapNotNull { it.get() }.forEach { it.owner = null; it.node = longArrayOf(0, 0) }
+        scopes.clear()
+        scopesDirty = true
         deferred.clear()
         removeCallbacks(refreshTask)
         refreshPosted = false

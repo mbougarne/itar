@@ -5,7 +5,7 @@ raise 'Build the CMake production boundary first' unless File.file?("#{build}/li
 output = "#{build}/swift-boundary"
 FileUtils.mkdir_p(output)
 sources = %w[EngineConnection.swift EngineDispatcher.swift].map { |name| "#{root}/packages/itar/apple/#{name}" } +
-          %w[BoundaryTests.swift DispatcherTests.swift].map { |name| "#{__dir__}/#{name}" }
+          %w[BoundaryTests.swift DispatcherTests.swift ScopeTests.swift].map { |name| "#{__dir__}/#{name}" }
 command = ['xcrun', 'swiftc', '-swift-version', '5', '-warnings-as-errors', '-parse-as-library',
            '-module-cache-path', "#{output}/module-cache",
            '-import-objc-header', "#{root}/packages/itar/apple/ItarEngine.h", *sources,

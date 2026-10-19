@@ -13,6 +13,8 @@ import androidx.appcompat.widget.AppCompatButton
 class TargetView(context: Context) : AppCompatButton(context) {
     var occurrenceKey = ""
     var order = 0
+    var scopeKey = ""
+    var registrationId = ""
     private val originalColors: ColorStateList = textColors
     private var baseColors = originalColors
     private var styling = true
@@ -23,6 +25,7 @@ class TargetView(context: Context) : AppCompatButton(context) {
     internal var logicalMount: Mount? = null
     internal var logicalOwner: WeakReference<SurfaceView>? = null
     internal var logicalLifetime = 0L
+    internal var logicalScopeKey = ""
     internal var onActivation: ((Long, Mount, Long, String) -> Unit)? = null
     private var activationSerial = 0L
     init { isFocusable = false }
@@ -86,6 +89,7 @@ class TargetView(context: Context) : AppCompatButton(context) {
             logicalMount = null
             logicalOwner = null
             logicalLifetime = 0
+            logicalScopeKey = ""
         }
     }
     override fun onAttachedToWindow() { super.onAttachedToWindow(); commitProps() }

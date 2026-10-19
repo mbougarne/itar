@@ -11,6 +11,8 @@ public final class ItarTargetHost: UIButton {
     var logicalMount: UInt64 = 0
     var logicalLifetime: UInt64 = 0
     private var sequence: UInt64 = 0
+    @objc public var scopeKey = "" { didSet { if oldValue != scopeKey { semanticsChanged() } } }
+    @objc public var registrationId = ""
     @objc public var occurrenceKey = "" {
         didSet {
             if oldValue != occurrenceKey {
@@ -98,7 +100,8 @@ public final class ItarTargetHost: UIButton {
             guard isFocused, (UIFocusSystem.focusSystem(for: self)?.focusedItem as? UIView) === self else { return false }
         }
         sequence += 1
-        onActivate?(["lifetime": String(owner.lifetime), "occurrenceKey": registration.key,
+        onActivate?(["lifetime": String(owner.lifetime), "provider": owner.providerId,
+                     "registration": registrationId, "occurrenceKey": registration.key,
                      "mount": String(registration.mount), "sequence": String(sequence), "source": source])
         return true
     }

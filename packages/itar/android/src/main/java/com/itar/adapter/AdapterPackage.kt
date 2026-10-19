@@ -8,5 +8,5 @@ import com.facebook.react.uimanager.ViewManager
 class AdapterPackage : ReactPackage {
     override fun createNativeModules(context: ReactApplicationContext): List<NativeModule> = emptyList()
     override fun createViewManagers(context: ReactApplicationContext): List<ViewManager<*, *>> =
-        listOf(SurfaceManager(), TargetManager())
+        listOf(SurfaceManager(), ScopeManager(), TargetManager())
 }
