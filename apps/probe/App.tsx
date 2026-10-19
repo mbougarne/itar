@@ -2,6 +2,8 @@ import React, {useState} from 'react';
 import {Button, Platform, requireNativeComponent, StyleSheet, Text, View, type ViewProps, type NativeSyntheticEvent} from 'react-native';
 import {packageStage} from 'itar';
 import AndroidAdapterScreen from './AndroidAdapterScreen';
+import AppleAdapterScreen from './AppleAdapterScreen';
+import ReactApiScreen from './ReactApiScreen';
 
 const HostProbe = Platform.OS === 'ios' ? requireNativeComponent<ViewProps & {
   onNativeActivation: (event: NativeSyntheticEvent<{target: string; targetAlias?: string}>) => void;
@@ -9,11 +11,27 @@ const HostProbe = Platform.OS === 'ios' ? requireNativeComponent<ViewProps & {
 export default function App() {
   const [showB, setShowB] = useState(true);
   const [activation, setActivation] = useState('None');
+  const [appleAdapter, setAppleAdapter] = useState(false);
+  const [reactApi, setReactApi] = useState(false);
+  if (reactApi) {
+    return <View style={styles.screen}>
+      <Button title="Return to carrier probes" onPress={() => setReactApi(false)} />
+      <ReactApiScreen />
+    </View>;
+  }
+  if (Platform.OS === 'ios' && appleAdapter) {
+    return <View style={styles.screen}>
+      <Button title="Return to host probes" onPress={() => setAppleAdapter(false)} />
+      <AppleAdapterScreen />
+    </View>;
+  }
   return (
     <View style={styles.screen}>
       <Text style={styles.title}>Itar: {Platform.OS === 'android' ? 'Android adapter preview' : packageStage}</Text>
       {Platform.OS !== 'android' && <Text>Native adapter work; unrun acceptance remains explicit.</Text>}
       {Platform.OS === 'android' && <AndroidAdapterScreen />}
+      <Button title="React API preview" onPress={() => setReactApi(true)} />
+      {Platform.OS === 'ios' && <Button title="Apple adapter preview" onPress={() => setAppleAdapter(true)} />}
       {HostProbe && <>
         <Button title="Busy JS for 2 seconds" onPress={() => {
           console.info("ItarProbe JS busy start");

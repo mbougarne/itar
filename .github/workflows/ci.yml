@@ -110,6 +110,9 @@ jobs:
         run: cmake --build build/core --parallel 2
       - name: Run tests (zero tests is a failure)
         run: ctest --test-dir build/core --output-on-failure --no-tests=error --timeout 60
+      - name: Check the Swift production boundary
+        if: runner.os == 'macOS'
+        run: ruby packages/itar/apple/tests/check-swift.rb build/core
 
   javascript:
     name: RN workspace

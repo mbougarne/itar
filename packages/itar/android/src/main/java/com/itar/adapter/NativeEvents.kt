@@ -13,9 +13,9 @@ internal object NativeEvents {
         override fun getEventData() = data
         override fun canCoalesce() = false
     }
-    fun emit(view: View, name: String, values: Map<String, String>) {
+    fun emit(view: View, name: String, values: Map<String, String>, allowDetached: Boolean = false) {
         val context = view.context as? ReactContext ?: return
-        if (view.id == View.NO_ID || !view.isAttachedToWindow || !context.hasActiveReactInstance()) return
+        if (view.id == View.NO_ID || (!allowDetached && !view.isAttachedToWindow) || !context.hasActiveReactInstance()) return
         val data = Arguments.createMap().apply { values.forEach { (key, value) -> putString(key, value) } }
         UIManagerHelper.getEventDispatcherForReactTag(context, view.id)?.dispatchEvent(
             Record(UIManagerHelper.getSurfaceId(view), view.id, name, data))

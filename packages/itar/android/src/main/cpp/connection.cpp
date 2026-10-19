@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "presentation.hpp"
+#include "scopes.hpp"
 
 namespace {
 thread_local itar::android::Boundary boundary;
@@ -22,7 +23,7 @@ extern "C" JNIEXPORT jlongArray JNICALL
 Java_com_itar_adapter_Connection_exchangeNative(JNIEnv* env, jobject,
                                                 jlong token, jint operation,
                                                 jlongArray input,
-                                                jstring key) noexcept {
+                                                jstring key, jstring extra) noexcept {
   using namespace itar::android;
   // Allocate before changing core state or draining an output channel.
   auto output = env->NewLongArray(64);
@@ -40,8 +41,9 @@ Java_com_itar_adapter_Connection_exchangeNative(JNIEnv* env, jobject,
     result = boundary.access(token, [&](Session& session) -> std::int64_t {
       std::array<std::int64_t, 32> copied{};
       std::copy_n(values.begin(), size, copied.begin());
-      if (operation == 0) return size == 0 && !key ? ok : conversion;
+      if (operation == 0) return size == 0 && !key && !extra ? ok : conversion;
       if (key && env->GetStringUTFLength(key) > 512) return conversion;
+      if (extra && (operation != 20 || env->GetStringUTFLength(extra) > 512)) return conversion;
       struct Text {
         JNIEnv* env;
         jstring key;
@@ -51,6 +53,10 @@ Java_com_itar_adapter_Connection_exchangeNative(JNIEnv* env, jobject,
         }
       } text{env, key, key ? env->GetStringUTFChars(key, nullptr) : nullptr};
       if (key && !text.chars) return resource;
+      Text additional{env, extra, extra ? env->GetStringUTFChars(extra, nullptr) : nullptr};
+      if (extra && !additional.chars) return resource;
+      if (operation >= 20) return scope(session, operation, std::span{copied}.first(size),
+          text.chars ? text.chars : "", additional.chars ? additional.chars : "", response);
       if (operation >= 6 && operation <= 8)
         return itar::android::input(session, operation,
                                     std::span{copied}.first(size), response);

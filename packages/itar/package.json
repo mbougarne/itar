@@ -2,14 +2,16 @@
   "name": "itar",
   "version": "0.0.0",
   "private": true,
-  "description": "React Native TV focus package; Android adapter preview",
+  "description": "React Native TV focus package; native adapter and React API preview",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "react-native": "src/index.ts",
   "files": [
     "lib",
     "src",
-    "android"
+    "android",
+    "apple",
+    "*.podspec"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json"
@@ -24,6 +26,13 @@
     "jsSrcsDir": "src/specs",
     "android": {
       "javaPackageName": "com.itar.adapter"
+    },
+    "ios": {
+      "componentProvider": {
+        "ItarSurface": "ItarSurfaceComponentView",
+        "ItarScope": "ItarScopeComponentView",
+        "ItarTarget": "ItarTargetComponentView"
+      }
     }
   },
   "exports": {
@@ -36,6 +45,16 @@
       "types": "./lib/android.d.ts",
       "react-native": "./src/android.ts",
       "default": "./lib/android.js"
+    },
+    "./apple": {
+      "types": "./lib/apple.d.ts",
+      "react-native": "./src/apple.ts",
+      "default": "./lib/apple.js"
+    },
+    "./react": {
+      "types": "./lib/react.d.ts",
+      "react-native": "./src/react.tsx",
+      "default": "./lib/react.js"
     },
     "./package.json": "./package.json"
   }

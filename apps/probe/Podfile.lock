@@ -8,6 +8,36 @@ PODS:
   - hermes-engine (0.14.0):
     - hermes-engine/Pre-built (= 0.14.0)
   - hermes-engine/Pre-built (0.14.0)
+  - ItarEngineCore (0.0.0)
+  - ItarEngineNative (0.0.0):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - ItarEngineCore (= 0.0.0)
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
   - ItarProbeHost (0.0.0):
     - React-Core
   - RCT-Folly (2024.11.18.00):
@@ -2461,6 +2491,8 @@ DEPENDENCIES:
   - fmt (from `../../../node_modules/react-native/third-party-podspecs/fmt.podspec`)
   - glog (from `../../../node_modules/react-native/third-party-podspecs/glog.podspec`)
   - hermes-engine (from `../../../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
+  - ItarEngineCore (from `../../..`)
+  - ItarEngineNative (from `../../../node_modules/itar`)
   - ItarProbeHost (from `../../..`)
   - RCT-Folly (from `../../../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCTDeprecation (from `../../../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
@@ -2555,6 +2587,10 @@ EXTERNAL SOURCES:
   hermes-engine:
     :podspec: "../../../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
     :tag: hermes-v0.14.0
+  ItarEngineCore:
+    :path: "../../.."
+  ItarEngineNative:
+    :path: "../../../node_modules/itar"
   ItarProbeHost:
     :path: "../../.."
   RCT-Folly:
@@ -2706,6 +2742,8 @@ SPEC CHECKSUMS:
   fmt: 93c1ed640bc1bb28c1f3dd3ae91709900e5027fb
   glog: 2777ae82f2611bf0a9ed50bcd30b0eea7e7b7f05
   hermes-engine: a5c1494a665350f9116429e789a84f000a31d7fe
+  ItarEngineCore: 1d7d8e7b137690fcd4389327f1a6483ed0d2d66e
+  ItarEngineNative: 3f18db772bfe2a7a847984ad4454bd61b86bfafe
   ItarProbeHost: ccc65201b83cbfddd327ee965edac8687c4ade73
   RCT-Folly: 7c80efecb701a3b9fbf92139b9501fe4ba3d6926
   RCTDeprecation: f83cf0a38288a4c19e0271700ac9e0d1aaed0448
@@ -2774,11 +2812,11 @@ SPEC CHECKSUMS:
   React-utils: bea0e18078e2d9a483fe3aefa84cbdd75a313b24
   React-webperformancenativemodule: 8f78a25e280a0fbdbd46916aab3861282c39b6ae
   ReactAppDependencyProvider: 700ed088168fccb9764fbf2622ad8e0b54af31a0
-  ReactCodegen: 8f15d5ed439d8266cf59bb2c2978fda7bda7d53c
+  ReactCodegen: c9d1b569dd06dc09fbe303b1d31f7439776b0e5a
   ReactCommon: f11d77cd5342419916ccd3b1b77b91ebb418edb4
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 214d4f53966125066c432e63bd203821bed9b58a
 
-PODFILE CHECKSUM: 5975e90fface3f892f1b8d8719f746fde4fec613
+PODFILE CHECKSUM: 2007ea62364703f161fb41fdc228ae3d4a7a3931
 
 COCOAPODS: 1.16.2
