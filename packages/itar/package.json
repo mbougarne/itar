@@ -30,6 +30,7 @@
     "ios": {
       "componentProvider": {
         "ItarSurface": "ItarSurfaceComponentView",
+        "ItarScope": "ItarScopeComponentView",
         "ItarTarget": "ItarTargetComponentView"
       }
     }

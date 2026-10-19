@@ -4,6 +4,7 @@ import {codegenNativeComponent} from 'react-native';
 
 export interface NativeProps extends ViewProps {
   occurrenceKey: string;
+  scopeKey?: string;
   label: string;
   enabled?: WithDefault<boolean, true>;
   order?: Int32;
@@ -15,6 +16,7 @@ export interface NativeProps extends ViewProps {
     mount: string;
     sequence: string;
     source: string;
+    provider: string;
   }>>;
 }
 export default codegenNativeComponent<NativeProps>('ItarTarget') as HostComponent<NativeProps>;
