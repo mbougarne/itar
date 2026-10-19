@@ -105,7 +105,11 @@ enum DispatcherTests {
             var update = EngineMutation(kind: 1, key: "a", expected: source)
             update.record.active = 1
             update.record.enabled = 0
+            update.record.mounted = 1
+            update.record.mount = 1
             update.record.entry_ready = 1
+            update.record.geometry = ItarGeometry(surface: 55, mount: 1, layout: 1,
+                bounds: ItarRect(x: 0, y: 0, width: 10, height: 10), state: 2)
             owner.enqueue(.apply([update]))
             return 0
         }
