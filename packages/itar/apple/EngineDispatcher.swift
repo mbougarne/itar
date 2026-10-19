@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(ItarEngineCore)
+import ItarEngineCore
+#endif
 
 // A single owner inbox. UIKit callbacks copy values here; no callback recursively
 // enters C++ or delivers React events while a host invocation is on the stack.

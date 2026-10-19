@@ -7,6 +7,7 @@ FileUtils.mkdir_p(output)
 sources = %w[EngineConnection.swift EngineDispatcher.swift].map { |name| "#{root}/packages/itar/apple/#{name}" } +
           %w[BoundaryTests.swift DispatcherTests.swift].map { |name| "#{__dir__}/#{name}" }
 command = ['xcrun', 'swiftc', '-swift-version', '5', '-warnings-as-errors', '-parse-as-library',
+           '-module-cache-path', "#{output}/module-cache",
            '-import-objc-header', "#{root}/packages/itar/apple/ItarEngine.h", *sources,
            "#{build}/libitar_apple_engine.a", "#{build}/libitar_core.a", '-lc++',
            '-o', "#{output}/boundary-tests"]

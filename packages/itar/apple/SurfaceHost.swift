@@ -1,4 +1,5 @@
 import UIKit
+import ItarEngineCore
 
 final class AppleRegistration {
     let key: String

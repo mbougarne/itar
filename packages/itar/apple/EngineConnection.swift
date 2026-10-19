@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(ItarEngineCore)
+import ItarEngineCore
+#endif
 
 enum EngineBoundaryError: Error {
     case call(ItarCallStatus)

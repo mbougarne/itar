@@ -1,4 +1,5 @@
 import UIKit
+import ItarEngineCore
 
 extension ItarSurfaceHost {
     func preferredEnvironments() -> [UIFocusEnvironment] {

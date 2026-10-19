@@ -10,7 +10,8 @@
     "lib",
     "src",
     "android",
-    "apple"
+    "apple",
+    "*.podspec"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json"
