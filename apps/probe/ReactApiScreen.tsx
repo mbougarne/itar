@@ -9,6 +9,7 @@ const rails = [
   {id: 'rail-b', entries: [{id: 'entry-1', movie: 'movie-1'}, {id: 'entry-2', movie: 'movie-2'}]},
 ];
 const keyFor = (rail: string, entry: string) => occurrenceKey('home', rail, entry);
+const focusStyle = {accentColor: '#ff8800'};
 
 function FocusStatus() {
   const state = useFocusState();
@@ -82,12 +83,12 @@ function Screen() {
       {rails.map(rail => <FocusScope key={rail.id} id={rail.id} layout="row" boundary="parent" style={styles.rail}>
         {rail.entries.map((entry, index) => <Focusable key={entry.id} occurrenceKey={keyFor(rail.id, entry.id)}
           contentId={entry.movie} accessibilityLabel={`${entry.movie}, ${rail.id}`} order={index}
-          focusStyle={{accentColor: '#ff8800'}} baseAccentColor="#222222" style={styles.card} onPress={pressed} />)}
+          focusStyle={focusStyle} baseAccentColor="#222222" style={styles.card} onPress={pressed} />)}
       </FocusScope>)}
     </FocusScope>
     <FocusScope id="details" active={route === 'details'} style={route === 'details' ? styles.details : styles.hidden}>
       <Focusable occurrenceKey={occurrenceKey('details', 'play')} contentId="movie-1" accessibilityLabel="Play movie"
-        style={styles.card} focusStyle={{accentColor: '#ff8800'}} onPress={pressed} />
+        style={styles.card} focusStyle={focusStyle} onPress={pressed} />
     </FocusScope>
     <FocusStatus />
     <SelectedStatus />

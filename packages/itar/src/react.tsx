@@ -85,7 +85,7 @@ export type FocusableProps = {
   testID?: string;
 };
 // Render allocates only an identity. Registration is published at host/effect commit.
-export const Focusable = memo(function Focusable({occurrenceKey: key, contentId, accessibilityLabel,
+export const Focusable = memo(function FocusableButton({occurrenceKey: key, contentId, accessibilityLabel,
   enabled = true, order = 0, style, focusStyle, baseAccentColor, onPress, testID}: FocusableProps) {
   const store = useStore();
   const scope = useContext(ScopeContext);

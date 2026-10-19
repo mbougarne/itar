@@ -35,7 +35,7 @@ inline std::int64_t scope(Session &s, int operation, std::span<const std::int64_
     mutation.record.scope = true;
     mutation.record.active = v[4] != 0;
     mutation.record.navigation.layout = static_cast<Layout>(v[5]);
-    mutation.record.navigation.boundary = static_cast<Boundary>(v[6]);
+    mutation.record.navigation.boundary = static_cast<itar::Boundary>(v[6]);
     mutation.record.navigation.trap = v[7] != 0;
     mutation.record.navigation.entryReady = v[8] != 0;
     mutation.preferred = OccurrenceKey{std::string(preferred)};
