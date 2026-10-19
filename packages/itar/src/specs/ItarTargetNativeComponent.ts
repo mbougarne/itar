@@ -17,4 +17,4 @@ export interface NativeProps extends ViewProps {
     source: string;
   }>>;
 }
-export default codegenNativeComponent<NativeProps>('ItarTarget', {excludedPlatforms: ['iOS']}) as HostComponent<NativeProps>;
+export default codegenNativeComponent<NativeProps>('ItarTarget') as HostComponent<NativeProps>;

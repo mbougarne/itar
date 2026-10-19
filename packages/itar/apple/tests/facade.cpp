@@ -187,6 +187,31 @@ void deadlinesAndResources() {
   failAllocation = false;
   CHECK(itar_engine_snapshot(f.engine, 10).call == ITAR_DISPOSED);
 }
+void restoration() {
+  Fixture f;
+  uint64_t token = 0;
+  CHECK(itar_engine_capture_restoration(f.engine, 10, &token) == ITAR_OK && token);
+  CHECK(itar_engine_observe_focus(f.engine, 10, 0, {2, {}, 0}, 0, {}).call == ITAR_OK);
+  CHECK(itar_engine_restore(f.engine, 10, token + 1, 0, 100, 1).code == static_cast<int>(itar::RequestStatus::stale));
+  CHECK(itar_engine_restore(f.engine, 10, token, 0, 100, 1).code == ITAR_REQUEST_STARTED);
+  CHECK(f.effects()[0].target.slot == f.a.slot);
+  CHECK(itar_engine_restore(f.engine, 10, token, 0, 100, 1).code == static_cast<int>(itar::RequestStatus::stale));
+
+  Fixture removed;
+  CHECK(itar_engine_capture_restoration(removed.engine, 10, &token) == ITAR_OK && token);
+  ItarMutation erase{};
+  erase.kind = 3; erase.key = bytes("a"); erase.expected = removed.a;
+  CHECK(itar_engine_apply(removed.engine, 10, 1, &erase, 1).code == 0);
+  CHECK(itar_engine_observe_focus(removed.engine, 10, 0, {2, {}, 0}, 0, {}).call == ITAR_OK);
+  CHECK(itar_engine_restore(removed.engine, 10, token, 0, 100, 1).code == ITAR_REQUEST_STARTED);
+  CHECK(removed.effects()[0].target.slot == removed.b.slot);
+
+  Fixture host;
+  CHECK(itar_engine_capture_restoration(host.engine, 10, &token) == ITAR_OK && token);
+  CHECK(itar_engine_observe_focus(host.engine, 10, 0, {1, {}, 0}, 0, {}).call == ITAR_OK);
+  CHECK(itar_engine_restore(host.engine, 10, token, 0, 100, 1).code != ITAR_REQUEST_STARTED);
+  CHECK(host.effects().empty());
+}
 } // namespace
 
 // Test-only allocation failure at the C++ exception boundary.
@@ -204,4 +229,5 @@ int main() {
   confirmationAndCancellation();
   invalidationAndReuse();
   deadlinesAndResources();
+  restoration();
 }

@@ -1,7 +1,7 @@
 # Apple engine boundary
 
 `ItarEngineNative.podspec` packages the production C++20 engine and its Swift
-owner for tvOS 15.1 or later. Add the local pod to the consumer's tvOS target:
+owner with a declared tvOS 15.1 deployment target. Add the local pod to the consumer's tvOS target:
 
 ```ruby
 pod 'ItarEngineNative', :path => '<repository-root>'
@@ -9,8 +9,9 @@ pod 'ItarEngineNative', :path => '<repository-root>'
 
 The pod uses Swift language mode 5 and contains its C++20 settings. It does not
 require application-wide Swift/C++ interoperability. Only `ItarEngine.h` is
-public to the module. No React registration glue is needed for this value-only
-increment. The existing `ItarProbeHost` remains a separate disposable fixture.
+public to the module. `ComponentViews.mm` registers the shared Fabric carriers
+and forwards props, commands and events to Swift. The existing `ItarProbeHost`
+remains a separate disposable fixture.
 
 Each `EngineConnection` owns one production surface's registry and transactions.
 The native surface owner supplies nonzero surface/lifetime identities and keeps
@@ -39,8 +40,34 @@ A host dispatcher must defer destruction until active host calls unwind and must
 queue copied callbacks rather than recursively mutating the engine. Time is an
 explicit monotonic host input; the snapshot exposes the next absolute deadline.
 
-This boundary exposes explicit focus requests, observations and invalidation.
-Directional UIKit cooperation, Codegen view registration, reveal execution,
-presentation lifecycle, styles and VoiceOver host behavior are separate adapter
-increments. This pod alone does not provide a React target component or a
-complete Apple TV adapter.
+Import `AppleSurface`, `AppleTarget` and `AppleCommands` from `itar/apple` for the
+mounted carrier. Targets require a unique occurrence key and committed label;
+their role is button, with enabled/disabled state and native activation.
+`baseColor` and `focusColor` configure the native border: width 1 at rest, 5 while
+actually focused. UIKit keeps its native scale/parallax. Reduced motion applies
+the border immediately; otherwise it uses the focus animation coordinator.
+
+UIKit owns directional input, gestures, text and player controls. The current
+policy subset maps explicit engine focus effects to validated preferences and
+rejects unavailable or covered owned targets. It does not enforce geometric
+destination parity or intercept remote presses. Actual callbacks and queried
+focus supply confirmation. Missing registration does not imply absent host focus.
+
+Geometry is committed in surface coordinates. Detach/reuse invalidates the old
+mount independently of prop batches. Layout and observed owned scroll offsets
+invalidate measurements before replacement publication. Transforms, invalid
+bounds and partial clipping make a target unavailable. Collection realization
+is outside this carrier; reveal effects are rejected rather than fabricated.
+
+Owned dialog commands suspend the opener before presentation, hide covered
+semantics, and create an independent managed root in the existing UIKit window.
+Dismissal reconciles native restoration before consuming a value-only engine
+opener token. The core chooses deletion recovery; unmanaged or unknown native
+focus suppresses restoration. Arbitrary RN Modal and separate-window routing
+remain separate work.
+
+VoiceOver state and focus observations stay native and separate from input focus.
+Reader ownership cancels pending managed intent. Accessibility activation uses
+the live semantic target without an input-focus transfer or custom announcement.
+The carrier and reference screen are provisional; the later provider/hooks API,
+physical remote/VoiceOver acceptance and release support are separate gates.

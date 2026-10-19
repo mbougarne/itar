@@ -9,7 +9,8 @@
   "files": [
     "lib",
     "src",
-    "android"
+    "android",
+    "apple"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json"
@@ -24,6 +25,12 @@
     "jsSrcsDir": "src/specs",
     "android": {
       "javaPackageName": "com.itar.adapter"
+    },
+    "ios": {
+      "componentProvider": {
+        "ItarSurface": "ItarSurfaceComponentView",
+        "ItarTarget": "ItarTargetComponentView"
+      }
     }
   },
   "exports": {
@@ -36,6 +43,11 @@
       "types": "./lib/android.d.ts",
       "react-native": "./src/android.ts",
       "default": "./lib/android.js"
+    },
+    "./apple": {
+      "types": "./lib/apple.d.ts",
+      "react-native": "./src/apple.ts",
+      "default": "./lib/apple.js"
     },
     "./package.json": "./package.json"
   }

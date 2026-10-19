@@ -27,4 +27,4 @@ interface NativeCommands {
   dismissDialog(viewRef: React.ElementRef<HostComponent<NativeProps>>): void;
 }
 export const Commands = codegenNativeCommands<NativeCommands>({supportedCommands: ['focus', 'cancel', 'showDialog', 'dismissDialog']});
-export default codegenNativeComponent<NativeProps>('ItarSurface', {excludedPlatforms: ['iOS']}) as HostComponent<NativeProps>;
+export default codegenNativeComponent<NativeProps>('ItarSurface') as HostComponent<NativeProps>;

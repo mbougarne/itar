@@ -118,6 +118,12 @@ ItarRequestResult itar_engine_complete(ItarEngine *, uint64_t lifetime,
 ItarRequestResult itar_engine_cancel(ItarEngine *, uint64_t lifetime, uint64_t request) ITAR_NOEXCEPT;
 // Host-supplied monotonic units, matching request deadlines. No timer/polling here.
 ItarRequestResult itar_engine_advance(ItarEngine *, uint64_t lifetime, uint64_t now) ITAR_NOEXCEPT;
+// One bounded, value-only opener context per surface. Capture returns token zero
+// when there is no eligible observed opener. Restore consumes the exact token,
+// respects host reassignment, and lets the core select deletion recovery.
+ItarCallStatus itar_engine_capture_restoration(ItarEngine *, uint64_t lifetime, uint64_t *token) ITAR_NOEXCEPT;
+ItarRequestResult itar_engine_restore(ItarEngine *, uint64_t lifetime, uint64_t token,
+    int32_t owner, uint64_t deadline, uint64_t dataset) ITAR_NOEXCEPT;
 // Exactly 32 records of capacity suffice for each bounded channel. Insufficient
 // capacity returns BUFFER_TOO_SMALL without consuming values; count is zeroed.
 ItarCallStatus itar_engine_effects(ItarEngine *, uint64_t lifetime,

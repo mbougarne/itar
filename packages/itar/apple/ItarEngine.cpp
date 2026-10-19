@@ -1,5 +1,6 @@
 #include "ItarEngine.h"
 #include <itar/transaction.hpp>
+#include <itar/geometry_view.hpp>
 
 #include <new>
 #include <stdexcept>
@@ -11,10 +12,13 @@ struct ItarEngine {
   bool disposed{};
   itar::State state;
   itar::Transactions transactions;
+  std::optional<itar::RecoveryOrigin> restoration;
+  itar::NodeHandle opener;
+  uint64_t restorationToken{};
   ItarEngine(uint64_t surface, uint64_t life, uint32_t capacity)
       : lifetime(life), state(itar::SurfaceId{surface}, {capacity}),
         transactions(state, itar::SurfaceLifetime{life}) {}
-  void revoke() noexcept { disposed = true; transactions.dispose(); }
+  void revoke() noexcept { disposed = true; transactions.dispose(); restoration.reset(); }
 };
 
 namespace {
@@ -219,6 +223,41 @@ extern "C" ItarRequestResult itar_engine_cancel(ItarEngine *engine, uint64_t lif
 }
 extern "C" ItarRequestResult itar_engine_advance(ItarEngine *engine, uint64_t life, uint64_t now) noexcept {
   return request(engine, life, [&] { return engine->transactions.advanceTo(now); });
+}
+extern "C" ItarCallStatus itar_engine_capture_restoration(ItarEngine *engine, uint64_t life,
+    uint64_t *output) noexcept {
+  if (!output) return ITAR_INVALID;
+  *output = 0;
+  const auto status = check(engine, life);
+  if (status != ITAR_OK) return status;
+  return protect(engine, [&] {
+    require(engine->restorationToken != UINT64_MAX);
+    engine->restoration = captureRecovery(engine->state);
+    engine->opener = engine->state.snapshot().inputFocus.node;
+    ++engine->restorationToken;
+    if (engine->restoration) *output = engine->restorationToken;
+  });
+}
+extern "C" ItarRequestResult itar_engine_restore(ItarEngine *engine, uint64_t life, uint64_t value,
+    int32_t owner, uint64_t deadline, uint64_t dataset) noexcept {
+  return request(engine, life, [&]() -> RequestResult {
+    require(owner >= 0 && owner <= 4);
+    if (!value || value != engine->restorationToken || !engine->restoration) return {RequestStatus::stale, {}};
+    auto origin = std::move(*engine->restoration);
+    engine->restoration.reset();
+    const auto& snapshot = engine->state.snapshot();
+    if (owner != 0 || snapshot.inputFocus.kind != FocusKind::absent) return {RequestStatus::unavailable, {}};
+    const InputContext input{engine->state.surface(), {}, static_cast<InputOwner>(owner), snapshot.inputFocus};
+    const RequestOptions options{deadline, {dataset}, {}, {}};
+    const auto target = snapshot.registry.find(origin.occurrence);
+    if (target) {
+      if (target != engine->opener || !usableGeometry(snapshot, engine->state.surface(), target)) {
+        return {RequestStatus::unavailable, {}};
+      }
+      return engine->transactions.requestFocus(origin.occurrence, input, options);
+    }
+    return engine->transactions.begin(resolveRecovery(engine->state, origin, input), options);
+  });
 }
 extern "C" ItarCallStatus itar_engine_effects(ItarEngine *engine, uint64_t life,
     ItarEffect *output, size_t capacity, size_t *count) noexcept {

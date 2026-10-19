@@ -156,6 +156,18 @@ final class EngineConnection {
         try checked(result.call)
         return result
     }
+    func captureRestoration() throws -> UInt64 {
+        precondition(Thread.isMainThread)
+        var token: UInt64 = 0
+        try checked(itar_engine_capture_restoration(handle, lifetime, &token))
+        return token
+    }
+    func restore(_ token: UInt64, owner: Int32, deadline: UInt64) throws -> ItarRequestResult {
+        precondition(Thread.isMainThread)
+        let result = itar_engine_restore(handle, lifetime, token, owner, deadline, 1)
+        try checked(result.call)
+        return result
+    }
 
     func effects() throws -> [ItarEffect] {
         precondition(Thread.isMainThread)
