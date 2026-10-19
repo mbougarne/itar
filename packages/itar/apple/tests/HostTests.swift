@@ -68,6 +68,23 @@ import UIKit
         XCTAssertGreaterThan(a.registration?.mount ?? 0, mount)
         XCTAssertNotEqual(try root.dispatcher?.connection.invalidate(node, mount: mount, kind: 0), 0)
     }
+    func testRetiredViewCannotEraseReplacement() throws {
+        let old = a!
+        let original = try XCTUnwrap(old.registration)
+        let mount = original.mount
+        old.removeFromSuperview()
+        let replacement = target("a", x: 0)
+        root.addSubview(replacement)
+        root.commitGeometry()
+        XCTAssertGreaterThan(replacement.registration?.mount ?? 0, mount)
+        old.recycle()
+        XCTAssertNotNil(root.registrations["a"])
+        XCTAssertTrue(replacement.canBecomeFocused)
+        replacement.removeFromSuperview()
+        replacement.recycle()
+        XCTAssertNil(root.registrations["a"])
+        XCTAssertEqual(try root.dispatcher?.connection.find("a").slot, 0)
+    }
     func testInvalidGeometryAndSemanticsBeforeEligibility() {
         XCTAssertEqual(a.accessibilityLabel, "Button a")
         XCTAssertTrue(a.accessibilityTraits.contains(.button))

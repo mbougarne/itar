@@ -4,9 +4,19 @@ import UIKit
 public final class ItarTargetHost: UIButton {
     weak var owner: ItarSurfaceHost?
     var registration: AppleRegistration?
+    weak var logicalOwner: ItarSurfaceHost?
+    var logicalKey: String?
+    var logicalNode = ItarNode()
+    var logicalMount: UInt64 = 0
+    var logicalLifetime: UInt64 = 0
     private var sequence: UInt64 = 0
     @objc public var occurrenceKey = "" {
-        didSet { if oldValue != occurrenceKey { owner?.drop(self); nearestSurface()?.geometryChanged() } }
+        didSet {
+            if oldValue != occurrenceKey {
+                (logicalOwner ?? owner)?.drop(self)
+                nearestSurface()?.geometryChanged()
+            }
+        }
     }
     @objc public var label = "" {
         didSet {
@@ -94,8 +104,16 @@ public final class ItarTargetHost: UIButton {
     @objc private func selected() { _ = activate("input") }
     public override func accessibilityActivate() -> Bool { activate("accessibility") }
     @objc public func recycle() {
-        owner?.drop(self)
+        (logicalOwner ?? owner)?.drop(self)
+        clearLogicalIdentity()
         restoreBaseStyle()
         onActivate = nil
+    }
+    func clearLogicalIdentity() {
+        logicalOwner = nil
+        logicalKey = nil
+        logicalNode = ItarNode()
+        logicalMount = 0
+        logicalLifetime = 0
     }
 }

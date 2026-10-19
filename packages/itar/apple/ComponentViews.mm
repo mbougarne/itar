@@ -81,6 +81,10 @@ static std::string value(NSDictionary *record, NSString *key) {
   [super prepareForRecycle];
   [self installHost];
 }
+- (void)invalidate {
+  [_host shutdown];
+  [super invalidate];
+}
 @end
 
 @interface ItarTargetComponentView : RCTViewComponentView
@@ -126,6 +130,10 @@ static std::string value(NSDictionary *record, NSString *key) {
   [_host recycle];
   [super prepareForRecycle];
   [self installHost];
+}
+- (void)invalidate {
+  [_host recycle];
+  [super invalidate];
 }
 @end
 

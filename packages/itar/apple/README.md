@@ -58,6 +58,9 @@ mount independently of prop batches. Layout and observed owned scroll offsets
 invalidate measurements before replacement publication. Transforms, invalid
 bounds and partial clipping make a target unavailable. Collection realization
 is outside this carrier; reveal effects are rejected rather than fabricated.
+The owned carrier bounds traversal to 4096 views and 256 targets; exceeding a
+limit revokes the surface. Detach retains logical identity until recycle, while
+retired mounts cannot delete a newer attachment with the same occurrence key.
 
 Owned dialog commands suspend the opener before presentation, hide covered
 semantics, and create an independent managed root in the existing UIKit window.

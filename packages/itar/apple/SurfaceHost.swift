@@ -82,6 +82,7 @@ public final class ItarSurfaceHost: UIView {
             registration.target?.restoreBaseStyle()
             registration.target?.owner = nil
             registration.target?.registration = nil
+            registration.target?.clearLogicalIdentity()
         }
         registrations.removeAll()
         scrollObservers.removeAll()
@@ -115,14 +116,23 @@ public final class ItarSurfaceHost: UIView {
         geometryChanged()
     }
 
-    func descendants() -> [ItarTargetHost] {
+    func descendants() -> [ItarTargetHost]? {
         var output: [ItarTargetHost] = []
-        func visit(_ view: UIView) {
-            if let root = view as? ItarSurfaceHost, root !== self { return }
-            if let target = view as? ItarTargetHost { output.append(target); return }
-            view.subviews.forEach(visit)
+        var pending = subviews
+        var visited = 0
+        while let view = pending.popLast() {
+            visited += 1
+            guard visited <= 4096, pending.count <= 4096 else { return nil }
+            if let root = view as? ItarSurfaceHost, root !== self { continue }
+            if let target = view as? ItarTargetHost {
+                guard output.count < 256 else { return nil }
+                output.append(target)
+                continue
+            }
+            let children = view.subviews
+            guard pending.count + children.count <= 4096 else { return nil }
+            pending.append(contentsOf: children)
         }
-        subviews.forEach(visit)
         return output
     }
 
@@ -179,7 +189,7 @@ public final class ItarSurfaceHost: UIView {
         refreshing = true
         defer { refreshing = false }
         var mutations: [EngineMutation] = []
-        let targets = descendants()
+        guard let targets = descendants() else { shutdown(); return }
         var scrolls: [ObjectIdentifier: UIScrollView] = [:]
         for target in targets {
             var ancestor = target.superview
@@ -188,6 +198,7 @@ public final class ItarSurfaceHost: UIView {
                 if view === self { break }
                 ancestor = view.superview
             }
+            if let old = target.logicalOwner, old !== self || target.logicalLifetime != lifetime { old.drop(target) }
             if target.owner !== self { target.owner?.detach(target); target.owner = self }
             if let old = target.registration, old.key != target.occurrenceKey { drop(target) }
             guard !target.occurrenceKey.isEmpty, target.occurrenceKey.utf8.count <= 512, !target.label.isEmpty else { continue }
@@ -230,13 +241,19 @@ public final class ItarSurfaceHost: UIView {
             guard let node = try? dispatcher.connection.find(registration.key) else { shutdown(); return }
             registration.node = node
             registration.available = node.slot != 0 && measured(target) != nil && acceptsInput
+            target.logicalOwner = self
+            target.logicalKey = registration.key
+            target.logicalNode = node
+            target.logicalMount = registration.mount
+            target.logicalLifetime = lifetime
             target.applyFocusStyle()
         }
         observeCurrent()
     }
 
     func detach(_ target: ItarTargetHost) {
-        guard let registration = target.registration, registration.target === target else { return }
+        guard let registration = target.registration, registration.target === target,
+              registrations[registration.key] === registration, target.owner === self else { return }
         registration.available = false
         registration.target = nil
         if preferred === target { preferred = nil; preferredToken = nil }
@@ -247,11 +264,19 @@ public final class ItarSurfaceHost: UIView {
     }
 
     func drop(_ target: ItarTargetHost) {
-        guard let registration = target.registration else { return }
+        guard target.logicalOwner === self || target.owner === self else { return }
+        let key = target.logicalKey ?? target.registration?.key
+        let node = target.logicalKey == nil ? target.registration?.node : target.logicalNode
+        let mount = target.logicalKey == nil ? target.registration?.mount : target.logicalMount
+        let validLifetime = target.logicalKey == nil || target.logicalLifetime == lifetime
         detach(target)
-        registrations.removeValue(forKey: registration.key)
-        if registration.node.slot != 0 {
-            dispatcher?.enqueue(.apply([EngineMutation(kind: 3, key: registration.key, expected: registration.node)]))
+        target.clearLogicalIdentity()
+        guard validLifetime, let key, let node, let mount, let registration = registrations[key],
+              registration.node.slot == node.slot, registration.node.generation == node.generation,
+              registration.mount == mount else { return }
+        registrations.removeValue(forKey: key)
+        if node.slot != 0 {
+            dispatcher?.enqueue(.apply([EngineMutation(kind: 3, key: key, expected: node)]))
         }
     }
 
