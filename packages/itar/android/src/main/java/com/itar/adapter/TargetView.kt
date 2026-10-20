@@ -14,6 +14,7 @@ class TargetView(context: Context) : AppCompatButton(context) {
     var occurrenceKey = ""
     var order = 0
     var scopeKey = ""
+    var collectionDataset = ""
     var registrationId = ""
     private val originalColors: ColorStateList = textColors
     private var baseColors = originalColors
@@ -28,6 +29,7 @@ class TargetView(context: Context) : AppCompatButton(context) {
     internal var logicalScopeKey = ""
     internal var onActivation: ((Long, Mount, Long, String) -> Unit)? = null
     private var activationSerial = 0L
+    private var collectionAccessibility: Int? = null
     init { isFocusable = false }
     fun setBaseColor(value: Int?) {
         baseColors = value?.let { ColorStateList.valueOf(it) } ?: originalColors
@@ -39,6 +41,14 @@ class TargetView(context: Context) : AppCompatButton(context) {
     }
     internal fun resetStyle() { styling = false; setTextColor(baseColors) }
     internal fun resumeStyle() { styling = true; applyFocusStyle() }
+    internal fun maskCollectionAccessibility() {
+        if (collectionAccessibility == null) collectionAccessibility = importantForAccessibility
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+    }
+    internal fun resumeCollectionAccessibility() {
+        collectionAccessibility?.let { importantForAccessibility = it }
+        collectionAccessibility = null
+    }
     override fun onFocusChanged(gain: Boolean, direction: Int, previous: Rect?) {
         super.onFocusChanged(gain, direction, previous)
         applyFocusStyle()
@@ -73,6 +83,7 @@ class TargetView(context: Context) : AppCompatButton(context) {
     fun commitProps() {
         val parentSurface = generateSequence(parent) { it.parent }.filterIsInstance<SurfaceView>().firstOrNull()
         if (logicalOwner?.get() !== parentSurface || logicalOwner?.get()?.connection?.lifetime != logicalLifetime) dropLogical()
+        if (logicalMount?.key?.let { it != occurrenceKey } == true) dropLogical()
         if (surface !== parentSurface || mount?.key != occurrenceKey || contentDescription.isNullOrEmpty()) surface?.detach(this)
         surface = parentSurface
         if (isAttachedToWindow && occurrenceKey.isNotEmpty() && contentDescription?.isNotEmpty() == true) {

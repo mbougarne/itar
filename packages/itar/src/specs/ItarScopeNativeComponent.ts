@@ -4,6 +4,7 @@ import {codegenNativeComponent} from 'react-native';
 
 export interface NativeProps extends ViewProps {
   scopeKey: string;
+  collectionDataset?: string;
   parentScopeKey?: string;
   active?: WithDefault<boolean, true>;
   layout?: WithDefault<'spatial' | 'row' | 'column', 'spatial'>;

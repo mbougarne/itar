@@ -10,6 +10,7 @@ class ScopeManager : ViewGroupManager<ScopeView>(), ItarScopeManagerInterface<Sc
     override fun getDelegate() = ItarScopeManagerDelegate(this)
     override fun createViewInstance(context: ThemedReactContext) = ScopeView(context)
     override fun setScopeKey(view: ScopeView, value: String?) { view.scopeKey = value ?: "" }
+    override fun setCollectionDataset(view: ScopeView, value: String?) { view.collectionDataset = value ?: "" }
     override fun setParentScopeKey(view: ScopeView, value: String?) { view.parentScopeKey = value ?: "" }
     override fun setActive(view: ScopeView, value: Boolean) { view.active = value }
     override fun setLayout(view: ScopeView, value: String?) { view.layout = value ?: "spatial" }

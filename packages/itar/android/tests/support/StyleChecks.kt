@@ -20,6 +20,8 @@ object StyleChecks {
         a.occurrenceKey = "recycled"
         a.commitProps()
         check(a.mount?.key == "recycled")
+        check(a.currentTextColor == if (a.hasFocus()) Color.YELLOW else Color.RED)
+        check(a.requestFocus())
         check(a.currentTextColor == Color.YELLOW)
         root.detach(a)
         check(a.currentTextColor == Color.RED)

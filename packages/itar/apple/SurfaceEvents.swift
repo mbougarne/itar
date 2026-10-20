@@ -35,8 +35,8 @@ extension ItarSurfaceHost {
         }
         if !dispatcher.pumping { commitGeometry() }
         let now = dispatcher.clock()
-        guard now <= UInt64.max - 500 else { return }
-        dispatcher.enqueue(.requestCommand(key, command, now, now + 500))
+        guard now <= UInt64.max - 3000 else { return }
+        dispatcher.enqueue(.requestCommand(key, command, now, now + 3000))
     }
     @objc public func cancelRequest(_ command: String) {
         dispatcher?.enqueue(.cancelCommand(command))
@@ -48,7 +48,7 @@ extension ItarSurfaceHost {
         }
         if !dispatcher.pumping { commitGeometry() }
         let now = dispatcher.clock()
-        guard !command.isEmpty, command.utf8.count <= 64, now <= UInt64.max - 500 else { return }
-        dispatcher.enqueue(.restoreScopeCommand(key, command, now, now + 500))
+        guard !command.isEmpty, command.utf8.count <= 64, now <= UInt64.max - 3000 else { return }
+        dispatcher.enqueue(.restoreScopeCommand(key, command, now, now + 3000))
     }
 }

@@ -24,7 +24,7 @@ inline std::int64_t effects(Session& s, int operation,
       return conversion;
     result = tx.requestFocus(
         OccurrenceKey{std::string(key)}, inputContext(s, v[0]),
-        {static_cast<TimePoint>(v[2]), DatasetRevision{1}, ResourceId{1}, {}});
+        s.collections.options(OccurrenceKey{std::string(key)}, static_cast<TimePoint>(v[2])));
   } else if (operation == 10 && v.empty()) {
     if (s.effectIndex == s.effects.size()) {
       s.effects = tx.drainEffects();
@@ -40,7 +40,9 @@ inline std::int64_t effects(Session& s, int operation,
     out[6] = e.target.slot.value;
     out[7] = e.target.generation.value;
     out[8] = e.mount ? e.mount->value : 0;
+    out[11] = e.dataset.value; out[12] = e.resource.value;
     if (e.cancels) {
+      out[13] = static_cast<std::int64_t>(e.cancels->kind);
       out[9] = e.cancels->request.value;
       out[10] = e.cancels->effect.value;
     }

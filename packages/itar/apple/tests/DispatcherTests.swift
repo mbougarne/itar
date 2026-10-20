@@ -22,6 +22,18 @@ enum DispatcherTests {
         return (dispatcher, try connection.find("b"))
     }
     static func run() throws {
+        let (prepared, preparedTarget) = try fixture(56)
+        var inlineNotifications = 0
+        prepared.notify = { _ in inlineNotifications += 1 }
+        let guarded = prepared.hostCall {
+            prepared.enqueue(.invalidations(Array(repeating: (preparedTarget, 1, 1, 1), count: 256)))
+            prepared.enqueue(.focus(ItarFocus(kind: 2, node: ItarNode(), mount: 0), 0, nil))
+            precondition(prepared.pumping && inlineNotifications == 0, "Prepared scroll callback escaped the host guard")
+        }
+        precondition(guarded && !prepared.closed && inlineNotifications == 1)
+        let afterHostCall = try prepared.connection.snapshot()
+        precondition(afterHostCall.input.kind == 2)
+        prepared.close()
         let (owner, target) = try fixture(51)
         defer { owner.close() }
         var depth = 0

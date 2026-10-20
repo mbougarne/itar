@@ -8,6 +8,7 @@ include ':itar-host-probe'
 project(':itar-host-probe').projectDir = file('../../../probes/android')
 `);
   appendFileSync(path.join(android, 'app/build.gradle'), `
+apply from: '../../../../scripts/offline-android.gradle'
 dependencies {
     implementation project(':itar-host-probe')
 }
@@ -25,5 +26,10 @@ android {
   if (source.split(marker).length !== 2) {
     throw new Error('Unexpected Android application template; review package registration.');
   }
-  writeFileSync(application, source.replace(marker, `${marker}\n              add(com.itar.probe.ProbePackage())`));
+  const context = 'context = applicationContext,';
+  if (source.split(context).length !== 2) {
+    throw new Error('Unexpected Android host template; review offline bundle selection.');
+  }
+  writeFileSync(application, source.replace(marker, `${marker}\n              add(com.itar.probe.ProbePackage())`)
+    .replace(context, `${context}\n      useDevSupport = com.facebook.react.common.build.ReactBuildConfig.DEBUG && !BuildConfig.ITAR_OFFLINE,`));
 };

@@ -137,7 +137,7 @@ class Transactions {
   RequestResult advanceTo(TimePoint now);
   std::optional<TimePoint> nextDeadline() const noexcept;
   RequestResult directionalInput(Direction direction, const InputContext& input,
-                                  RequestOptions options);
+                                  RequestOptions options, std::optional<Proposal> proposal = {});
   void releaseInput() noexcept { held_.reset(); }
   std::optional<Direction> heldDirection() const noexcept { return held_; }
   const std::optional<RequestRecord>& active() const noexcept { return active_; }

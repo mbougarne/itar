@@ -20,6 +20,7 @@ class TargetManager : SimpleViewManager<TargetView>(), ItarTargetManagerInterfac
     override fun setOccurrenceKey(view: TargetView, value: String?) { view.occurrenceKey = value ?: "" }
     override fun setScopeKey(view: TargetView, value: String?) { view.scopeKey = value ?: "" }
     override fun setRegistrationId(view: TargetView, value: String?) { view.registrationId = value ?: "" }
+    override fun setCollectionDataset(view: TargetView, value: String?) { view.collectionDataset = value ?: "" }
     override fun setLabel(view: TargetView, value: String?) { view.text = value; view.contentDescription = value }
     override fun setEnabled(view: TargetView, value: Boolean) { view.isEnabled = value }
     override fun setOrder(view: TargetView, value: Int) { view.order = value }

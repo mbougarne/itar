@@ -27,6 +27,8 @@ class SurfaceManager : ViewGroupManager<SurfaceView>(), ItarSurfaceManagerInterf
     }
     override fun setActive(view: SurfaceView, value: Boolean) { view.active = value }
     override fun setProviderId(view: SurfaceView, value: String?) { view.configureProvider(value ?: "") }
+    override fun setCollectionData(view: SurfaceView, value: String?) { view.collectionData = value ?: "" }
+    override fun prepareCollection(view: SurfaceView, payload: String) { view.collections.acknowledge(payload) }
     override fun focus(view: SurfaceView, occurrenceKey: String) { view.focus(occurrenceKey) }
     override fun cancel(view: SurfaceView, lifetime: String, request: String) {
         val owner = lifetime.toLongOrNull()
@@ -43,5 +45,6 @@ class SurfaceManager : ViewGroupManager<SurfaceView>(), ItarSurfaceManagerInterf
     override fun getExportedCustomDirectEventTypeConstants() = mutableMapOf<String, Any>(
         "topFocusRecord" to mapOf("registrationName" to "onFocusRecord"),
         "topSurfaceRecord" to mapOf("registrationName" to "onSurfaceRecord"),
+        "topCollectionRecord" to mapOf("registrationName" to "onCollectionRecord"),
         "topRequestRecord" to mapOf("registrationName" to "onRequestRecord"))
 }

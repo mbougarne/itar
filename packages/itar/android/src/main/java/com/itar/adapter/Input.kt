@@ -77,7 +77,7 @@ internal class Input(private val root: SurfaceView) {
             root.refreshGeometry()
             root.observe()
             val now = SystemClock.uptimeMillis()
-            root.dispatcher.submit(7, longArrayOf(value, 0, now, now + 500))
+            root.dispatcher.submit(7, longArrayOf(value, 0, now, now + 3000))
         }
         return true
     }

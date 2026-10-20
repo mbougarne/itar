@@ -1,0 +1,78 @@
+# Fixed-extent virtualized lists
+
+`FocusVirtualizedList` and `FocusVirtualizedRails` from `itar/react` wrap the
+existing React Native TV `FlatList`. The first integration is restricted to
+`react-native-tvos` **0.83.0-0**, including its matching
+`@react-native-tvos/virtualized-lists` package. It uses the public
+`additionalRenderRegions`, `CellRendererComponent`, and `getItemLayout` hooks
+with the normal native scroll view. It does not support arbitrary virtualizers.
+
+```tsx
+import {FocusProvider, FocusVirtualizedList, occurrenceKey} from 'itar/react';
+
+const data = entries.map(entry => ({
+  occurrenceKey: occurrenceKey('home', 'favorites', entry.id),
+  contentId: entry.movieId,
+  accessibilityLabel: entry.title,
+  onPress: activation => openMovie(activation.contentId),
+}));
+
+<FocusProvider style={{flex: 1}}>
+  <FocusVirtualizedList id="favorites" data={data}
+    itemExtent={180} viewportExtent={720} />
+</FocusProvider>
+```
+
+Each item is an owned `Focusable` button. Use stable occurrence IDs, including
+separate IDs when content repeats. Never derive identity from its array index.
+There is one collection tree per provider, at most 256 collection nodes including
+list/row scopes, and at most two list levels. Ordinary provider children share the
+same surface capacity. Keys remain subject to the native 512-byte limit.
+
+`itemExtent` is the complete fixed width of a horizontal cell or height of a
+vertical cell, including any spacing. `viewportExtent` is the list's scrolling
+viewport size. Insets, headers, separators, transforms, variable cell sizes, and
+custom renderers are outside this first integration. `itemStyle` can decorate a
+button while preserving these dimensions. Keep data immutable between updates.
+
+For nested rails, pass `rails={[{id, items}]}` to `FocusVirtualizedRails`, along
+with `itemExtent`, `rowExtent`, `viewportExtent`, and optional `viewportRows`
+(default 2). Row IDs and item occurrence keys must be stable and unique. Adjacent
+horizontal rails enter at the nearest available logical column; this declared
+fixed-column policy does not depend on which cells happen to be mounted.
+
+The provider atomically publishes a complete dataset revision before rendering
+its new cells. Until native acceptance, an existing list keeps its last accepted
+data. Logical membership survives physical cell unmounting; recycled views attach
+with a new mount generation. Removed items, reordered data, route changes and
+replacement providers invalidate affected pending work.
+
+An offscreen request prepares source/target render regions, waits for a native
+cell commit, then performs a guarded, nonanimated scroll on the UI owner thread.
+Nested requests scroll the row before its item. Fixed extents plan offsets only;
+actual native measurements and matching mount/dataset/effect identities authorize
+focus. The host must confirm actual focus before subscribers or request promises
+report success. Late JavaScript preparation cannot scroll a replacement request.
+
+One scroll chain is active per surface, with a three-second original deadline.
+On Apple TV it waits for an existing native drag/deceleration to settle within
+that deadline; it never extends the request or competes with that motion.
+Same-direction repeats join that destination and deadline. Reversal and explicit
+commands supersede from actual observed focus; they do not create future moves.
+At most source and target indices are request-pinned per list, in addition to the
+virtualizer's normal window and its initial-cell retention. Confirmation,
+cancellation, timeout, failure and disposal release request-owned regions.
+
+Retention regions are applied lazily by this virtualizer. A committed cell and a
+live source are prerequisites for scrolling; they do not establish a universal
+pre-removal guarantee. Arbitrary application deletion of the focused source has
+no public pre-removal hook and is recovery-only. Gestures, momentum, host fallback
+prevention, visual continuity and screen-reader speech require named native
+acceptance; they are not established by this API preview. Avoid deleting or
+replacing the source during a transfer if preventing fallback is required.
+
+Native screen-reader ownership cancels Itar movement. Semantics are committed
+before eligibility; Itar neither forces accessibility focus nor announces a
+speculative destination. TalkBack, Fire TV VoiceView and Apple TV VoiceOver
+acceptance remain separate device requirements. No physical-device support is
+established by a build or simulator result.

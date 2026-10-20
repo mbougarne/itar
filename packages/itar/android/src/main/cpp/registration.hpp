@@ -34,9 +34,10 @@ inline std::int64_t registration(Session &s, int operation,
     out[9] = s.transactions.usage().notifications;
     out[10] = s.transactions.nextDeadline().value_or(0);
     out[11] = s.transactions.resyncRequired();
+    out[14] = s.collections.dataset().value;
     return ok;
   }
-  if (operation == 1 && (v.size() == 12 || v.size() == 14) && !key.empty() && key.size() <= 512) {
+  if (operation == 1 && (v.size() == 12 || v.size() == 14 || v.size() == 15) && !key.empty() && key.size() <= 512) {
     if (v[2] <= 0 || v[3] < INT32_MIN || v[3] > INT32_MAX || v[4] < 0 ||
         v[4] > 1 || v[5] <= 0 || v[6] < 0 || v[6] > 4 ||
         (v[0] == 0 && v[1] != 0))
@@ -45,12 +46,16 @@ inline std::int64_t registration(Session &s, int operation,
       if (v[i] < INT32_MIN || v[i] > INT32_MAX)
         return conversion;
     Mutation mutation;
-    if (v.size() == 14 && (v[12] || v[13])) {
+    if (v.size() >= 14 && (v[12] || v[13])) {
       const auto parent = handle(v.subspan(12));
       if (!parent || !registry.lookup(parent) || !registry.lookup(parent)->scope) return stale;
       mutation.parent = *registry.key(parent);
     }
     mutation.key = OccurrenceKey{std::string(key)};
+    const auto *collection = s.collections.find(mutation.key);
+    if ((collection && (v.size() != 15 || v[14] <= 0 ||
+                        static_cast<std::uint64_t>(v[14]) != s.collections.dataset().value)) ||
+        (!collection && v.size() == 15 && v[14] != 0)) return stale;
     mutation.expected = handle(v);
     if (v[0] != 0 && !mutation.expected)
       return conversion;
@@ -69,13 +74,14 @@ inline std::int64_t registration(Session &s, int operation,
     }
     const bool rename = previous && mutation.expected &&
                         *registry.key(mutation.expected) != mutation.key;
+    if (rename && (collection || s.collections.find(*registry.key(mutation.expected)))) return stale;
     mutation.kind =
         mutation.expected ? MutationKind::update : MutationKind::insert;
     auto &record = mutation.record;
     record.mount = MountGeneration{static_cast<std::uint64_t>(v[2])};
     record.mounted = true;
-    record.order = static_cast<std::int32_t>(v[3]);
-    record.enabled = v[4] != 0;
+    record.order = collection ? collection->order : static_cast<std::int32_t>(v[3]);
+    record.enabled = v[4] != 0 && (!collection || collection->enabled);
     if (previous && mutation.kind == MutationKind::update)
       record.invalidatedThrough = previous->invalidatedThrough;
     record.geometry = {
@@ -127,6 +133,7 @@ inline std::int64_t registration(Session &s, int operation,
     const auto *previous = registry.lookup(node);
     if (!previous || previous->mount.value != static_cast<std::uint64_t>(v[2]))
       return stale;
+    if (s.collections.find(*registry.key(node))) return ok;
     Mutation mutation;
     mutation.kind = MutationKind::erase;
     mutation.key = *registry.key(node);

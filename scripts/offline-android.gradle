@@ -1,0 +1,13 @@
+// Opt-in, reproducible instrumentation consumer without a running Metro server.
+def itarOffline = providers.gradleProperty('itarOffline').orElse('false').get().toBoolean()
+react {
+    if (itarOffline) {
+        // RN's generated asset task becomes a dependency of APK asset packaging.
+        debuggableVariants = []
+        extraPackagerArgs = ['--max-workers', '1']
+        hermesCommand = file('../../../../node_modules/hermes-compiler/hermesc/%OS-BIN%/hermesc').absolutePath
+    }
+}
+android {
+    defaultConfig { buildConfigField 'boolean', 'ITAR_OFFLINE', itarOffline.toString() }
+}

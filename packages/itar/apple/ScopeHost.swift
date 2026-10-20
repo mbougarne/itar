@@ -5,6 +5,7 @@ final class AppleScopeRegistration {
     let key: String
     var parent = ""
     var node = ItarNode()
+    var preferred: String?
     weak var view: ItarScopeHost?
     init(_ key: String) { self.key = key }
 }
@@ -13,6 +14,7 @@ final class AppleScopeRegistration {
 public final class ItarScopeHost: UIView {
     weak var owner: ItarSurfaceHost?
     var scopeKey = ""
+    @objc public var collectionDataset = "" { didSet { if oldValue != collectionDataset { nearestSurface()?.geometryChanged() } } }
     var parentKey = ""
     var active = true
     var layout: Int32 = 0
@@ -72,7 +74,9 @@ extension ItarSurfaceHost {
         var current = key
         for _ in 0...256 {
             if current.isEmpty { return true }
-            guard let scope = scopes[current], let view = scope.view, view.active else { return false }
+            guard let scope = scopes[current], let view = scope.view, view.active,
+                  view.owner === self, window != nil, view.window === window, view.nearestSurface() === self,
+                  collections.accepts(current, dataset: view.collectionDataset, scope: true) else { return false }
             current = view.parentKey
         }
         return false
@@ -104,7 +108,7 @@ extension ItarSurfaceHost {
         var mutations: [EngineMutation] = []
         for registration in Array(registrations.values) where retired.contains(registration.scopeKey) {
             if let target = registration.target { detach(target); target.clearLogicalIdentity() }
-            if registration.node.slot != 0 {
+            if view.collectionDataset.isEmpty && registration.node.slot != 0 && collections.entry(registration.key) == nil {
                 mutations.append(EngineMutation(kind: 3, key: registration.key, expected: registration.node))
             }
             registrations.removeValue(forKey: registration.key)
@@ -113,7 +117,7 @@ extension ItarSurfaceHost {
             guard let scope = scopes.removeValue(forKey: key) else { continue }
             scope.view?.owner = nil
             scope.view?.registeredKey = ""
-            if scope.node.slot != 0 { mutations.append(EngineMutation(kind: 3, key: key, expected: scope.node)) }
+            if view.collectionDataset.isEmpty && scope.node.slot != 0 && collections.entry(key) == nil { mutations.append(EngineMutation(kind: 3, key: key, expected: scope.node)) }
         }
         if !mutations.isEmpty { dispatcher?.enqueue(.apply(mutations)) }
     }

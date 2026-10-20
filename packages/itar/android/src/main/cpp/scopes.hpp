@@ -13,10 +13,13 @@ inline std::int64_t scope(Session &s, int operation, std::span<const std::int64_
     RequestResult result{RequestStatus::unavailable, {}};
     if (record && record->scope && record->active && record->navigation.entryReady && v[0] == 0) {
       const InputContext input{s.state.surface(), node, InputOwner::engine, s.state.snapshot().inputFocus};
-      const RequestOptions options{static_cast<TimePoint>(v[2]), DatasetRevision{1}, {}, {}};
       if (const auto *remembered = s.state.history(node); remembered && logicalTarget(s.state, registry.find(*remembered)))
-        result = s.transactions.requestFocus(*remembered, input, options);
-      else result = s.transactions.begin(resolveEntry(s.state, node, input, {EntryReason::returning}), options);
+        result = s.transactions.requestFocus(*remembered, input, s.collections.options(*remembered, static_cast<TimePoint>(v[2])));
+      else {
+        const auto proposal = resolveEntry(s.state, node, input, {EntryReason::returning});
+        const auto* target = registry.key(proposal.target);
+        result = s.transactions.begin(proposal, s.collections.options(target ? *target : OccurrenceKey{}, static_cast<TimePoint>(v[2])));
+      }
     }
     out[1] = static_cast<std::int64_t>(result.status); out[2] = result.request.value;
     return ok;
@@ -25,7 +28,10 @@ inline std::int64_t scope(Session &s, int operation, std::span<const std::int64_
     if ((v[0] == 0) != (v[1] == 0) || (v[2] == 0) != (v[3] == 0) ||
         v[4] < 0 || v[4] > 1 || v[5] < 0 || v[5] > 2 || v[6] < 0 || v[6] > 2 ||
         v[7] < 0 || v[7] > 1 || v[8] < 0 || v[8] > 1) return conversion;
-    const auto expected = handle(v), parent = handle(v.subspan(2));
+    auto expected = handle(v);
+    const auto parent = handle(v.subspan(2));
+    const auto *collection = s.collections.find(OccurrenceKey{std::string(key)});
+    if (!expected && collection) expected = registry.find(OccurrenceKey{std::string(key)});
     if ((v[0] && !expected) || (v[2] && (!parent || !registry.lookup(parent)))) return stale;
     Mutation mutation;
     mutation.key = OccurrenceKey{std::string(key)};
@@ -33,12 +39,15 @@ inline std::int64_t scope(Session &s, int operation, std::span<const std::int64_
     mutation.kind = expected ? MutationKind::update : MutationKind::insert;
     if (parent) mutation.parent = *registry.key(parent);
     mutation.record.scope = true;
+    mutation.record.order = collection ? collection->order : 0;
     mutation.record.active = v[4] != 0;
     mutation.record.navigation.layout = static_cast<Layout>(v[5]);
     mutation.record.navigation.boundary = static_cast<itar::Boundary>(v[6]);
     mutation.record.navigation.trap = v[7] != 0;
     mutation.record.navigation.entryReady = v[8] != 0;
-    mutation.preferred = OccurrenceKey{std::string(preferred)};
+    const auto preferredKey = OccurrenceKey{std::string(preferred)};
+    const auto* previousPreferred = registry.preferred(expected);
+    if (preferredKey != (previousPreferred ? *previousPreferred : OccurrenceKey{})) mutation.preferred = preferredKey;
     const auto result = s.transactions.apply({s.state.surface(), s.state.snapshot().revision, std::span{&mutation, 1}});
     if (result.status != BatchStatus::valid) return -100 - static_cast<std::int64_t>(result.status);
     const auto node = registry.find(mutation.key);
@@ -48,6 +57,7 @@ inline std::int64_t scope(Session &s, int operation, std::span<const std::int64_
   if (operation == 21 && v.size() == 2 && handle(v)) {
     const auto root = handle(v);
     if (!registry.lookup(root) || !registry.lookup(root)->scope) return stale;
+    if (s.collections.find(*registry.key(root))) return ok;
     std::vector<Mutation> mutations;
     for (const auto node : registry.handles()) {
       if (node != root && !descendantOf(registry, node, root)) continue;

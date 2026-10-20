@@ -212,3 +212,105 @@ import UIKit
         XCTAssertFalse(b.accessibilityActivate())
     }
 }
+
+extension AdapterHostTests {
+    func virtualCollection() async throws -> (UIScrollView, ItarTargetHost) {
+        a.removeFromSuperview()
+        a.recycle() // The catalog, rather than a physical cell, now owns logical A.
+        var catalogued = false
+        root.onCollectionRecord = { record in
+            guard let text = record["payload"] as? String, let data = text.data(using: .utf8),
+                  let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+            if value["state"] as? String == "catalog" { catalogued = true }
+        }
+        root.collectionData = """
+        {"dataset":"1","nodes":[
+          {"key":"list","parent":"","order":0,"scope":true,"enabled":true,"layout":1,"extent":400},
+          {"key":"a","parent":"list","order":0,"scope":false,"enabled":true,"layout":0,"extent":0},
+          {"key":"cold","parent":"list","order":1,"scope":false,"enabled":true,"layout":0,"extent":0}]}
+        """
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in catalogued }, object: nil)], timeout: 3)
+        XCTAssertTrue(catalogued)
+        let scope = ItarScopeHost(frame: CGRect(x: 0, y: 180, width: 300, height: 100))
+        scope.collectionDataset = "1"
+        scope.configure("list", parent: "", active: true, layout: 1, boundary: 2, trap: false, entryReady: true, preferred: "")
+        let scroll = UIScrollView(frame: scope.bounds)
+        scroll.clipsToBounds = false // Match the TV renderer's independent painting policy.
+        scroll.contentSize = CGSize(width: 1000, height: 100)
+        scope.addSubview(scroll)
+        a.frame = CGRect(x: 0, y: 0, width: 250, height: 80)
+        a.scopeKey = "list"; a.collectionDataset = "1"
+        scroll.addSubview(a)
+        let cold = target("cold", x: 400)
+        cold.frame.origin.y = 0
+        cold.scopeKey = "list"; cold.collectionDataset = "1"
+        scroll.addSubview(cold)
+        root.addSubview(scope)
+        root.commitGeometry()
+        XCTAssertFalse(cold.canBecomeFocused)
+        root.focus("a")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.a.isFocused }, object: nil)], timeout: 3)
+        return (scroll, cold)
+    }
+    func testCollectionRevealScrollsBeforeConfirmedFocus() async throws {
+        let (scroll, cold) = try await virtualCollection()
+        var observations: [String] = []
+        root.onFocusRecord = { observations.append($0["occurrenceKey"] as? String ?? "") }
+        root.onCollectionRecord = { [weak self] record in
+            guard let self, let text = record["payload"] as? String, let data = text.data(using: .utf8),
+                  var value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  value["state"] as? String == "prepare" else { return }
+            value["lifetime"] = String(self.root.lifetime)
+            guard let bytes = try? JSONSerialization.data(withJSONObject: value),
+                  let acknowledgement = String(data: bytes, encoding: .utf8) else { return }
+            DispatchQueue.main.async { [weak self] in self?.root.prepareCollection(acknowledgement) }
+        }
+        root.focus("cold")
+        XCTAssertTrue(a.isFocused)
+        XCTAssertFalse(cold.isFocused)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in cold.isFocused }, object: nil)], timeout: 3)
+        XCTAssertGreaterThan(scroll.contentOffset.x, 0)
+        XCTAssertTrue(scroll.bounds.contains(cold.frame)) // UIKit can center its confirmed focus item.
+        XCTAssertTrue(cold.isFocused)
+        XCTAssertFalse(observations.contains("b"))
+        XCTAssertEqual(try root.dispatcher?.connection.snapshot().active_request, 0)
+    }
+    func testCancelledPreparationCannotScroll() async throws {
+        let (scroll, _) = try await virtualCollection()
+        var preparation: [String: Any]?
+        root.onCollectionRecord = { record in
+            guard let text = record["payload"] as? String, let data = text.data(using: .utf8),
+                  var value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  value["state"] as? String == "prepare" else { return }
+            value["lifetime"] = record["lifetime"]
+            preparation = value
+        }
+        root.focus("cold")
+        let old = try XCTUnwrap(preparation)
+        root.cancelPending()
+        let bytes = try JSONSerialization.data(withJSONObject: old)
+        root.prepareCollection(try XCTUnwrap(String(data: bytes, encoding: .utf8)))
+        XCTAssertEqual(scroll.contentOffset.x, 0)
+        XCTAssertTrue(a.isFocused)
+        XCTAssertEqual(try root.dispatcher?.connection.snapshot().active_request, 0)
+    }
+    func testCatalogRetirementPrunesDetachedCellsAndScope() async throws {
+        let (scroll, cold) = try await virtualCollection()
+        let scope = try XCTUnwrap(scroll.superview as? ItarScopeHost)
+        a.removeFromSuperview(); cold.removeFromSuperview()
+        XCTAssertNotNil(root.registrations["a"])
+        XCTAssertNil(root.registrations["a"]?.target)
+        root.collectionData = "{\"dataset\":\"2\",\"nodes\":[]}"
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            self.root.collections.dataset == "2"
+        }, object: nil)], timeout: 3)
+        root.commitGeometry()
+        XCTAssertNil(root.registrations["a"])
+        XCTAssertNil(root.registrations["cold"])
+        XCTAssertNil(root.scopes["list"])
+        XCTAssertNil(scope.owner)
+        XCTAssertTrue(scope.accessibilityElementsHidden)
+        XCTAssertEqual(try root.dispatcher?.connection.find("list").slot, 0)
+        XCTAssertFalse(root.dispatcher?.closed ?? true)
+    }
+}
