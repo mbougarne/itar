@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 project(itar_core LANGUAGES CXX)
 
 add_library(itar_core STATIC
-  src/build.cpp src/registry.cpp src/topology.cpp src/batch.cpp src/state.cpp
+  src/build.cpp src/registry.cpp src/topology.cpp src/batch.cpp src/state.cpp src/collection.cpp
   src/host.cpp src/geometry.cpp src/focus.cpp src/transaction_start.cpp src/transaction_reveal.cpp src/transaction_outcome.cpp src/transaction_cancel.cpp src/transaction_time.cpp src/transaction_input.cpp src/transaction_bounds.cpp src/navigation.cpp
   src/navigation_boundary.cpp src/navigation_order.cpp src/navigation_geometry.cpp
   src/navigation_entry.cpp src/navigation_recovery.cpp)
@@ -27,6 +27,9 @@ set_target_properties(itar_probe PROPERTIES CXX_EXTENSIONS OFF)
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(itar_android_collection_tests ../packages/itar/android/tests/collections.cpp)
+  target_link_libraries(itar_android_collection_tests PRIVATE itar::core)
+  add_test(NAME android.collections COMMAND itar_android_collection_tests)
   add_executable(itar_android_scope_tests ../packages/itar/android/tests/scopes.cpp)
   target_link_libraries(itar_android_scope_tests PRIVATE itar::core)
   add_test(NAME android.scopes COMMAND itar_android_scope_tests)
@@ -59,6 +62,7 @@ if(BUILD_TESTING)
     set_target_properties(itar_${name}_tests PROPERTIES CXX_EXTENSIONS OFF)
     add_test(NAME core.${name} COMMAND itar_${name}_tests)
   endfunction()
+  itar_core_test(collection)
   itar_core_test(transaction_replay)
   itar_core_test(transaction_bounds)
   itar_core_test(transaction_input)

@@ -25,6 +25,8 @@ final class EngineConnection {
     let lifetime: UInt64
     private let capacity: UInt32
     private var handle: OpaquePointer?
+    var nativeHandle: OpaquePointer? { precondition(Thread.isMainThread); return handle }
+    func checkCall(_ status: ItarCallStatus) throws { try checked(status) }
 
     init(surface: UInt64, lifetime: UInt64, capacity: UInt32 = 256) throws {
         precondition(Thread.isMainThread)

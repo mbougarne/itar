@@ -240,6 +240,49 @@ void scopeRestoration() {
   CHECK(itar_engine_restore_scope(f.engine, 10, {nullptr, 2}, 100, 1).call == ITAR_INVALID);
   CHECK(itar_engine_snapshot(f.engine, 10).active_request == 0);
 }
+void collections() {
+  Fixture f;
+  std::array<ItarCollectionNode, 3> nodes{{
+      {bytes("list"), {}, 0, 1, 1, 1, 100},
+      {bytes("c"), bytes("list"), 0, 0, 0, 1, 0},
+      {bytes("d"), bytes("list"), 1, 0, 0, 1, 0}}};
+  CHECK(itar_engine_collections(f.engine, 10, 1, nodes.data(), nodes.size()).code == 0);
+  const auto revision = itar_engine_snapshot(f.engine, 10).revision;
+  CHECK(itar_engine_snapshot(f.engine, 10).collection_dataset == 1);
+  CHECK(itar_engine_collections(f.engine, 10, 1, nodes.data(), nodes.size()).code == 1);
+  nodes[2].order = 0;
+  CHECK(itar_engine_collections(f.engine, 10, 2, nodes.data(), nodes.size()).code == 2);
+  CHECK(itar_engine_snapshot(f.engine, 10).revision == revision);
+  nodes[2].order = 1;
+  const auto request = itar_engine_request_focus(f.engine, 10, bytes("d"), {}, 0, 500, 1);
+  CHECK(request.code == ITAR_REQUEST_STARTED);
+  const auto effect = f.effects()[0];
+  CHECK(effect.token.kind == 0 && effect.dataset == 1 && effect.resource == 1);
+  CHECK(itar_engine_issue(f.engine, 10, effect.token).code == ITAR_REQUEST_ISSUED);
+  auto mounted = item("d", 1);
+  mounted.kind = 1; mounted.parent = bytes("list");
+  CHECK(itar_engine_find(f.engine, 10, bytes("d"), &mounted.expected) == ITAR_OK);
+  CHECK(itar_engine_apply(f.engine, 10, revision, &mounted, 1).code == 0);
+  CHECK(itar_engine_realize(f.engine, 10, effect.token, mounted.expected, 1, 2).code == 4);
+  CHECK(itar_engine_realize(f.engine, 10, effect.token, mounted.expected, 1, 1).code == ITAR_REQUEST_STARTED);
+  CHECK(f.effects()[0].token.kind == 1);
+  std::swap(nodes[1].order, nodes[2].order);
+  CHECK(itar_engine_collections(f.engine, 10, 2, nodes.data(), nodes.size()).code == 0);
+  CHECK(itar_engine_snapshot(f.engine, 10).active_request == 0);
+  CHECK(itar_engine_realize(f.engine, 10, effect.token, mounted.expected, 1, 1).code == 4);
+  CHECK(itar_engine_collections(f.engine, 10, 3, nullptr, 1).call == ITAR_INVALID);
+}
+void directionalLifecycle() {
+  Fixture f;
+  const auto query = itar_engine_direction_query(f.engine, 10, 1, 0);
+  CHECK(query.call == ITAR_OK && query.kind == 0 && query.target.slot == f.b.slot);
+  CHECK(f.effects().empty());
+  const auto request = itar_engine_direction(f.engine, 10, 1, 0, 500);
+  CHECK(request.code == ITAR_REQUEST_STARTED);
+  CHECK(itar_engine_release_input(f.engine, 10) == ITAR_OK);
+  CHECK(itar_engine_snapshot(f.engine, 10).active_request == request.request);
+  CHECK(itar_engine_release_input(f.engine, 11) == ITAR_STALE_LIFETIME);
+}
 } // namespace
 
 // Test-only allocation failure at the C++ exception boundary.
@@ -259,4 +302,6 @@ int main() {
   deadlinesAndResources();
   restoration();
   scopeRestoration();
+  collections();
+  directionalLifecycle();
 }

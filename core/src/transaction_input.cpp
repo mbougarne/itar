@@ -3,7 +3,7 @@
 namespace itar {
 
 RequestResult Transactions::directionalInput(Direction direction, const InputContext& input,
-                                             RequestOptions options) {
+                                             RequestOptions options, std::optional<Proposal> proposal) {
   if (direction != Direction::left && direction != Direction::right &&
       direction != Direction::up && direction != Direction::down) {
     return {RequestStatus::invalid, {}};
@@ -22,7 +22,7 @@ RequestResult Transactions::directionalInput(Direction direction, const InputCon
   }
   if (active_) { cancel(active_->id); }
   options.direction = direction;
-  return begin(resolve(state_, direction, input), options);
+  return begin(proposal.value_or(resolve(state_, direction, input)), options);
 }
 
 RequestResult Transactions::requestFocus(const OccurrenceKey& key, const InputContext& input,

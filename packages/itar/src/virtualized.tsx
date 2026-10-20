@@ -1,0 +1,148 @@
+import React, {memo, useContext, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {FlatList, Platform, StyleSheet, View} from 'react-native';
+import type {FlatListProps, StyleProp, ViewStyle} from 'react-native';
+import {CollectionContext, CollectionDatasetContext, ScopeContext} from './api/contexts';
+import {nativeScopeKey, nativeTargetKey} from './api/types';
+import type {CollectionNode, CollectionStore} from './api/collections';
+import {Focusable, FocusScope} from './react';
+import type {FocusableProps} from './react';
+
+export type VirtualizedFocusItem = Omit<FocusableProps, 'order' | 'style'>;
+export type VirtualizedFocusRail = Readonly<{id: string; items: readonly VirtualizedFocusItem[]}>;
+type FocusRailRow = VirtualizedFocusRail & {key: string};
+type Common = {id: string; itemExtent: number; viewportExtent: number; style?: StyleProp<ViewStyle>;
+  itemStyle?: StyleProp<ViewStyle>; testID?: string};
+const supported = Platform.isTV && (Platform.OS === 'ios' || Platform.OS === 'android');
+function extent(value: number) {
+  if (!Number.isFinite(value) || value <= 0 || value > 1000000) { throw new Error('List extents must be positive and at most 1000000'); }
+}
+function list(key: string, parent: string, order: number, horizontal: boolean, size: number): CollectionNode {
+  return {key, parent, order, scope: true, enabled: true, layout: horizontal ? 1 : 2, extent: size};
+}
+function items(data: readonly VirtualizedFocusItem[], parent: string): CollectionNode[] {
+  return data.map((item, order) => {
+    if (!item.occurrenceKey || !item.accessibilityLabel) { throw new Error('Virtualized items require stable occurrence keys and labels'); }
+    return {key: nativeTargetKey(item.occurrenceKey), parent, order,
+      scope: false, enabled: item.enabled !== false, layout: 0, extent: 0};
+  });
+}
+function useCollection() {
+  const store = useContext(CollectionContext);
+  if (!store) { throw new Error('Virtualized lists require FocusProvider'); }
+  return store;
+}
+function usePublished<T extends {nodes: readonly CollectionNode[]}>(model: T) {
+  const store = useCollection();
+  const [owner] = useState(() => ({}));
+  const pending = useRef<{dataset: string; model: T} | null>(null);
+  const [accepted, setAccepted] = useState<{dataset: string; model: T} | null>(null);
+  const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
+  useLayoutEffect(() => {
+    const dataset = store.publish(owner, model.nodes);
+    pending.current = {dataset, model};
+  }, [store, owner, model]);
+  useLayoutEffect(() => () => store.remove(owner), [store, owner]);
+  useLayoutEffect(() => {
+    if (pending.current?.dataset === snapshot.accepted) { setAccepted(pending.current); }
+  }, [snapshot.accepted]);
+  if (snapshot.rejected) { throw new Error('Native collection publication was rejected; check keys, parent scope and surface capacity'); }
+  return supported ? accepted : {dataset: '', model};
+}
+
+type CellProps<T> = React.ComponentProps<NonNullable<FlatListProps<T>['CellRendererComponent']>>;
+function renderer<T>(store: CollectionStore, collection: string, key: (item: T) => string) {
+  return function Cell({children, item, onLayout, onFocusCapture, style}: CellProps<T>) {
+    const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
+    const preparation = snapshot.preparation;
+    const ready = preparation?.path[preparation.step]?.collection === collection && preparation.key === key(item) ? preparation : null;
+    return <View style={style} onLayout={onLayout} onFocusCapture={onFocusCapture}>
+      {children}
+      {ready ? <View key={`${ready.request}/${ready.effect}/${ready.step}`} collapsable={false} accessible={false}
+        pointerEvents="none" style={styles.commitMarker}
+        onLayout={() => store.committed(ready, key(item))} /> : null}
+    </View>;
+  };
+}
+const ItemList = memo(function ItemListView({data, collection, horizontal, itemExtent, viewportExtent, itemStyle, testID}: {
+  data: readonly VirtualizedFocusItem[]; collection: string; horizontal: boolean; itemExtent: number;
+  viewportExtent: number; itemStyle?: StyleProp<ViewStyle>; testID?: string;
+}) {
+  const store = useCollection();
+  const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
+  const Cell = useMemo(() => renderer<VirtualizedFocusItem>(store, collection, item => nativeTargetKey(item.occurrenceKey)), [store, collection]);
+  return <FlatList data={data} horizontal={horizontal} testID={testID}
+    style={horizontal ? [styles.horizontalViewport, {width: viewportExtent}] : [styles.verticalViewport, {height: viewportExtent}]}
+    keyExtractor={item => item.occurrenceKey} CellRendererComponent={Cell} extraData={snapshot.preparation}
+    additionalRenderRegions={store.regions(collection)} initialNumToRender={2} maxToRenderPerBatch={2} windowSize={3}
+    getItemLayout={(_, index) => ({length: itemExtent, offset: itemExtent * index, index})}
+    renderItem={({item, index}) => <Focusable {...item} order={index}
+      style={[horizontal ? styles.horizontalItem : styles.verticalItem,
+        horizontal ? {width: itemExtent} : {height: itemExtent}, itemStyle]} />} />;
+});
+
+/** Fixed-extent owned buttons using the pinned react-native-tvos FlatList. */
+export function FocusVirtualizedList({id, data, horizontal = true, itemExtent, viewportExtent, style, itemStyle, testID}: Common & {
+  data: readonly VirtualizedFocusItem[]; horizontal?: boolean;
+}) {
+  const parent = useContext(ScopeContext);
+  const model = useMemo(() => {
+    extent(itemExtent); extent(viewportExtent);
+    if (!id) { throw new Error('A virtualized list requires a stable id'); }
+    const key = nativeScopeKey([...parent.path, id]);
+    return {id, key, data, horizontal, itemExtent, viewportExtent,
+      nodes: [list(key, parent.key, 0, horizontal, itemExtent), ...items(data, key)]};
+  }, [id, data, horizontal, itemExtent, viewportExtent, parent.path, parent.key]);
+  const published = usePublished(model);
+  if (!published) { return <View style={style} testID={testID} />; }
+  const value = published.model;
+  return <CollectionDatasetContext.Provider value={published.dataset}>
+    <FocusScope id={value.id} layout={value.horizontal ? 'row' : 'column'} boundary="parent" style={style}>
+      <ItemList data={value.data} collection={value.key} horizontal={value.horizontal} itemExtent={value.itemExtent}
+        viewportExtent={value.viewportExtent} itemStyle={itemStyle} testID={testID} />
+    </FocusScope>
+  </CollectionDatasetContext.Provider>;
+}
+const styles = StyleSheet.create({
+  commitMarker: {position: 'absolute', width: 1, height: 1},
+  horizontalViewport: {height: 100}, verticalViewport: {width: 240},
+  horizontalItem: {height: 80}, verticalItem: {width: 220},
+});
+
+/** Two-level row-then-item realization with logical column entry. */
+export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewportExtent, viewportRows = 2,
+  style, itemStyle, testID}: Common & {rails: readonly VirtualizedFocusRail[]; rowExtent: number; viewportRows?: number}) {
+  const parent = useContext(ScopeContext);
+  const store = useCollection();
+  const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
+  const model = useMemo(() => {
+    extent(itemExtent); extent(rowExtent); extent(viewportExtent);
+    if (!id || !Number.isInteger(viewportRows) || viewportRows < 1 || viewportRows > 10) { throw new Error('Rails require a stable id and 1–10 viewport rows'); }
+    const path = [...parent.path, id];
+    const key = nativeScopeKey(path);
+    const rows = rails.map(rail => {
+      if (!rail.id) { throw new Error('Rails require stable nonempty ids'); }
+      return {...rail, key: nativeScopeKey([...path, rail.id])};
+    });
+    const nodes = [list(key, parent.key, 0, false, rowExtent), ...rows.flatMap((row, index) =>
+      [list(row.key, key, index, true, itemExtent), ...items(row.items, row.key)])];
+    return {id, key, rows, nodes, itemExtent, rowExtent, viewportExtent, viewportRows};
+  }, [id, rails, rowExtent, itemExtent, viewportExtent, viewportRows, parent.path, parent.key]);
+  const published = usePublished(model);
+  const collection = published?.model.key ?? model.key;
+  const Cell = useMemo(() => renderer<FocusRailRow>(store, collection, row => row.key), [store, collection]);
+  if (!published) { return <View style={style} testID={testID} />; }
+  const value = published.model;
+  return <CollectionDatasetContext.Provider value={published.dataset}>
+    <FocusScope id={value.id} layout="column" boundary="parent" style={style}>
+      <FlatList data={value.rows} keyExtractor={row => row.id} testID={testID}
+        style={{height: value.rowExtent * value.viewportRows, width: value.viewportExtent}}
+        CellRendererComponent={Cell} extraData={snapshot.preparation} additionalRenderRegions={store.regions(value.key)}
+        initialNumToRender={1} maxToRenderPerBatch={1} windowSize={3}
+        getItemLayout={(_, index) => ({length: value.rowExtent, offset: value.rowExtent * index, index})}
+        renderItem={({item}) => <FocusScope id={item.id} layout="row" boundary="parent" style={{height: value.rowExtent}}>
+          <ItemList data={item.items} collection={item.key} horizontal itemExtent={value.itemExtent}
+            viewportExtent={value.viewportExtent} itemStyle={itemStyle} />
+        </FocusScope>} />
+    </FocusScope>
+  </CollectionDatasetContext.Provider>;
+}

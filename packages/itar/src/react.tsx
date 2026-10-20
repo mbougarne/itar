@@ -6,13 +6,14 @@ import NativeSurface, {Commands} from './specs/ItarSurfaceNativeComponent';
 import NativeScope from './specs/ItarScopeNativeComponent';
 import NativeTarget from './specs/ItarTargetNativeComponent';
 import {FocusStore} from './api/store';
+import {CollectionStore} from './api/collections';
+import {CollectionContext, CollectionDatasetContext, ScopeContext} from './api/contexts';
 import {nativeScopeKey, nativeTargetKey} from './api/types';
 import type {Activation, FocusChannel} from './api/types';
 export {occurrenceKey} from './api/types';
 export type {Activation, FocusKind, FocusChannel, FocusState, FocusOutcome, FocusRequest} from './api/types';
 
 const StoreContext = createContext<FocusStore | null>(null);
-const ScopeContext = createContext<Readonly<{path: readonly string[]; key: string; active: boolean}>>({path: [], key: '', active: true});
 const supported = Platform.isTV && (Platform.OS === 'ios' || Platform.OS === 'android');
 const useStore = (): FocusStore => {
   const store = useContext(StoreContext);
@@ -37,18 +38,23 @@ export function FocusProvider({children, active = true, style, testID}: {
     showDialog: () => { if (view.current) { Commands.showDialog(view.current); } },
     dismissDialog: () => { if (view.current) { Commands.dismissDialog(view.current); } },
   }, supported));
+  const [collections] = useState(() => new CollectionStore(store.provider, payload => {
+    if (view.current) { Commands.prepareCollection(view.current, payload); }
+  }));
+  const collection = useSyncExternalStore(collections.subscribe, collections.snapshot, collections.snapshot);
   useLayoutEffect(() => { store.activate(); return () => store.deactivate(); }, [store]);
   useLayoutEffect(() => { store.setEnabled(active); }, [store, active]);
   const content = <ScopeContext.Provider value={useMemo(() => ({path: [], key: '', active}), [active])}>
     {children}
   </ScopeContext.Provider>;
-  return <StoreContext.Provider value={store}>
+  return <StoreContext.Provider value={store}><CollectionContext.Provider value={collections}>
     {supported ? <NativeSurface ref={view} providerId={store.provider} active={active} style={style} testID={testID}
-      onSurfaceRecord={event => store.surface(event.nativeEvent)}
+      collectionData={collection.data} onCollectionRecord={event => collections.record(event.nativeEvent)}
+      onSurfaceRecord={event => { store.surface(event.nativeEvent); collections.surface(event.nativeEvent); }}
       onFocusRecord={event => store.focus(event.nativeEvent)}
       onRequestRecord={event => store.receipt(event.nativeEvent)}>{content}</NativeSurface> :
       <View style={style} testID={testID}>{content}</View>}
-  </StoreContext.Provider>;
+  </CollectionContext.Provider></StoreContext.Provider>;
 }
 
 export function FocusScope({id, active = true, layout = 'spatial', boundary = 'stop', trap = false,
@@ -59,6 +65,7 @@ export function FocusScope({id, active = true, layout = 'spatial', boundary = 's
 }) {
   useStore();
   const parent = useContext(ScopeContext);
+  const collectionDataset = useContext(CollectionDatasetContext);
   const context = useMemo(() => {
     if (!id) { throw new Error('A scope requires a stable id'); }
     const path = [...parent.path, id];
@@ -66,6 +73,7 @@ export function FocusScope({id, active = true, layout = 'spatial', boundary = 's
   }, [parent, id, active]);
   const content = <ScopeContext.Provider value={context}>{children}</ScopeContext.Provider>;
   return supported ? <NativeScope scopeKey={context.key} parentScopeKey={parent.key} active={context.active}
+    collectionDataset={collectionDataset}
     layout={layout} boundary={boundary} trap={trap} entryReady={entryReady}
     preferredKey={preferredKey === undefined ? '' : nativeTargetKey(preferredKey)} style={style} testID={testID}>
     {content}
@@ -89,6 +97,7 @@ export const Focusable = memo(function FocusableButton({occurrenceKey: key, cont
   enabled = true, order = 0, style, focusStyle, baseAccentColor, onPress, testID}: FocusableProps) {
   const store = useStore();
   const scope = useContext(ScopeContext);
+  const collectionDataset = useContext(CollectionDatasetContext);
   const lease = useMemo(() => ({token: {key, scope: scope.key}, registration: store.registrationId()}), [store, key, scope.key]);
   const committed = useRef({key, contentId, onPress});
   if (!key || !accessibilityLabel || !Number.isInteger(order) || order < -2147483648 || order > 2147483647) {
@@ -101,6 +110,7 @@ export const Focusable = memo(function FocusableButton({occurrenceKey: key, cont
   }, [store, key, lease, contentId, onPress, enabled, scope.active]);
   if (!supported) { return <View style={style} testID={testID} accessibilityLabel={accessibilityLabel} />; }
   return <NativeTarget occurrenceKey={nativeTargetKey(key)} scopeKey={scope.key} registrationId={lease.registration}
+    collectionDataset={collectionDataset}
     label={accessibilityLabel} enabled={enabled} order={order} style={style} testID={testID}
     baseColor={baseAccentColor} focusColor={focusStyle?.accentColor}
     onActivate={event => {
@@ -148,3 +158,5 @@ export function useScreenReaderEnabled(): boolean | null {
   }, []);
   return enabled;
 }
+export {FocusVirtualizedList, FocusVirtualizedRails} from './virtualized';
+export type {VirtualizedFocusItem, VirtualizedFocusRail} from './virtualized';

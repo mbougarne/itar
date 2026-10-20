@@ -6,6 +6,7 @@ import com.facebook.react.views.view.ReactViewGroup
 
 class ScopeView(context: Context) : ReactViewGroup(context) {
     var scopeKey = ""
+    var collectionDataset = ""
     var parentScopeKey = ""
     var active = true
     var layout = "spatial"
@@ -26,7 +27,7 @@ class ScopeView(context: Context) : ReactViewGroup(context) {
         owner = root
         descendantFocusability = if (active) FOCUS_BEFORE_DESCENDANTS else FOCUS_BLOCK_DESCENDANTS
         importantForAccessibility = if (active) IMPORTANT_FOR_ACCESSIBILITY_AUTO else IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-        val next = listOf(root, root?.connection?.lifetime, scopeKey, parentScopeKey, active, layout, boundary, trap, entryReady, preferredKey)
+        val next = listOf(root, root?.connection?.lifetime, scopeKey, parentScopeKey, active, layout, boundary, trap, entryReady, preferredKey, collectionDataset)
         if (next != declared) { declared = next; root?.scopeChanged() }
     }
     internal fun publish(parentNode: LongArray): Boolean {

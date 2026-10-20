@@ -108,3 +108,8 @@ two rails with repeated movies, an owned dialog, route return, selective status,
 request cancellation and bounded JS load. Compilation and deterministic protocol
 tests do not establish physical remote, VoiceOver, VoiceView, TalkBack, speech or
 shipping support. Refer to the named runtime/device acceptance for those claims.
+
+The first [virtualized collection API](virtualization.md) wraps fixed-extent TV
+FlatList buttons and nested rails. Its bounded realization flow retains logical
+membership across recycling, with native scrolling and confirmed focus. Native
+fallback prevention and device/reader acceptance remain explicit limits.

@@ -24,7 +24,7 @@ inline std::int64_t input(Session& s, int operation,
   const auto direction = static_cast<Direction>(v[0]);
   const auto context = inputContext(s, v[1]);
   if (operation == 6) {
-    const auto proposal = resolve(s.state, direction, context);
+    const auto proposal = s.collections.propose(direction, context);
     out[1] = static_cast<std::int64_t>(proposal.kind);
     out[2] = proposal.target.slot.value;
     out[3] = proposal.target.generation.value;
@@ -33,10 +33,7 @@ inline std::int64_t input(Session& s, int operation,
     if (v[2] < 0 || v[3] <= 0) return conversion;
     if (s.transactions.advanceTo(v[2]).status == RequestStatus::backward_time)
       return conversion;
-    const auto result = s.transactions.directionalInput(
-        direction, context,
-        {static_cast<TimePoint>(v[3]), DatasetRevision{1}, ResourceId{1},
-         direction});
+    const auto result = s.collections.input(direction, context, static_cast<TimePoint>(v[3]));
     out[1] = static_cast<std::int64_t>(result.status);
     out[2] = result.request.value;
   }

@@ -11,6 +11,7 @@ public final class ItarTargetHost: UIButton {
     var logicalMount: UInt64 = 0
     var logicalLifetime: UInt64 = 0
     private var sequence: UInt64 = 0
+    @objc public var collectionDataset = "" { didSet { if oldValue != collectionDataset { semanticsChanged() } } }
     @objc public var scopeKey = "" { didSet { if oldValue != scopeKey { semanticsChanged() } } }
     @objc public var registrationId = ""
     @objc public var occurrenceKey = "" {
@@ -50,7 +51,7 @@ public final class ItarTargetHost: UIButton {
     public required init?(coder: NSCoder) { fatalError("Use the native component") }
     public override var canBecomeFocused: Bool {
         guard let owner, let registration else { return false }
-        return owner.live(registration) === self
+        return owner.live(registration) === self || owner.collections.retained(registration)
     }
     func nearestSurface() -> ItarSurfaceHost? {
         var view = superview

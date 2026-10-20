@@ -49,17 +49,19 @@ their role is button, with enabled/disabled state and native activation.
 actually focused. UIKit keeps its native scale/parallax. Reduced motion applies
 the border immediately; otherwise it uses the focus animation coordinator.
 
-UIKit owns directional input, gestures, text and player controls. The current
-policy subset maps explicit engine focus effects to validated preferences and
-rejects unavailable or covered owned targets. It does not enforce geometric
-destination parity or intercept remote presses. Actual callbacks and queried
-focus supply confirmation. Missing registration does not imply absent host focus.
+UIKit chooses mounted directional destinations and owns gestures, text and player
+controls. Explicit engine effects use focus preferences. The selected virtualized
+list also owns cold-path arrow presses while a collection transfer is pending;
+gesture and momentum parity is unverified. Actual callbacks and queried focus
+supply confirmation. Missing registration does not imply absent host focus.
 
 Geometry is committed in surface coordinates. Detach/reuse invalidates the old
 mount independently of prop batches. Layout and observed owned scroll offsets
 invalidate measurements before replacement publication. Transforms, invalid
-bounds and partial clipping make a target unavailable. Collection realization
-is outside this carrier; reveal effects are rejected rather than fabricated.
+bounds and partial clipping make a target unavailable. The fixed-extent
+`itar/react` list prepares bounded render regions before token-checked,
+nonanimated native scrolling and committed-geometry realization. See the
+[collection API](../virtualization.md) for its limits.
 The owned carrier bounds traversal to 4096 views and 256 targets; exceeding a
 limit revokes the surface. Detach retains logical identity until recycle, while
 retired mounts cannot delete a newer attachment with the same occurrence key.

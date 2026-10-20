@@ -2,7 +2,7 @@
 
 #include <array>
 #include <atomic>
-#include <itar/transaction.hpp>
+#include <itar/collection.hpp>
 #include <memory>
 #include <thread>
 
@@ -20,9 +20,10 @@ enum Error : std::int64_t {
 struct Session {
   explicit Session(std::uint64_t token)
       : state(SurfaceId{token}),
-        transactions(state, SurfaceLifetime{token}, {32, 32, 32, INT64_MAX}) {}
+        transactions(state, SurfaceLifetime{token}, {32, 32, 32, INT64_MAX}), collections(state, transactions) {}
   State state;
   Transactions transactions;  // Destroyed before its borrowed state.
+  Collections collections;
   std::vector<Effect> effects;
   std::vector<FocusNotification> notifications;
   std::size_t effectIndex{}, notificationIndex{};

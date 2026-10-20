@@ -1,5 +1,5 @@
 #include "ItarEngine.h"
-#include <itar/transaction.hpp>
+#include <itar/collection.hpp>
 #include <itar/geometry_view.hpp>
 
 #include <new>
@@ -12,12 +12,13 @@ struct ItarEngine {
   bool disposed{};
   itar::State state;
   itar::Transactions transactions;
+  itar::Collections collections;
   std::optional<itar::RecoveryOrigin> restoration;
   itar::NodeHandle opener;
   uint64_t restorationToken{};
   ItarEngine(uint64_t surface, uint64_t life, uint32_t capacity)
       : lifetime(life), state(itar::SurfaceId{surface}, {capacity}),
-        transactions(state, itar::SurfaceLifetime{life}) {}
+        transactions(state, itar::SurfaceLifetime{life}), collections(state, transactions) {}
   void revoke() noexcept { disposed = true; transactions.dispose(); restoration.reset(); }
 };
 
@@ -139,6 +140,7 @@ extern "C" ItarSnapshot itar_engine_snapshot(ItarEngine *engine, uint64_t life) 
   output.input = native(snapshot.inputFocus); output.accessibility = native(snapshot.accessibilityFocus);
   output.deadline = engine->transactions.nextDeadline().value_or(0);
   output.active_request = engine->transactions.active() ? engine->transactions.active()->id.value : 0;
+  output.collection_dataset = engine->collections.dataset().value;
   output.resync_required = engine->transactions.resyncRequired();
   return output;
 }
@@ -206,7 +208,10 @@ extern "C" ItarRequestResult itar_engine_request_focus(ItarEngine *engine, uint6
     require(owner >= 0 && owner <= 4);
     const InputContext input{engine->state.surface(), node(authority), static_cast<InputOwner>(owner),
                              engine->state.snapshot().inputFocus};
-    return engine->transactions.requestFocus(key(bytes), input, {deadline, {dataset}, {}, {}});
+    const auto target = key(bytes);
+    auto options = engine->collections.options(target, deadline);
+    if (!engine->collections.find(target)) options.dataset = {dataset};
+    return engine->transactions.requestFocus(target, input, options);
   });
 }
 extern "C" ItarRequestResult itar_engine_issue(ItarEngine *engine, uint64_t life, ItarToken value) noexcept {
@@ -219,12 +224,15 @@ extern "C" ItarRequestResult itar_engine_restore_scope(ItarEngine *engine, uint6
     const auto *record = engine->state.snapshot().registry.lookup(scope);
     if (!record || !record->scope || !record->active || !record->navigation.entryReady) return {RequestStatus::unavailable, {}};
     const InputContext input{engine->state.surface(), scope, InputOwner::engine, engine->state.snapshot().inputFocus};
-    const RequestOptions options{deadline, {dataset}, {}, {}};
     if (const auto *remembered = engine->state.history(scope);
         remembered && logicalTarget(engine->state, engine->state.snapshot().registry.find(*remembered))) {
+      auto options = engine->collections.options(*remembered, deadline);
+      if (!engine->collections.find(*remembered)) options.dataset = {dataset};
       return engine->transactions.requestFocus(*remembered, input, options);
     }
-    return engine->transactions.begin(resolveEntry(engine->state, scope, input, {EntryReason::returning}), options);
+    const auto proposal = resolveEntry(engine->state, scope, input, {EntryReason::returning});
+    const auto* target = engine->state.snapshot().registry.key(proposal.target);
+    return engine->transactions.begin(proposal, engine->collections.options(target ? *target : OccurrenceKey{}, deadline));
   });
 }
 extern "C" ItarRequestResult itar_engine_complete(ItarEngine *engine, uint64_t life,
@@ -307,4 +315,57 @@ extern "C" ItarCallStatus itar_engine_notifications(ItarEngine *engine, uint64_t
                            event.confirmedRequest.value_or(RequestId{}).value};
     }
   });
+}
+
+extern "C" ItarBatchResult itar_engine_collections(ItarEngine *engine, uint64_t life,
+    uint64_t dataset, const ItarCollectionNode *values, size_t count) noexcept {
+  ItarBatchResult output{check(engine, life), -1, 0, SIZE_MAX};
+  if (output.call != ITAR_OK) return output;
+  output.call = protect(engine, [&] {
+    require(count <= engine->state.snapshot().registry.limits().capacity && (!count || values));
+    std::vector<CollectionNode> nodes;
+    nodes.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+      const auto& value = values[i];
+      require(value.layout >= 0 && value.layout <= 2);
+      nodes.push_back({key(value.key), key(value.parent), value.order, flag(value.scope),
+          flag(value.enabled), static_cast<Layout>(value.layout), value.extent});
+    }
+    const auto result = engine->collections.apply({dataset}, nodes);
+    output.code = static_cast<int32_t>(result.status);
+    output.revision = result.dataset.value;
+  });
+  return output;
+}
+extern "C" ItarProposal itar_engine_direction_query(ItarEngine *engine, uint64_t life,
+    int32_t direction, int32_t owner) noexcept {
+  ItarProposal output{check(engine, life), -1, {}};
+  if (output.call != ITAR_OK) return output;
+  output.call = protect(engine, [&] {
+    require(direction >= 0 && direction <= 3 && owner >= 0 && owner <= 4);
+    const InputContext input{engine->state.surface(), {}, static_cast<InputOwner>(owner), engine->state.snapshot().inputFocus};
+    const auto proposal = engine->collections.propose(static_cast<Direction>(direction), input);
+    output.kind = static_cast<int32_t>(proposal.kind);
+    output.target = native(proposal.target);
+  });
+  return output;
+}
+extern "C" ItarRequestResult itar_engine_direction(ItarEngine *engine, uint64_t life,
+    int32_t direction, int32_t owner, uint64_t deadline) noexcept {
+  return request(engine, life, [&] {
+    require(direction >= 0 && direction <= 3 && owner >= 0 && owner <= 4);
+    const InputContext input{engine->state.surface(), {}, static_cast<InputOwner>(owner), engine->state.snapshot().inputFocus};
+    return engine->collections.input(static_cast<Direction>(direction), input, deadline);
+  });
+}
+extern "C" ItarRequestResult itar_engine_realize(ItarEngine *engine, uint64_t life,
+    ItarToken reveal, ItarNode target, uint64_t mount, uint64_t dataset) noexcept {
+  return request(engine, life, [&] {
+    return engine->transactions.realize({token(reveal), engine->state.surface(), node(target), {mount}, {dataset}, true});
+  });
+}
+extern "C" ItarCallStatus itar_engine_release_input(ItarEngine *engine, uint64_t life) noexcept {
+  const auto status = check(engine, life);
+  if (status == ITAR_OK) engine->transactions.releaseInput();
+  return status;
 }

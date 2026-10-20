@@ -9,11 +9,17 @@ extension ItarSurfaceHost {
         return [target]
     }
 
-    // UIKit continues to choose mounted directional destinations. Preferences
-    // implement explicit engine effects only; no swipe/press interception or
-    // cross-platform directional parity is claimed by this subset.
+    // UIKit chooses mounted destinations. Only cold collection arrow requests
+    // use scoped press ownership; swipe/momentum parity requires separate evidence.
     func allowsFocus(_ context: UIFocusUpdateContext) -> Bool {
         guard scopeAllows(context) else { return false }
+        if context.focusHeading != [], !UIAccessibility.isVoiceOverRunning,
+           pendingRequest != 0,
+           let source = context.previouslyFocusedView as? ItarTargetHost,
+           let registration = source.registration, collections.entry(registration.key) != nil,
+           live(registration) === source || collections.retained(registration), context.nextFocusedView !== preferred {
+            return context.nextFocusedView === source
+        }
         if let next = context.nextFocusedView as? ItarTargetHost, next.owner === self {
             guard acceptsInput else { return false }
             if UIAccessibility.isVoiceOverRunning { return true }
@@ -33,7 +39,9 @@ extension ItarSurfaceHost {
     }
 
     func invoke(_ effect: ItarEffect) -> Int32 {
+        if effect.token.kind == 0 { return collections.invoke(effect) }
         if effect.token.kind == 2 {
+            if collections.cancel(effect) { return 3 }
             if let token = preferredToken, token.request == effect.cancels.request,
                token.effect == effect.cancels.effect, token.lifetime == effect.cancels.lifetime {
                 preferred = nil

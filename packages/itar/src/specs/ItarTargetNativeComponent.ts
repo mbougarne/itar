@@ -6,6 +6,7 @@ export interface NativeProps extends ViewProps {
   occurrenceKey: string;
   scopeKey?: string;
   registrationId?: string;
+  collectionDataset?: string;
   label: string;
   enabled?: WithDefault<boolean, true>;
   order?: Int32;

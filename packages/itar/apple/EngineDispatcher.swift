@@ -8,8 +8,13 @@ import ItarEngineCore
 final class EngineDispatcher {
     enum Event {
         case apply([EngineMutation])
+        case collections(CollectionDocument)
+        case direction(Int32, UInt64, UInt64)
+        case releaseInput
+        case realize(ItarEffect, UInt64)
         case focus(ItarFocus, Int32, ItarToken?)
         case invalidate(ItarNode, UInt64, Int32, UInt64)
+        case invalidations([(ItarNode, UInt64, Int32, UInt64)])
         case request(String, Int32, UInt64, UInt64)
         case requestCommand(String, String, UInt64, UInt64)
         case restoreScopeCommand(String, String, UInt64, UInt64)
@@ -20,6 +25,7 @@ final class EngineDispatcher {
         case restore(UInt64, Int32, UInt64, UInt64)
     }
     let connection: EngineConnection
+    var catalogued: ((CollectionDocument, Int32) -> Void)?
     var invoke: ((ItarEffect) -> Int32)?
     var notify: ((ItarNotification) -> Void)?
     var requested: ((ItarRequestResult) -> Void)?
@@ -37,6 +43,18 @@ final class EngineDispatcher {
 
     init(_ connection: EngineConnection) { self.connection = connection }
 
+    // A prepared asynchronous reveal still invokes UIKit under the same guard
+    // as an initially dispatched effect. Inline callbacks drain after it returns.
+    func hostCall(_ work: () -> Void) -> Bool {
+        precondition(Thread.isMainThread)
+        guard !pumping, !closed else { return false }
+        pumping = true
+        work()
+        pumping = false
+        if closed { try? connection.close() } else { pump() }
+        return true
+    }
+
     func enqueue(_ event: Event) {
         precondition(Thread.isMainThread)
         guard !closed else { return }
@@ -47,6 +65,17 @@ final class EngineDispatcher {
 
     private func process(_ event: Event) throws {
         switch event {
+        case .collections(let document):
+            let result = try connection.collections(document)
+            catalogued?(document, result.code)
+        case .direction(let direction, let now, let deadline):
+            _ = try connection.advance(to: now)
+            let result = try connection.direction(direction, deadline: deadline)
+            requested?(result)
+        case .releaseInput:
+            try connection.releaseInput()
+        case .realize(let effect, let mount):
+            requested?(try connection.realize(effect, mount: mount))
         case .apply(let mutations):
             let result = try connection.apply(mutations, revision: connection.snapshot().revision)
             // Host mappings must not become live after a rejected native batch.
@@ -56,6 +85,11 @@ final class EngineDispatcher {
             if result.request != 0 { requested?(result) }
         case .invalidate(let node, let mount, let kind, let through):
             _ = try connection.invalidate(node, mount: mount, kind: kind, through: through)
+        case .invalidations(let values):
+            guard values.count <= 256 else { fail(overflow: true); return }
+            for (node, mount, kind, through) in values {
+                _ = try connection.invalidate(node, mount: mount, kind: kind, through: through)
+            }
         case .request(let key, let owner, let now, let deadline):
             let time = try connection.advance(to: now)
             if time.code == 10 { requested?(time) }
@@ -175,6 +209,7 @@ final class EngineDispatcher {
         timer = nil
         inbox.removeAll()
         effects.removeAll()
+        catalogued = nil
         invoke = nil
         notify = nil
         requested = nil

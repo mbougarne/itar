@@ -4,6 +4,7 @@ import {packageStage} from 'itar';
 import AndroidAdapterScreen from './AndroidAdapterScreen';
 import AppleAdapterScreen from './AppleAdapterScreen';
 import ReactApiScreen from './ReactApiScreen';
+import VirtualizedScreen from './VirtualizedScreen';
 
 const HostProbe = Platform.OS === 'ios' ? requireNativeComponent<ViewProps & {
   onNativeActivation: (event: NativeSyntheticEvent<{target: string; targetAlias?: string}>) => void;
@@ -13,6 +14,13 @@ export default function App() {
   const [activation, setActivation] = useState('None');
   const [appleAdapter, setAppleAdapter] = useState(false);
   const [reactApi, setReactApi] = useState(false);
+  const [virtualized, setVirtualized] = useState(false);
+  if (virtualized) {
+    return <View style={styles.screen}>
+      <Button title="Return to carrier probes" onPress={() => setVirtualized(false)} />
+      <VirtualizedScreen />
+    </View>;
+  }
   if (reactApi) {
     return <View style={styles.screen}>
       <Button title="Return to carrier probes" onPress={() => setReactApi(false)} />
@@ -31,6 +39,7 @@ export default function App() {
       {Platform.OS !== 'android' && <Text>Native adapter work; unrun acceptance remains explicit.</Text>}
       {Platform.OS === 'android' && <AndroidAdapterScreen />}
       <Button title="React API preview" onPress={() => setReactApi(true)} />
+      <Button title="Virtualized list preview" onPress={() => setVirtualized(true)} />
       {Platform.OS === 'ios' && <Button title="Apple adapter preview" onPress={() => setAppleAdapter(true)} />}
       {HostProbe && <>
         <Button title="Busy JS for 2 seconds" onPress={() => {

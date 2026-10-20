@@ -86,9 +86,29 @@ typedef struct {
 typedef struct {
   ItarCallStatus call;
   uint64_t revision, deadline, active_request; // zero deadline/request means no pending request
+  uint64_t collection_dataset;
   ItarFocus input, accessibility;
   uint8_t resync_required;
 } ItarSnapshot;
+typedef struct {
+  ItarBytes key, parent;
+  int32_t order, layout;
+  uint8_t scope, enabled;
+  double extent; // Offset planning only; never focus geometry.
+} ItarCollectionNode;
+typedef struct { ItarCallStatus call; int32_t kind; ItarNode target; } ItarProposal;
+
+// Full bounded logical snapshot. Result code is CollectionStatus (applied=0,
+// unchanged=1); rejection preserves the previous graph and dataset.
+ItarBatchResult itar_engine_collections(ItarEngine *, uint64_t lifetime, uint64_t dataset,
+    const ItarCollectionNode *, size_t count) ITAR_NOEXCEPT;
+ItarProposal itar_engine_direction_query(ItarEngine *, uint64_t lifetime, int32_t direction,
+    int32_t owner) ITAR_NOEXCEPT;
+ItarRequestResult itar_engine_direction(ItarEngine *, uint64_t lifetime, int32_t direction,
+    int32_t owner, uint64_t deadline) ITAR_NOEXCEPT;
+ItarCallStatus itar_engine_release_input(ItarEngine *, uint64_t lifetime) ITAR_NOEXCEPT;
+ItarRequestResult itar_engine_realize(ItarEngine *, uint64_t lifetime, ItarToken,
+    ItarNode, uint64_t mount, uint64_t dataset) ITAR_NOEXCEPT;
 
 // Capacity 1..4096, key size <=512 bytes, batch size <=2*capacity.
 ItarEngine *itar_engine_create(uint64_t surface, uint64_t lifetime, uint32_t capacity,

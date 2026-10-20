@@ -7,6 +7,13 @@ import {codegenNativeCommands} from 'react-native';
 export interface NativeProps extends ViewProps {
   providerId?: string;
   active?: WithDefault<boolean, true>;
+  collectionData?: string;
+  onCollectionRecord?: DirectEventHandler<Readonly<{
+    lifetime: string;
+    provider: string;
+    sequence: string;
+    payload: string;
+  }>>;
   onSurfaceRecord?: DirectEventHandler<Readonly<{
     lifetime: string;
     provider: string;
@@ -40,6 +47,7 @@ interface NativeCommands {
   focusRequest(viewRef: React.ElementRef<HostComponent<NativeProps>>, occurrenceKey: string, command: string): void;
   cancelRequest(viewRef: React.ElementRef<HostComponent<NativeProps>>, command: string): void;
   restoreScopeRequest(viewRef: React.ElementRef<HostComponent<NativeProps>>, scopeKey: string, command: string): void;
+  prepareCollection(viewRef: React.ElementRef<HostComponent<NativeProps>>, payload: string): void;
 }
-export const Commands = codegenNativeCommands<NativeCommands>({supportedCommands: ['focus', 'cancel', 'showDialog', 'dismissDialog', 'focusRequest', 'cancelRequest', 'restoreScopeRequest']});
+export const Commands = codegenNativeCommands<NativeCommands>({supportedCommands: ['focus', 'cancel', 'showDialog', 'dismissDialog', 'focusRequest', 'cancelRequest', 'restoreScopeRequest', 'prepareCollection']});
 export default codegenNativeComponent<NativeProps>('ItarSurface') as HostComponent<NativeProps>;

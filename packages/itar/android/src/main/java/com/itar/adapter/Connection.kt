@@ -22,6 +22,10 @@ class Connection : AutoCloseable {
             token = 0
         }
     }
+    internal fun collections(dataset: Long, keys: Array<String>, parents: Array<String>, values: LongArray): Long {
+        owner(); return collectionsNative(token, dataset, keys, parents, values)
+    }
+    private external fun collectionsNative(token: Long, dataset: Long, keys: Array<String>, parents: Array<String>, values: LongArray): Long
     private external fun createNative(): Long
     private external fun closeNative(token: Long): Long
     private external fun exchangeNative(token: Long, operation: Int, values: LongArray, key: String?, extra: String?): LongArray
