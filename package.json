@@ -6,10 +6,10 @@
     "packages/*",
     "apps/*"
   ],
-  "packageManager": "npm@10.9.2",
+  "packageManager": "npm@10.9.9",
   "engines": {
-    "node": "22.14.0",
-    "npm": "10.9.2"
+    "node": "22.23.4",
+    "npm": "10.9.9"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

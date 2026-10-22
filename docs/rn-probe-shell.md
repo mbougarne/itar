@@ -9,7 +9,7 @@ JS activation text is not native focus evidence.
 
 ## Reproduce
 
-Use Node 22.14.0 / npm 10.9.2 (`.nvmrc`); from the repository root:
+Use Node 22.23.4 / npm 10.9.9 (`.nvmrc`); from the repository root:
 
 ```sh
 npm ci --ignore-scripts
