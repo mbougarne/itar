@@ -13,7 +13,7 @@ record `git rev-parse HEAD`, artifact integrity and toolchain with every run.
 | ITAR-0077 | `core.generated`: fixed seeds 1–16, 64 operations/seed, invalid geometry, duplicates, stale generations, dirty geometry, cancellation, repeated/reordered outcomes, host time, disposal; per-step queue bounds and live confirmation; existing transaction regressions | See sanitizer command/results below. No probabilistic completeness claim. |
 | ITAR-0078 | `core/benchmarks/costs.cpp`: 64/256/1024 logical, 64 mounted; cold setup, retained requested bytes, query/update percentiles and allocation counts | Mac-only instrumented timings, no TV or speedup claim. |
 | ITAR-0079 | Reference app **Release validation**: same 8-card geometry for native/Itar; pinned library 5.2.0 comparison mode with corrected native event typing, delayed 0/750/2000ms bounded JS load | Full input-to-visible timing, comparison runtime acceptance, native frames/binary/startup and all device runs unrun. |
-| ITAR-0080 | `core.lifecycle_memory`: 100 create/reveal/cancel/dispose cycles, fixed checkpoints and exact owned heap cleanup, trace release, normal mounted/logical distinction | Native route/modal/recycling long sessions, native retained views and host caches unmeasured. This is a core-owner check, not native leak acceptance. |
+| ITAR-0080 | `core.lifecycle_memory`: 100 create/reveal/cancel/dispose cycles, fixed checkpoints and exact owned heap cleanup, trace release, normal mounted/logical distinction | Android debug functional follow-up covers nested dialogs, distant reveal/cancel, stable-key reorder and3 disposal/remounts; route return failed. Native long-session retained views/counters and host caches remain unmeasured; no leak acceptance. |
 | ITAR-0081 | [Device protocol](device-acceptance.md), Android TV/TalkBack and Fire OS/VoiceView separate rows | Named physical hardware and all reader-disabled/enabled results required. |
 | ITAR-0082 | [Device protocol](device-acceptance.md), Apple TV/VoiceOver navigation/exploration separate rows | Named physical Apple TV, remote gestures/momentum, native effects/reduced motion and speech observations required. |
 | ITAR-0083 | `prepare-package.cjs`, package-local CMake/core podspec/license, package-named native podspec selection, `check-package.cjs` installs a tarball into an isolated non-workspace consumer and compiles portable core + Apple C facade | Fresh Android/tvOS builds pass; Android emulator registration/focus/style/list smoke passes. Apple runtime is blocked by OS denial creating an external simulator cache directory. Portable compilation cannot satisfy native consumer acceptance. |
@@ -192,7 +192,11 @@ device set failed when CoreSimulator could not create `data/Library/Caches`
 exit22). Follow-up inventory is empty; no simulator booted. No retry, alternate
 internal-storage device, permission/security change or user-device reuse was
 used to bypass the denial. Owner-authorized OS access to the external task
-directory is needed before this runtime path can continue.
+directory is needed before this runtime path can continue. Read-only follow-up
+confirmed kernel System Policy read/create denials for CoreSimulatorService;
+custom `--set` support, writable APFS and normal directory metadata were verified.
+Owner inspection of Files & Folders / Removable Volumes is pending; no specific
+UI grant or permission change has been tested.
 
 From the fresh consumer's `ios` directory (external caches configured):
 
@@ -213,3 +217,49 @@ the pinned RN fmt11.2.0 compatibility setup follow the existing
 [TV shell recipe](../rn-probe-shell.md). No application-wide Swift/C++
 interoperability flag is added. Logs and native evidence JSON stay under the
 external `itar-phase11-artifacts/native-consumers` directory.
+
+## Android functional follow-up
+
+At library inputs `90020dd` / fixture source `e150385`, the existing tarball APK
+loaded unchanged `ReactApiScreen.tsx` and `VirtualizedScreen.tsx` through local
+Metro8107 (one worker), with an outer mount/unmount selector. No native rebuild,
+new dependency or library change. Google TV API36 ARM64, reader off, same
+720p/2-core/2GB task emulator; debug mode, not Release performance acceptance.
+
+- Remote Tab/DPAD: focus rail B returned `applied: confirmed`; one Center emitted
+  one input activation with the matching occurrence/content identity.
+- Inactive home-route targets disappeared from the visible accessibility tree.
+  **Route return failed:** a subsequent return reported `unavailable: unavailable`
+  and unmanaged focus instead of restoring the last observed managed key. Cause
+  remains unresolved; no retry loop or fallback is counted as restoration.
+- Owned dialogs opened/nested/dismissed. Window identities changed from app+outer
+  to app+outer+inner and back to the same app+outer. The invoking control was
+  unmanaged; managed-opener disposal/restoration is not established.
+- List start and item30 reveal confirmed matching labels/keys. After reversal,
+  focusing key0 still confirmed item1. Removing nonfocused item2 removed its UI;
+  this does not test focused-source disappearance. Delayed reveal settled as
+  `cancelled: cancelled` with the original window still visible.
+- Three disposal/remount cycles removed the surface UI and recreated fresh request
+  state. Crash buffer empty. This is not the required100-cycle retention test.
+
+Touch-injected focus commands separately returned `unavailable: reconciled`,
+with absent focus. The initial RN StrictMode/Touchable warning overlay was
+retained and dismissed, not suppressed; touch-mode acceptance is not claimed.
+A first restoration assertion incorrectly expected an older item after Tab had
+visited another managed target; the valid later return failure above compares
+against the most recently observed key and remains a release gate.
+
+Before this run the shared host had11015MiB swap used (12288MiB total),406870
+compressed-memory pages (~6.21GiB at16KiB/page), and memory-pressure free44%.
+No native timing/memory benchmark was attempted on this contaminated baseline.
+Local evidence: `native-consumers/android-functional/summary.json`, failure XML/
+screenshots, modal window comparison and fixture hashes. Task emulator, isolated
+ADB server and Metro exited; no Apple retry, permission change or physical action.
+
+Remaining steps: reproduce/repair route return at the native commit/readiness
+boundary without implicit retries; establish managed-opener and focused-source
+removal/recycling cases; run the [Release comparison and100-cycle retention
+protocols](device-acceptance.md) on a suitable measured host, with native markers,
+owned-view/counter observations, warm-up/checkpoints/quiescence and two runs;
+finish Apple consumer runtime after owner permission resolution, then separate
+physical TV/reader acceptance. Unmeasured components and failures stay open.

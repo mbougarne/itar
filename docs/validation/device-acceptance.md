@@ -3,7 +3,7 @@
 Use the [short checklist and simulator/physical classification](manual-checklist.md)
 for an individual manual acceptance session.
 
-All rows below are **NOT RUN**, not passing support claims. Fill each independently
+Physical rows below are **NOT RUN**, not passing support claims. Fill each independently
 with exact commit, tarball integrity, RN/React versions, device model, OS, input
 remote, reader version/settings, list configuration, build mode, diagnostic mode,
 recording paths, observed results and reproduction commands. Use synthetic data.
@@ -13,8 +13,8 @@ recording paths, observed results and reproduction commands. Use synthetic data.
 | Physical Android TV | Off; TalkBack on | Pending hardware evidence |
 | Physical Fire OS | Off; VoiceView on | Pending hardware evidence |
 | Physical Apple TV | Off; VoiceOver navigation; VoiceOver exploration | Pending hardware evidence |
-| Fresh Android TV tarball consumer | Off; actual registration/focus/style smoke | Pending native consumer build/run |
-| Fresh tvOS tarball consumer | Off; actual registration/focus/style smoke | Pending native consumer build/run |
+| Fresh Android TV tarball consumer | Off; actual registration/focus/style smoke | Build and bounded Google TV emulator smoke pass; see review guide, no physical acceptance |
+| Fresh tvOS tarball consumer | Off; actual registration/focus/style smoke | Release build passes; runtime blocked by external-directory System Policy denial |
 
 Do not substitute an emulator/simulator for a physical row. Label their results
 separately. Use the existing React API, virtualized list and adapter preview
