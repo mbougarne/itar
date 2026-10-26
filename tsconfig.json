@@ -4,11 +4,17 @@
     "types": [
       "react"
     ],
-    "strict": true
+    "strict": true,
+    "paths": {
+      "@react-native-tvos/virtualized-lists": [
+        "./build/tv-types/virtualized-lists/index.d.ts"
+      ]
+    }
   },
   "include": [
     "apps/probe/*.tsx",
     "packages/itar/src/**/*.ts",
-    "packages/itar/src/**/*.tsx"
+    "packages/itar/src/**/*.tsx",
+    "probes/comparison/*.ts"
   ]
 }

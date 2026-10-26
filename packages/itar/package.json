@@ -11,10 +11,15 @@
     "src",
     "android",
     "apple",
-    "*.podspec"
+    "*.podspec",
+    "cpp",
+    "LICENSE",
+    "README.md",
+    "virtualization.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json"
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "node scripts/prepare-package.cjs"
   },
   "peerDependencies": {
     "react": "19.2.0",
