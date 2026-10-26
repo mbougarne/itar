@@ -4,7 +4,7 @@ Prepared only; this checklist initiates no hardware request or device run.
 Android and tvOS fresh-consumer compilation passed. Bounded Android emulator
 registration/focus/style/list smoke passed; Apple simulator creation is blocked
 by OS denial in its external device set. See the [review guide](phase11-review.md)
-for bounded Android functional results and the unresolved route-return failure.
+for bounded Android functional results and the focused route-return correction.
 Physical and unlisted cases remain **NOT RUN**. Coordinate
 timing/memory measurements separately. Use synthetic labels/content only.
 

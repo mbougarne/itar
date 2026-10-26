@@ -13,7 +13,7 @@ record `git rev-parse HEAD`, artifact integrity and toolchain with every run.
 | ITAR-0077 | `core.generated`: fixed seeds 1–16, 64 operations/seed, invalid geometry, duplicates, stale generations, dirty geometry, cancellation, repeated/reordered outcomes, host time, disposal; per-step queue bounds and live confirmation; existing transaction regressions | See sanitizer command/results below. No probabilistic completeness claim. |
 | ITAR-0078 | `core/benchmarks/costs.cpp`: 64/256/1024 logical, 64 mounted; cold setup, retained requested bytes, query/update percentiles and allocation counts | Mac-only instrumented timings, no TV or speedup claim. |
 | ITAR-0079 | Reference app **Release validation**: same 8-card geometry for native/Itar; pinned library 5.2.0 comparison mode with corrected native event typing, delayed 0/750/2000ms bounded JS load | Full input-to-visible timing, comparison runtime acceptance, native frames/binary/startup and all device runs unrun. |
-| ITAR-0080 | `core.lifecycle_memory`: 100 create/reveal/cancel/dispose cycles, fixed checkpoints and exact owned heap cleanup, trace release, normal mounted/logical distinction | Android debug functional follow-up covers nested dialogs, distant reveal/cancel, stable-key reorder and3 disposal/remounts; route return failed. Native long-session retained views/counters and host caches remain unmeasured; no leak acceptance. |
+| ITAR-0080 | `core.lifecycle_memory`: 100 create/reveal/cancel/dispose cycles, fixed checkpoints and exact owned heap cleanup, trace release, normal mounted/logical distinction | Android debug functional follow-up covers nested dialogs, distant reveal/cancel, stable-key reorder and3 disposal/remounts; route return baseline failed and is repaired by the focused correction below. Native long-session retained views/counters and host caches remain unmeasured; no leak acceptance. |
 | ITAR-0081 | [Device protocol](device-acceptance.md), Android TV/TalkBack and Fire OS/VoiceView separate rows | Named physical hardware and all reader-disabled/enabled results required. |
 | ITAR-0082 | [Device protocol](device-acceptance.md), Apple TV/VoiceOver navigation/exploration separate rows | Named physical Apple TV, remote gestures/momentum, native effects/reduced motion and speech observations required. |
 | ITAR-0083 | `prepare-package.cjs`, package-local CMake/core podspec/license, package-named native podspec selection, `check-package.cjs` installs a tarball into an isolated non-workspace consumer and compiles portable core + Apple C facade | Fresh Android/tvOS builds pass; Android emulator registration/focus/style/list smoke passes. Apple runtime is blocked by OS denial creating an external simulator cache directory. Portable compilation cannot satisfy native consumer acceptance. |
@@ -218,7 +218,7 @@ the pinned RN fmt11.2.0 compatibility setup follow the existing
 interoperability flag is added. Logs and native evidence JSON stay under the
 external `itar-phase11-artifacts/native-consumers` directory.
 
-## Android functional follow-up
+## Android functional baseline
 
 At library inputs `90020dd` / fixture source `e150385`, the existing tarball APK
 loaded unchanged `ReactApiScreen.tsx` and `VirtualizedScreen.tsx` through local
@@ -230,8 +230,8 @@ new dependency or library change. Google TV API36 ARM64, reader off, same
   one input activation with the matching occurrence/content identity.
 - Inactive home-route targets disappeared from the visible accessibility tree.
   **Route return failed:** a subsequent return reported `unavailable: unavailable`
-  and unmanaged focus instead of restoring the last observed managed key. Cause
-  remains unresolved; no retry loop or fallback is counted as restoration.
+  and unmanaged focus instead of restoring the last observed managed key. This
+  negative control is repaired below; no retry/fallback counts as restoration.
 - Owned dialogs opened/nested/dismissed. Window identities changed from app+outer
   to app+outer+inner and back to the same app+outer. The invoking control was
   unmanaged; managed-opener disposal/restoration is not established.
@@ -247,7 +247,7 @@ with absent focus. The initial RN StrictMode/Touchable warning overlay was
 retained and dismissed, not suppressed; touch-mode acceptance is not claimed.
 A first restoration assertion incorrectly expected an older item after Tab had
 visited another managed target; the valid later return failure above compares
-against the most recently observed key and remains a release gate.
+against the most recently observed key is retained as the negative control.
 
 Before this run the shared host had11015MiB swap used (12288MiB total),406870
 compressed-memory pages (~6.21GiB at16KiB/page), and memory-pressure free44%.
@@ -256,10 +256,54 @@ Local evidence: `native-consumers/android-functional/summary.json`, failure XML/
 screenshots, modal window comparison and fixture hashes. Task emulator, isolated
 ADB server and Metro exited; no Apple retry, permission change or physical action.
 
-Remaining steps: reproduce/repair route return at the native commit/readiness
-boundary without implicit retries; establish managed-opener and focused-source
+Remaining steps: establish managed-opener and focused-source
 removal/recycling cases; run the [Release comparison and100-cycle retention
 protocols](device-acceptance.md) on a suitable measured host, with native markers,
 owned-view/counter observations, warm-up/checkpoints/quiescence and two runs;
 finish Apple consumer runtime after owner permission resolution, then separate
 physical TV/reader acceptance. Unmeasured components and failures stay open.
+
+## Android route-return correction
+
+The native trace at146.067s shows RESTORE observing `home.active=false`, immediately
+before the same Fabric batch commits `true`; scope handles remain unchanged.
+RN TV0.83's `MountItemDispatcher` executes view commands before pending mount
+items. The adapter was reading old native props, not losing core history.
+
+`MountCommands.kt` and `ReactMountCommands.kt` defer public focus/restore/cancel
+to Fabric `didMountItems`. The32-record queue keeps original receipt times and
+lifetimes, cancels queued work before issue, expires original deadlines, separates
+reentrant batches and removes its listener on drain/disposal. Mounted native
+input is unchanged. The reference React/list fixtures are unchanged; no timer,
+restoration retry, global focus service or fallback was added. The bounded repair
+and focused proofs fit the ticket's500-line ceiling without an architecture change.
+
+- `android.scopes` passed in Release and ASan/UBSan: inactive restore is rejected,
+  history survives, and committed reactivation selects the remembered target.
+- `MountCommandTest` ran on Google TV API36 ARM64 and passed the queue ordering,
+  pre-issue cancellation, original deadline, lifetime/colliding-ID, reentrant
+  next-batch, capacity and listener-release assertions.
+- Two remote route cycles each rejected inactive focus, then returned
+  `applied: confirmed` and actual native focus on `["home","rail-b","entry-2"]`.
+  The native focused node and orange accent agree; the default first item cannot
+  satisfy the assertion. Distant reveal30, cancellation with no distant item
+  appearing, and one disposal/remount also passed with the fixed tarball.
+
+Tarball integrity:
+`sha512-9jwtIcK4LD+iB7o8FZM2DwON5D2WGMsnlX66PEM8B7wIuuQboazp2rJcXQKbLx8KDlPI7KAUiOLW6w/GfhrF/Q==`.
+Fixed APK SHA-256:
+`d02acc00b0231a4461aba6b7210646889bc85f32084f901751e5ffe334b94e61`.
+The actual installed tarball matches the authored source hashes. Apple source,
+core and podspec archive inputs are identical to the previous passing Apple
+build; Apple runtime remains blocked. Local `native-consumers/route-fixed/`
+contains the summary, unchanged-fixture driver, XML/screenshots and test logs.
+
+Before runtime, a fresh10s sample showed63% memory free, pressure level1,
+zero swap-outs/new compressions (35 swap-in pages). This permits bounded debug
+functional checks, not clean performance acceptance. A brief environment loss
+left session exit status unavailable; all final assertions were recovered from
+complete logs before any retry. Emulator/Metro were absent; the remaining owned
+ADB server was stopped. No build/test was duplicated after reconnect. The new
+post-run crash buffer was not collected, so no empty-buffer claim is made.
+Touch-injected failures remain separate from the passing remote path. All
+physical-reader, native performance/retention and Apple runtime gates stay open.

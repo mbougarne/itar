@@ -37,9 +37,9 @@ class SurfaceManager : ViewGroupManager<SurfaceView>(), ItarSurfaceManagerInterf
     }
     override fun showDialog(view: SurfaceView) { view.showDialog() }
     override fun dismissDialog(view: SurfaceView) { view.dismissDialog() }
-    override fun focusRequest(view: SurfaceView, occurrenceKey: String, command: String) { view.focusRequest(occurrenceKey, command) }
-    override fun cancelRequest(view: SurfaceView, command: String) { view.cancelRequest(command) }
-    override fun restoreScopeRequest(view: SurfaceView, scopeKey: String, command: String) { view.restoreScopeRequest(scopeKey, command) }
+    override fun focusRequest(view: SurfaceView, occurrenceKey: String, command: String) { view.mountCommands.enqueue(MountCommands.Kind.FOCUS, occurrenceKey, command) }
+    override fun cancelRequest(view: SurfaceView, command: String) { view.mountCommands.enqueue(MountCommands.Kind.CANCEL, "", command) }
+    override fun restoreScopeRequest(view: SurfaceView, scopeKey: String, command: String) { view.mountCommands.enqueue(MountCommands.Kind.RESTORE, scopeKey, command) }
     override fun onAfterUpdateTransaction(view: SurfaceView) { super.onAfterUpdateTransaction(view); view.updateActivity() }
     override fun onDropViewInstance(view: SurfaceView) { view.bindRecords = null; view.close(); super.onDropViewInstance(view) }
     override fun getExportedCustomDirectEventTypeConstants() = mutableMapOf<String, Any>(

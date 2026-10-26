@@ -38,6 +38,18 @@ int main() {
   CHECK(scope(session, 20, config, "rail", "", out) == ok);
   CHECK(!logicalTarget(session.state, a) && !logicalTarget(session.state, b));
   CHECK(logicalTarget(session.state, c));
+  CHECK(*session.state.history(group) == OccurrenceKey{"a"});
+  CHECK(session.state.observeFocus({SurfaceId{1}, FocusChannel::input,
+      {FocusKind::unmanaged, {}, {}}}) == ObservationStatus::changed);
+  CHECK(scope(session, 23, returning, "rail", "", out) == ok);
+  CHECK(out[1] == static_cast<std::int64_t>(RequestStatus::unavailable));
+  CHECK(!session.state.snapshot().registry.lookup(group)->active);
+  config[4] = 1;
+  CHECK(scope(session, 20, config, "rail", "", out) == ok);
+  CHECK(scope(session, 23, returning, "rail", "", out) == ok);
+  CHECK(out[1] == static_cast<std::int64_t>(RequestStatus::started));
+  CHECK(session.transactions.drainEffects()[0].target == a);
+  session.transactions.cancel(RequestId{static_cast<std::uint64_t>(out[2])});
   std::array<std::int64_t, 2> remove{group.slot.value, group.generation.value};
   CHECK(scope(session, 21, remove, "", "", out) == ok);
   CHECK(!session.state.snapshot().registry.lookup(a));
