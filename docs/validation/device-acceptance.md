@@ -36,18 +36,22 @@ using JS focus handlers during a JS stall.
 Named pinned comparison candidate: `react-tv-space-navigation@5.2.0`, from its
 [upstream package manifest](https://github.com/bamlab/react-tv-space-navigation/blob/main/packages/lib/package.json).
 It uses logical directional hierarchy and JS-driven focus rendering; it cannot
-be presumed equivalent to UIKit geometry. Its RN TV 0.83/React 19.2 integration
-failed the type integration probe described below; runtime behavior is **unverified**. Registry artifact integrity resolved on 2026-10-26:
-`sha512-MckFAQMmPIfb7mdO0c3h/IDAshaEOKS29xXY0RQTcESre5bvtFTURBCV1zK3BnJsc9DWn3fNeeJvUkIDmUioRA==`. It is installed and locked only for the reference comparison probe.
-`probes/comparison/Library5_2_0.tsx` uses the same two rows/eight card frames,
-a trapped native anchor, key-down-only RN TV remote subscription and JS-driven
-logical highlighting. It is intentionally outside the working app: integration
-failed typecheck when the library's Node type reference exposed incompatible
-global `FocusEvent` versus native focus-capture types at `virtualized.tsx:58`.
-Reproduce with `node node_modules/typescript/bin/tsc --noEmit -p probes/comparison`.
-This configuration is **unsupported/unmeasured**; the probe is not a shipping
-adapter, a measured native baseline or permission to weaken typechecking.
-A compatible integration and idle runtime check are required before timing.
+be presumed equivalent to UIKit geometry. Its RN TV 0.83/React 19.2 type integration initially failed because the pinned
+TV list declaration omitted its native `FocusEvent` import. The list's Flow
+implementation imports that native type; Node globals made the declaration's
+accidental global event incompatible. `scripts/prepare-tv-types.cjs` now creates
+a version-checked, owned type-only copy with the missing import. Shared installed
+dependencies and runtime JavaScript are unchanged. `npm run typecheck` generates
+this copy and includes a native capture assignability regression with Node
+globals present. No casts or disabled checks are used.
+
+`apps/probe/ComparisonLibrary.tsx` is integrated as **Library 5.2.0** mode on the
+same validation screen. It uses two rows/eight card frames, a trapped native
+anchor, key-down-only RN TV remote subscription and JS-driven logical highlighting.
+Registry artifact integrity:
+`sha512-MckFAQMmPIfb7mdO0c3h/IDAshaEOKS29xXY0RQTcESre5bvtFTURBCV1zK3BnJsc9DWn3fNeeJvUkIDmUioRA==`.
+Native idle operation, stall measurements and reader behavior remain **unrun**.
+Type integration passing does not demonstrate runtime navigation or JS independence.
 
 For every mode/target collect p50/p95/p99 for input scheduling, geometry/update,
 selection where owned, native confirmation and visible feedback; frame stalls,

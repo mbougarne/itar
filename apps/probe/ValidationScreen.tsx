@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Button, StyleSheet, Text, View} from 'react-native';
+import ComparisonLibrary from './ComparisonLibrary';
 import {FocusProvider, FocusScope, Focusable, occurrenceKey} from 'itar/react';
 
 const focusStyle = {accentColor: '#ff8800'};
@@ -8,7 +9,7 @@ const columns = [0, 1, 2, 3];
 // Mounted-only comparison. Record input/host/visible timing with native tools;
 // JS callbacks cannot timestamp native progress while JS itself is stalled.
 export default function ValidationScreen() {
-  const [mode, setMode] = useState<'native' | 'itar'>('itar');
+  const [mode, setMode] = useState<'native' | 'itar' | 'library'>('itar');
   const [scheduled, setScheduled] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current !== null) { clearTimeout(timer.current); } }, []);
@@ -41,11 +42,12 @@ export default function ValidationScreen() {
     <Text>Mounted validation: {mode}; 8 targets; native timing required</Text>
     <View style={styles.controls}>
       <Button title="Native baseline" disabled={scheduled} onPress={() => setMode('native')} />
+      <Button title="Library 5.2.0" disabled={scheduled} onPress={() => setMode('library')} />
       <Button title="Itar" disabled={scheduled} onPress={() => setMode('itar')} />
       {[0, 750, 2000].map(duration => <Button key={duration} title={`Schedule ${duration}ms JS load`}
         disabled={scheduled} onPress={() => schedule(duration)} />)}
     </View>
-    {mode === 'itar' ? <FocusProvider key="itar" style={styles.grid}>
+    {mode === 'library' ? <ComparisonLibrary /> : mode === 'itar' ? <FocusProvider key="itar" style={styles.grid}>
       <FocusScope id="validation" layout="column" style={styles.grid}>{grid}</FocusScope>
     </FocusProvider> : grid}
     <Text>Focus the first target before load. Alternate Right/Left 20 times with the same remote cadence.</Text>

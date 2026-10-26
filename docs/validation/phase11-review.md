@@ -12,7 +12,7 @@ record `git rev-parse HEAD`, artifact integrity and toolchain with every run.
 | ITAR-0076 | `core/internal/capture.hpp`, shared v1 replay, `core.capture`: disabled capture, record/payload overflow, explicit incomplete prefix, captured confirmation and disposal | Internal diagnostic tooling only; adapters must feed ordered protocol values to capture. Native renderer/animation/speech cannot replay in the core. |
 | ITAR-0077 | `core.generated`: fixed seeds 1–16, 64 operations/seed, invalid geometry, duplicates, stale generations, dirty geometry, cancellation, repeated/reordered outcomes, host time, disposal; per-step queue bounds and live confirmation; existing transaction regressions | See sanitizer command/results below. No probabilistic completeness claim. |
 | ITAR-0078 | `core/benchmarks/costs.cpp`: 64/256/1024 logical, 64 mounted; cold setup, retained requested bytes, query/update percentiles and allocation counts | Mac-only instrumented timings, no TV or speedup claim. |
-| ITAR-0079 | Reference app **Release validation**: same 8-card geometry for native/Itar; pinned library 5.2.0 probe fails type integration, delayed 0/750/2000ms bounded JS load | Full input-to-visible timing, compatible comparison integration, native frames/binary/startup and all device runs unrun. |
+| ITAR-0079 | Reference app **Release validation**: same 8-card geometry for native/Itar; pinned library 5.2.0 comparison mode with corrected native event typing, delayed 0/750/2000ms bounded JS load | Full input-to-visible timing, comparison runtime acceptance, native frames/binary/startup and all device runs unrun. |
 | ITAR-0080 | `core.lifecycle_memory`: 100 create/reveal/cancel/dispose cycles, fixed checkpoints and exact owned heap cleanup, trace release, normal mounted/logical distinction | Native route/modal/recycling long sessions, native retained views and host caches unmeasured. This is a core-owner check, not native leak acceptance. |
 | ITAR-0081 | [Device protocol](device-acceptance.md), Android TV/TalkBack and Fire OS/VoiceView separate rows | Named physical hardware and all reader-disabled/enabled results required. |
 | ITAR-0082 | [Device protocol](device-acceptance.md), Apple TV/VoiceOver navigation/exploration separate rows | Named physical Apple TV, remote gestures/momentum, native effects/reduced motion and speech observations required. |
@@ -122,6 +122,27 @@ the existing replay definitions: review the shared replay move separately from
 the new bounded capture and allocation instrumentation. Other ticket slices are
 below the 250-line target, excluding mechanical lock/result records.
 
-Final working-app build/typecheck, 18 JS tests and lint passed; the new screen warning was corrected and affected lint passed without warnings. Final single-worker Metro Release bundle passed after resolving external dependency symlinks. The CLI podspec override was rejected and replaced by its supported package-name selection convention. The pinned comparison probe still fails type integration as documented, and remains outside the working app.
+At candidate `3864adc`, working-app build/typecheck, 18 JS tests and lint passed; the new screen warning was corrected and affected lint passed without warnings. That candidate’s single-worker Metro Release bundle passed after resolving external dependency symlinks, before the comparison mode was integrated. The CLI podspec override was rejected and replaced by its supported package-name selection convention. The initial comparison type failure is resolved by a version-checked native event declaration correction; its mode is now integrated. Native runtime and timing acceptance remain open.
 
 App-level `react-native config` confirms the selected native spec is `itar.podspec`; the rejected override is removed. The original checkout remains clean. Draft publication is the only requested publication step.
+
+## Comparison type correction
+
+The pinned TV list's `CellRendererProps.onFocusCapture` used a global event type
+by omitting its native import. The runtime Flow source imports React Native
+`FocusEvent`. With the comparison library's Node type reference, the global React
+event placeholder acquires Node Event fields and ceases to match a native event.
+`prepare-tv-types.cjs` restores the import in a 212 KB, ignored, owned type copy;
+root TypeScript paths select that declaration only. The script refuses unexpected
+versions/declaration shapes and never edits the shared dependency installation.
+The comparison and a Node-global native callback assignability regression are
+included in normal typechecking. This is a type-declaration correction, not a
+change to native event handling or a runtime acceptance result.
+
+Lightweight correction evidence: with Node22.23.4/npm10.9.9, normal typechecking
+(including the integrated comparison and Node-global regression) passed; targeted
+lint passed without warnings. The negative control points only that type fixture
+at the original installed declaration and fails all three native-event assertions
+as expected. Runtime JavaScript and the original installed declaration are not
+modified. A new Metro/native run and all timing/memory measurement are deferred
+until the coordinator confirms a shared-Mac heavy-work slot.
