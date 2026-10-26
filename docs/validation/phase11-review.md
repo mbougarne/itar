@@ -16,7 +16,7 @@ record `git rev-parse HEAD`, artifact integrity and toolchain with every run.
 | ITAR-0080 | `core.lifecycle_memory`: 100 create/reveal/cancel/dispose cycles, fixed checkpoints and exact owned heap cleanup, trace release, normal mounted/logical distinction | Native route/modal/recycling long sessions, native retained views and host caches unmeasured. This is a core-owner check, not native leak acceptance. |
 | ITAR-0081 | [Device protocol](device-acceptance.md), Android TV/TalkBack and Fire OS/VoiceView separate rows | Named physical hardware and all reader-disabled/enabled results required. |
 | ITAR-0082 | [Device protocol](device-acceptance.md), Apple TV/VoiceOver navigation/exploration separate rows | Named physical Apple TV, remote gestures/momentum, native effects/reduced motion and speech observations required. |
-| ITAR-0083 | `prepare-package.cjs`, package-local CMake/core podspec/license, package-named native podspec selection, `check-package.cjs` installs a tarball into an isolated non-workspace consumer and compiles portable core + Apple C facade | Fresh Android TV/tvOS builds and registration/focus/style execution still required. Portable compilation cannot satisfy native consumer acceptance. |
+| ITAR-0083 | `prepare-package.cjs`, package-local CMake/core podspec/license, package-named native podspec selection, `check-package.cjs` installs a tarball into an isolated non-workspace consumer and compiles portable core + Apple C facade | Fresh Android/tvOS builds pass; Android emulator registration/focus/style/list smoke passes. Apple runtime is blocked by OS denial creating an external simulator cache directory. Portable compilation cannot satisfy native consumer acceptance. |
 | ITAR-0084 | This review, measured core results, support/gate matrix and exact artifact evidence record | No shipping runtime claimed; release stays blocked by native/device gates. |
 
 ## Reproduction
@@ -144,5 +144,72 @@ Lightweight correction evidence: with Node22.23.4/npm10.9.9, normal typechecking
 lint passed without warnings. The negative control points only that type fixture
 at the original installed declaration and fails all three native-event assertions
 as expected. Runtime JavaScript and the original installed declaration are not
-modified. A new Metro/native run and all timing/memory measurement are deferred
-until the coordinator confirms a shared-Mac heavy-work slot.
+modified. Native consumer builds now proceed serially; timing/memory measurements
+remain held for a separate coordinator slot.
+
+## Fresh native consumer builds
+
+At candidate `90020dd`, a new TV template outside the monorepo installed the
+same tarball as a real directory with Node22.23.4/npm10.9.9 and passed its own
+App typecheck. `:app:assembleDebug` then passed with JDK17, Gradle9.0.0,
+SDK36/NDK27.1.12297006, one Gradle worker and one Ninja compile/link pool.
+All79 tasks executed. Both the app and library native CMake builds completed.
+The compile database identifies23 packaged Itar C++ units, including the JNI
+connection and registry, exclusively below the consumer's `node_modules/itar`.
+The APK contains the fixture JS strings, bundled JS, `libitar_android.so` and
+`libappmodules.so` for arm64-v8a. APK SHA-256:
+`489651806a676620963c07b916eb431c562bded25325cbd6702d61a323d1ae63`.
+Local evidence: `itar-phase11-artifacts/native-consumers/android-evidence.json`.
+Existing Kotlin deprecation/naming, SDK XML compatibility and Gradle deprecation
+warnings are recorded; none was suppressed. A task-owned Google TV API36 ARM64
+emulator (image revision3, 720p,
+2 cores/2GB) installed and launched this APK. Initial managed focus was first;
+Right confirmed second, moved its native orange text accent and restored the
+first base style. Native Tab entered the list; Right confirmed item1 and a cold
+reveal confirmed item3 with visible items3–5. UI-tree focused nodes/committed
+button labels agree with the app observed keys; screenshots were inspected.
+The crash buffer was empty. This is bounded emulator smoke, with no reader,
+physical-device, performance or long-session acceptance. The task emulator and
+its isolated ADB server were shut down; no physical-device command was issued.
+
+The tvOS Ruby bundle resolves from its own external path with frozen
+repository-declared versions; CocoaPods1.16.2 is verified. Anonymous public
+transport checks passed (fmt11.2.0 Git tag and public CDN HTTP200). The installer
+uses supported task-local Ruby NETRC, curl netrc-file configuration and Git
+empty-auth configuration. Normal TLS and file validation remain enabled; user
+credentials and global settings were not changed. Frozen dependency
+installation passed with80 pods. The fresh consumer Release
+arm64/tvOS27 simulator build passed serially with signing disabled. It compiled
+24 packaged C++/Objective-C++ units and the Swift adapter, then linked the app
+and JS bundle. The executable contains `itar_engine_create`, `ItarSurfaceHost`
+and `ItarTargetHost`; SHA-256:
+`52e6c1e12ce5a9045884bc003e8d8c1c6963e0945253b3b5b51e9d94ffa955ec`.
+Local evidence: `itar-phase11-artifacts/native-consumers/tvos-evidence.json`.
+
+Apple runtime smoke is **BLOCKED**: creating a task-owned external tvOS27
+device set failed when CoreSimulator could not create `data/Library/Caches`
+(NSCocoaErrorDomain513 / NSPOSIXErrorDomain1, operation not permitted; simctl
+exit22). Follow-up inventory is empty; no simulator booted. No retry, alternate
+internal-storage device, permission/security change or user-device reuse was
+used to bypass the denial. Owner-authorized OS access to the external task
+directory is needed before this runtime path can continue.
+
+From the fresh consumer's `ios` directory (external caches configured):
+
+```sh
+ITAR_NATIVE_ARTIFACTS=/Volumes/externalStorage/oss/itar-phase11-artifacts/native-consumers
+bundle exec pod install --no-repo-update
+EXTRA_PACKAGER_ARGS='--max-workers 1' xcodebuild \
+  -workspace ItarTarball.xcworkspace -scheme ItarTarball \
+  -configuration Release -sdk appletvsimulator \
+  -destination 'generic/platform=tvOS Simulator' \
+  -derivedDataPath "$ITAR_NATIVE_ARTIFACTS/tvos-derived" -jobs 1 \
+  ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build
+```
+
+The consumer declares the packaged core pod at `../node_modules/itar`;
+autolinking selects its package-named native spec. SDK27 scene lifecycle and
+the pinned RN fmt11.2.0 compatibility setup follow the existing
+[TV shell recipe](../rn-probe-shell.md). No application-wide Swift/C++
+interoperability flag is added. Logs and native evidence JSON stay under the
+external `itar-phase11-artifacts/native-consumers` directory.

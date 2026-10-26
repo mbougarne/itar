@@ -1,5 +1,8 @@
 # Native/device acceptance protocol (ITAR-0079–0083)
 
+Use the [short checklist and simulator/physical classification](manual-checklist.md)
+for an individual manual acceptance session.
+
 All rows below are **NOT RUN**, not passing support claims. Fill each independently
 with exact commit, tarball integrity, RN/React versions, device model, OS, input
 remote, reader version/settings, list configuration, build mode, diagnostic mode,
