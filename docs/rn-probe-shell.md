@@ -1,3 +1,6 @@
+> Current app entry: [OTT showcase](ott-app.md), with the original probes retained
+> in development Settings. The foundation notes below describe the original shell.
+
 # RN reference shell (ITAR-0004)
 
 The private `itar` workspace is the future React Native TV focus package. It
