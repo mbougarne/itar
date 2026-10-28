@@ -31,3 +31,9 @@ playback or disk cache is requested. These settings are not a performance
 benchmark. Actual Android frames, elapsed time, Pause/Resume label and a stable
 paused timestamp were inspected. Restart, recovery from a real stream outage,
 all player button transitions and tvOS remain unverified.
+
+Android shell generation declares the video dependency's notification permission
+so lint can validate its included service code. The showcase explicitly disables
+notification controls, never requests that runtime permission and does not start
+background playback. Android 13+ runtime permission is not granted merely by its
+manifest declaration. Native lint enforcement remains enabled.

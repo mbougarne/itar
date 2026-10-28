@@ -14,6 +14,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import java.lang.ref.WeakReference
 import androidx.appcompat.widget.AppCompatButton
+import androidx.core.view.ViewCompat
 
 class TargetView(context: Context) : AppCompatButton(context) {
     private val outline = GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius = 6 * resources.displayMetrics.density }
@@ -60,8 +61,7 @@ class TargetView(context: Context) : AppCompatButton(context) {
         minWidth = 0
         minHeight = 0
         setPadding(0, 0, 0, 0)
-        supportBackgroundTintList = null
-        backgroundTintList = null
+        ViewCompat.setBackgroundTintList(this, null)
         background = null
         maxLines = 1
         ellipsize = android.text.TextUtils.TruncateAt.END

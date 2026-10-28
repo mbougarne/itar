@@ -21,7 +21,7 @@ function Playback({title, onClose}: {title: string; onClose: () => void}) {
   useEffect(() => { const event = BackHandler.addEventListener('hardwareBackPress', () => { onClose();return true; });return () => event.remove(); }, [onClose]);
   useEffect(() => { const event = AppState.addEventListener('change', value => setForeground(value === 'active'));return () => event.remove(); }, []);
   return <View style={s.player}>
-    <Video key={attempt} ref={video} source={source} style={s.video} resizeMode="contain" controls={false} focusable={false}
+    <Video key={attempt} ref={video} source={source} style={s.video} resizeMode="contain" controls={false} focusable={false} showNotificationControls={false}
       paused={paused || !foreground} maxBitRate={1500000} playInBackground={false} playWhenInactive={false} progressUpdateInterval={2000}
       onLoad={() => { setLoaded(true);setError(false); }} onProgress={event => setTime(event.currentTime)}
       onError={() => { setError(true);setLoaded(false); }} onEnd={() => setPaused(true)} />

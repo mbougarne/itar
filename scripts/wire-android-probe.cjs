@@ -3,6 +3,15 @@ const path = require('node:path');
 
 module.exports = root => {
   const android = path.join(root, 'apps/probe/android');
+  // react-native-video includes notification-capable service code. Declare its
+  // permission for lint; this showcase never requests it or enables controls.
+  const manifest = path.join(android, 'app/src/main/AndroidManifest.xml');
+  const xml = readFileSync(manifest, 'utf8');
+  const internet = '<uses-permission android:name="android.permission.INTERNET" />';
+  if (!xml.includes(internet)) { throw new Error('Unexpected Android permission template'); }
+  if (!xml.includes('android.permission.POST_NOTIFICATIONS')) {
+    writeFileSync(manifest, xml.replace(internet, `${internet}\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />`));
+  }
   appendFileSync(path.join(android, 'settings.gradle'), `
 include ':itar-host-probe'
 project(':itar-host-probe').projectDir = file('../../../probes/android')
