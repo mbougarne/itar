@@ -89,3 +89,9 @@ vendor/bundle/
 .env
 .env.*
 !.env.example
+# Mechanically staged npm tarball inputs (prepack)
+packages/itar/cpp/
+packages/itar/LICENSE
+
+# External-storage dependency-directory symlink used by isolated worktrees
+/node_modules

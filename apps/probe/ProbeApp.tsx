@@ -5,16 +5,24 @@ import AndroidAdapterScreen from './AndroidAdapterScreen';
 import AppleAdapterScreen from './AppleAdapterScreen';
 import ReactApiScreen from './ReactApiScreen';
 import VirtualizedScreen from './VirtualizedScreen';
+import ValidationScreen from './ValidationScreen';
 
 const HostProbe = Platform.OS === 'ios' ? requireNativeComponent<ViewProps & {
   onNativeActivation: (event: NativeSyntheticEvent<{target: string; targetAlias?: string}>) => void;
 }>('ItarAppleProbe') : null;
-export default function App() {
+export default function ProbeApp() {
   const [showB, setShowB] = useState(true);
   const [activation, setActivation] = useState('None');
   const [appleAdapter, setAppleAdapter] = useState(false);
   const [reactApi, setReactApi] = useState(false);
   const [virtualized, setVirtualized] = useState(false);
+  const [validation, setValidation] = useState(false);
+  if (validation) {
+    return <View style={styles.screen}>
+      <Button title="Return to carrier probes" onPress={() => setValidation(false)} />
+      <ValidationScreen />
+    </View>;
+  }
   if (virtualized) {
     return <View style={styles.screen}>
       <Button title="Return to carrier probes" onPress={() => setVirtualized(false)} />
@@ -38,6 +46,7 @@ export default function App() {
       <Text style={styles.title}>Itar: {Platform.OS === 'android' ? 'Android adapter preview' : packageStage}</Text>
       {Platform.OS !== 'android' && <Text>Native adapter work; unrun acceptance remains explicit.</Text>}
       {Platform.OS === 'android' && <AndroidAdapterScreen />}
+      <Button title="Release validation" onPress={() => setValidation(true)} />
       <Button title="React API preview" onPress={() => setReactApi(true)} />
       <Button title="Virtualized list preview" onPress={() => setVirtualized(true)} />
       {Platform.OS === 'ios' && <Button title="Apple adapter preview" onPress={() => setAppleAdapter(true)} />}

@@ -4,14 +4,21 @@
 owner with a declared tvOS 15.1 deployment target. Add the local pod to the consumer's tvOS target:
 
 ```ruby
-pod 'ItarEngineCore', :path => '<repository-root>'
-pod 'ItarEngineNative', :path => '<repository-root>/packages/itar'
+# Tarball consumer (both pods are inside the installed package):
+pod 'ItarEngineCore', :path => '../node_modules/itar'
+pod 'ItarEngineNative', :path => '../node_modules/itar'
 ```
+
+Repository development consumers can continue using the repository-root
+`ItarEngineCore` spec plus `packages/itar/ItarEngineNative.podspec`. `npm pack`
+stages core sources/headers and the MIT license into the tarball, without native
+build products. The package-named `itar.podspec` selects the Swift/native spec;
+the core pod must also be declared at the same installed-package path.
 
 The pod uses Swift language mode 5 and contains its C++20 settings. It does not
 require application-wide Swift/C++ interoperability. Only `ItarEngine.h` is
 public in the core module. The Swift pod imports that C module; the C++ sources
-compile in the repository-root core pod. `ComponentViews.mm` registers the shared Fabric carriers
+compile in the contained core pod. `ComponentViews.mm` registers the shared Fabric carriers
 and forwards props, commands and events to Swift. The existing `ItarProbeHost`
 remains a separate disposable fixture.
 

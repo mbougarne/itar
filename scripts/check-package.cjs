@@ -1,0 +1,56 @@
+// Bounded, local-only tarball/consumer check. Output stays below caller's directory.
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const {execFileSync} = require('node:child_process');
+const root = path.resolve(__dirname, '..');
+const out = path.resolve(process.argv[2] || path.join(path.dirname(root), `${path.basename(root)}-artifacts`, 'package-check'));
+fs.mkdirSync(out, {recursive: true});
+const run = (command, args, cwd = root) => execFileSync(command, args,
+  {cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: {...process.env, npm_config_cache: path.join(out, 'npm-cache')}});
+const [packed] = JSON.parse(run('npm', ['pack', '--workspace', 'itar', '--json', '--pack-destination', out]));
+const files = new Set(packed.files.map(file => file.path));
+for (const file of ['LICENSE', 'lib/index.js', 'lib/react.d.ts', 'src/specs/ItarTargetNativeComponent.ts',
+  'cpp/CMakeLists.txt', 'cpp/src/registry.cpp', 'cpp/include/itar/transaction.hpp',
+  'apple/ItarEngine.h', 'apple/ItarEngine.cpp', 'ItarEngineCore.podspec', 'ItarEngineNative.podspec', 'itar.podspec',
+  'android/CMakeLists.txt', 'android/build.gradle']) { assert(files.has(file), `missing ${file}`); }
+assert(![...files].some(file => /(?:node_modules|\.cxx|\.gradle|build)\//.test(file)));
+const consumer = fs.mkdtempSync(path.join(out, 'consumer-'));
+fs.writeFileSync(path.join(consumer, 'package.json'), '{"name":"itar-local-consumer","version":"0.0.0","private":true}');
+run('npm', ['install', '--ignore-scripts', '--omit=peer', '--legacy-peer-deps', '--no-audit', '--no-fund', path.join(out, packed.filename)], consumer);
+const installed = path.join(consumer, 'node_modules/itar');
+assert(!fs.lstatSync(installed).isSymbolicLink());
+assert.deepEqual(require(path.join(installed, 'lib/index.js')), {packageStage: 'foundation-shell'});
+for (const entry of ['react', 'android', 'apple']) {
+  assert(fs.existsSync(path.join(installed, `lib/${entry}.js`)));
+  assert(fs.existsSync(path.join(installed, `lib/${entry}.d.ts`)));
+}
+fs.writeFileSync(path.join(consumer, 'main.cpp'), `#include <itar/transaction.hpp>
+#include "ItarEngine.h"
+int main() {
+  itar::State state{itar::SurfaceId{1}};
+  itar::Transactions tx{state, itar::SurfaceLifetime{1}};
+  tx.dispose();
+  ItarCallStatus status = ITAR_INVALID;
+  auto* engine = itar_engine_create(1, 1, 8, &status);
+  if (!engine || status != ITAR_OK) { return 1; }
+  if (itar_engine_dispose(engine, 1) != ITAR_OK) { return 2; }
+  return itar_engine_destroy(engine) == ITAR_OK && !tx.active() ? 0 : 3;
+}
+`);
+fs.writeFileSync(path.join(consumer, 'CMakeLists.txt'), `cmake_minimum_required(VERSION 3.20)
+project(consumer LANGUAGES CXX)
+find_package(Threads REQUIRED)
+add_subdirectory(node_modules/itar/cpp core)
+add_executable(smoke main.cpp node_modules/itar/apple/ItarEngine.cpp)
+target_include_directories(smoke PRIVATE node_modules/itar/apple)
+target_link_libraries(smoke PRIVATE itar::core Threads::Threads)
+`);
+run('cmake', ['-S', consumer, '-B', path.join(consumer, 'build'), '-DCMAKE_BUILD_TYPE=Release'], consumer);
+run('cmake', ['--build', path.join(consumer, 'build'), '--parallel', '1'], consumer);
+run(path.join(consumer, 'build/smoke'), [], consumer);
+const report = {artifact: packed.filename, integrity: packed.integrity, shasum: packed.shasum,
+  files: [...files].sort(), consumer, result: 'tarball install, JS exports and portable C++/Apple facade compile pass',
+  nativeHostBuilds: 'NOT RUN: Android TV/tvOS consumer focus/style execution remains required'};
+fs.writeFileSync(path.join(out, 'package-evidence.json'), JSON.stringify(report, null, 2) + '\n');
+console.log(JSON.stringify(report, null, 2));

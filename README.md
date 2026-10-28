@@ -12,5 +12,8 @@ The compatibility ambition covers suitable React Native TV runtimes, including A
 Start with the [independent C++20 build](core/README.md),
 [candidate probe toolchains](docs/probe-toolchains.md), and
 [shared native probe scenarios](docs/native-probe-scenarios.md).
-The build currently validates its harness only; no engine behavior or native TV
-compatibility is implemented or claimed.
+The source includes deterministic registry/navigation/transaction tests and
+provisional Android/Apple adapters, React APIs and fixed-extent TV list support.
+[Phase 11 review and evidence](docs/validation/phase11-review.md) maps validation
+to each release ticket. Physical TV/accessibility and fresh native-consumer gates
+remain open; no shipping native TV compatibility is claimed.

@@ -113,3 +113,17 @@ app/emulator/server. See the dated QA report for remaining verification gaps.
 
 Implementation is paused for review. [Known focus/design issues and planned
 weekend work](ott-next-steps.md) remain open; this is not a release acceptance claim.
+
+## Integration with current main
+
+The feature now includes main's validation/release and CI updates. The OTT
+entry remains default; Development Settings opens the original probe carrier,
+which now retains main's Release validation screen and comparison dependency.
+Metro preserves external dependency realpath resolution and environment-file
+blocking together. Both native-video and comparison-library dependencies remain
+locked. Android mount-command changes and append retention coexist.
+
+After integration, TypeScript, lint and37 serial JavaScript tests pass; a serial
+rebuild and41 host tests (including main's added capture/memory/generated tests)
+pass. Newer integration evidence does not supersede the open focus/design and
+physical-device/tvOS acceptance gaps described above.

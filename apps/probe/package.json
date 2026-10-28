@@ -12,6 +12,7 @@
     "itar": "0.0.0",
     "react": "19.2.0",
     "react-native": "npm:react-native-tvos@0.83.0-0",
-    "react-native-video": "6.19.3"
+    "react-native-video": "6.19.3",
+    "react-tv-space-navigation": "5.2.0"
   }
 }

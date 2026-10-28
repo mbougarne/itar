@@ -17,6 +17,7 @@ test('Metro excludes environment imports and preserves its prior resolver exclus
   const prior = /existing-excluded-path/;
   const context = {module: {exports: {}}, __dirname: path.join(root, 'apps/probe'), require: name => {
     if (name === 'node:path') { return path; }
+    if (name === 'node:fs') { return {realpathSync: () => '/resolved/dependencies'}; }
     assert.equal(name, '@react-native/metro-config');
     return {getDefaultConfig: () => ({resolver: {blockList: prior}}), mergeConfig: (base, extra) => ({...base, ...extra})};
   }};
@@ -27,5 +28,6 @@ test('Metro excludes environment imports and preserves its prior resolver exclus
     assert.ok(blocked(file), file);
   }
   assert.equal(blocked('/app/src/catalog.ts'), false);
-  assert.equal(context.module.exports.watchFolders[0], root);
+  assert.deepEqual(Array.from(context.module.exports.watchFolders), [root, '/resolved/dependencies']);
+  assert.deepEqual(Array.from(context.module.exports.resolver.nodeModulesPaths), ['/resolved/dependencies']);
 });

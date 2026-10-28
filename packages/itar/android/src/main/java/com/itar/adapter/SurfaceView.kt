@@ -28,6 +28,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     internal var onSurfaceRecord: ((String) -> Unit)? = null
     internal var eventSequence = 0L
     internal val commandRequests = LinkedHashMap<Long, String>()
+    internal val mountCommands = reactMountCommands()
     internal var providerId = ""
         private set
     internal var bindRecords: ((SurfaceView) -> Unit)? = null
@@ -66,16 +67,16 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         val now = SystemClock.uptimeMillis()
         dispatcher.batch { refreshGeometry(); observe(); dispatcher.submit(9, longArrayOf(input.owner, now, now + 3000), key) }
     }
-    fun focusRequest(key: String, command: String) {
+    fun focusRequest(key: String, command: String, receivedAt: Long = SystemClock.uptimeMillis()) {
         if (command.isEmpty() || command.length > 64) return
         if (!acceptsInput || commandRequests.size >= 32) { emitRequest(longArrayOf(0, 3, 0), command); return }
-        val now = SystemClock.uptimeMillis()
+        val now = receivedAt
         dispatcher.batch { refreshGeometry(); observe(); dispatcher.submit(9, longArrayOf(input.owner, now, now + 3000), key, command) }
     }
     fun cancelRequest(command: String) { if (!closed) dispatcher.submit(22, command = command) }
-    fun restoreScopeRequest(key: String, command: String) {
+    fun restoreScopeRequest(key: String, command: String, receivedAt: Long = SystemClock.uptimeMillis()) {
         if (!acceptsInput || command.isEmpty() || command.length > 64) { emitRequest(longArrayOf(0, 3, 0), command); return }
-        val now = SystemClock.uptimeMillis()
+        val now = receivedAt
         dispatcher.batch { refreshGeometry(); observe(); dispatcher.submit(23, longArrayOf(input.owner, now, now + 3000), key, command) }
     }
     fun configureProvider(value: String) {
@@ -414,6 +415,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     fun close() {
         if (closed) return
         closed = true
+        mountCommands.clear()
         collections.close()
         onSurfaceRecord?.invoke("disposed")
         commandRequests.clear()
