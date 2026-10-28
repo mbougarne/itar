@@ -57,6 +57,14 @@ jobs:
             echo 'C++ checks are NOT RUN: core/CMakeLists.txt does not exist yet. Only repository checks ran.' >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - uses: ruby/setup-ruby@824c0e29fdfc7d689c191c27acc969d2d04b7dd8 # v1
+        with:
+          ruby-version: 3.3.6
+          bundler: 2.6.9
+          bundler-cache: true
+      - run: gem install bundler-audit -v 0.9.3 --no-document
+      - run: bundler-audit check --update
+
   core:
     name: C++20 / ${{ matrix.name }}
     needs: repository
@@ -117,7 +125,7 @@ jobs:
   javascript:
     name: RN workspace
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -132,19 +140,6 @@ jobs:
         run: node scripts/check-package.cjs "$RUNNER_TEMP/itar-package-check"
       - run: mkdir -p build && npm run bundle -w itar-probe
 
-  android:
-    name: Android probe build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci --ignore-scripts --no-audit
       - run: npm run native:generate
       - name: Select installed JDK 17
         run: echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
@@ -153,37 +148,28 @@ jobs:
         with:
           cmdline-tools-version: '12266719'
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.1.12297006 cmake;3.22.1'
+      - name: Cache Gradle dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-v1-${{ hashFiles('**/*.gradle', '**/*.gradle.kts', '**/gradle-wrapper.properties', '**/gradle.properties', 'package-lock.json', 'yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-v1-
       - name: Compile consumer, JNI, instrumentation and lint
         working-directory: apps/probe/android
-        run: ./gradlew assembleDebug assembleAndroidTest lintDebug --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a
-
-  ruby-security:
-    name: Ruby dependency audit
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ruby/setup-ruby@824c0e29fdfc7d689c191c27acc969d2d04b7dd8 # v1
-        with:
-          ruby-version: 3.3.6
-          bundler: 2.6.9
-          bundler-cache: true
-      - run: gem install bundler-audit -v 0.9.3 --no-document
-      - run: bundler-audit check --update
+        run: ./gradlew assembleDebug assembleAndroidTest lintDebug --build-cache --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a
 
   required:
     name: Required checks
-    needs: [repository, core, javascript, android, ruby-security]
+    needs: [repository, core, javascript]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       REPOSITORY_RESULT: ${{ needs.repository.result }}
       CORE_ENABLED: ${{ needs.repository.outputs.core }}
-      ANDROID_RESULT: ${{ needs.android.result }}
-      RUBY_RESULT: ${{ needs.ruby-security.result }}
       JAVASCRIPT_RESULT: ${{ needs.javascript.result }}
       CORE_RESULT: ${{ needs.core.result }}
     steps:
@@ -198,14 +184,6 @@ jobs:
             exit 1
           fi
           if [[ "$JAVASCRIPT_RESULT" != success ]]; then
-            echo '::error::RN workspace checks did not succeed.'
-            exit 1
-          fi
-          if [[ "$RUBY_RESULT" != success ]]; then
-            echo '::error::Ruby dependency checks did not succeed.'
-            exit 1
-          fi
-          if [[ "$ANDROID_RESULT" != success ]]; then
-            echo '::error::Android probe build did not succeed.'
+            echo '::error::RN workspace or Android probe checks did not succeed.'
             exit 1
           fi
