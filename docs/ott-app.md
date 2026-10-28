@@ -1,101 +1,115 @@
-# OTT showcase inside the existing Itar app
+# Itar Cinema TV showcase
 
-The default `apps/probe/App.tsx` now opens Itar Cinema from `apps/probe/ott/`.
-The existing `ItarProbe` native registration, Android/iOS projects, Babel
-configuration, package manifests, workspace dependency and lockfiles are retained.
-Metro keeps its original watch folder/default exclusions and adds an environment-
-file blocklist to prevent accidental mobile imports.
-No vendored Itar package or standalone-project configuration is imported. The
-separate `itar-ott` folder is retained untouched and is no longer the app target.
+The existing `apps/probe/App.tsx` opens the OTT source in `apps/probe/ott/`.
+This is one React Native TV app registered as `ItarProbe`, using the workspace
+Itar package and pinned `react-native-tvos`. Android and Apple native projects,
+original `ProbeApp.tsx`, dependency versions and owner design references remain.
+Development Settings can open the original probes. The separate old `itar-ott`
+folder is untouched. No commit, push or PR was created.
 
-In development builds, Settings → Open original Itar probes opens the exact
-previous root screen saved as `apps/probe/ProbeApp.tsx`; Return to Itar Cinema
-re-enters the OTT app with a new provider lifetime. Existing adapter/API/list
-probe screens remain available. Probe mode is not exposed by release Settings.
-No native generation, installation, builds or runtime interaction occurred.
+## Content
 
-## Implemented source and fixture behavior
+Home, Movies, Series, Search, Profile, Settings, title Details and Cast are
+implemented. The default source is the local HTTP proxy. It returns actual TMDB
+metadata/artwork in explicitly approved live mode, or labelled mock responses
+without credentials. Settings can explicitly select offline fictional fixtures.
+There is no silent substitution of fictional metadata for real titles.
 
-Home, Movies, Series, Search, Profile and Settings; selected-title details and
-cast biographies. Home/Movies/Series initially fetch four rows (two landscape,
-two poster), with another four-row page on near-end scroll, final-row observed
-focus, or Load more. A finite 48-entry window avoids unbounded mounted views.
-The 96 fictional catalogue records and16 procedural local images require no
-provider. The UI labels asynchronous fetching as local simulation, not HTTP.
+See [local proxy setup and credential boundary](tmdb-proxy.md). The ignored real
+root environment file stays server-only. React Native calls loopback port8787
+and public credential-free image URLs; it never reads environment files or keys.
+Metro blocks environment imports. `.env.example` is tracked placeholder guidance.
+No dotenv transform, dependency, key constant, secret resource or account change
+was introduced. Live mode is manually started after owner approval; no service,
+autostart or persistent credential configuration was installed.
 
-Search offers A–Z/space/delete/clear, debounce, filtering, empty/error states and
-pagination. Profiles and settings are session-only. Settings can slow requests
-or fail the next request; Retry preserves previous rows and appends exactly once.
-The request controller coalesces repeated end events, aborts obsolete requests
-and rejects stale generations even if transport ignores abort.
+A page contains up to20 titles in four mixed-format rows. Focus on either of the
+last two occurrences triggers another request; the reachable trailing action
+also loads/retries. Responses append without removing earlier identities. A
+48-title viewing window is reported separately from the provider's real end.
+Concurrent end events coalesce. Aborted/stale requests cannot replace a newer
+query. Failed append requests retain the previous rows. Search debounces a
+bounded remote-keyboard query. Profiles and settings are session-only. There is
+no playback entitlement implied by TMDB metadata. Play opens an explicitly labelled
+Big Buck Bunny HLS demo for every title; see [playback and licensing](ott-playback.md).
 
-Cards have a single native Itar action plus decorative artwork. Parent scope
-boundaries allow navigation among chrome, rows and keyboard. Catalogue bodies
-remain mounted/inactive during details; Back requests native history. Top-level
-screen changes remount the page and enter its navigation control (re-entry).
-Native accent feedback does not depend on a JS animation. No video is associated
-with the fictional titles, and no Play action is shown.
+## Focus and design
 
-These are bounded mounted ScrollViews, not custom Itar virtualized collections.
-Scrolling/reveal, clipping, restoration, inactive accessibility, native Back,
-reader semantics and TV layout must still be observed on actual runtime/device
-artifacts. See [unrun scenarios](ott-scenarios.md). No support/ticket is marked
-complete from static checks. The exact native source in this local main checkout
-is used; no sibling tarball or newer library commit was silently substituted.
+The owner-selected 11 images in `apps/probe/design` guide the fixed sidebar,
+1920×1080 scale, cinematic hero, mixed artwork rows, keyboard, profiles, settings
+and cast. Local original fixture art, masks and licensed Feather icons retain
+provenance under `apps/probe/ott/assets/cinematic/`; real titles use TMDB art.
+Missing art has a stable fallback frame instead of a fictional replacement.
 
-## Checks and assets
+Catalogue, Settings and Details now use Itar's existing virtualized rails and
+native reveal pipeline. Ordinary mounted ScrollViews had left offscreen actions
+ineligible, reproducing Down traps in catalogue and Cast. The adapter's optional
+fixed cell decorations/headers, per-row extents and measured viewport preserve
+owned native buttons and the existing native/C++ selection boundary.
 
-From repository root: `npm run typecheck`, targeted lint, and
-`node --test --test-concurrency=1 scripts/*.test.cjs`. These are lightweight source
-checks; do not invoke app launch scripts while the owner is using native tools.
-The original app's normal commands/port8096 remain unchanged for a future window.
-`scripts/generate-ott-art.py` reproduces local images; their credit/dimensions/
-hashes are in `apps/probe/ott/assets/manifest.json`.
+Only one collection owns a provider at a time. The inactive catalogue retains
+its request/session data but releases collection ownership while Details is
+open. Accepted publication precedes entry; Back uses a stable occurrence bookmark
+and native reveal. Visual-only metadata/callback updates retain the accepted
+logical dataset, avoiding focus jumps on biography selection. Android append
+preserves the exact unchanged focused binding through publication;
+the temporary JavaScript recovery workaround has been removed. Source/target
+retention remains bounded by the existing list integration.
 
-## Optional TMDB integration: server-side only
+Android theme all-caps, padding and background tint had clipped labels and
+replaced app colors. The host button now preserves supplied case/frame/colors;
+observed native focus drives cyan/white text and a native image border. Display labels
+and accessible labels are separate; card borders exclude the title strip. Native
+Android foregrounds and Apple shape layers follow actual host focus. No per-move
+JavaScript focus ring or second geometry engine was introduced. A separate reproduced C++ region-eligibility
+defect is fixed and explicitly versioned as `itar-linear-v2`; see
+[focus findings](ott-focus-findings.md). The native image outline is now implemented; Android focus/blur/recycle behavior
+is covered by instrumentation. Apple implementation remains runtime-unverified.
 
-The intended provider is TMDB (The Movie Database), confirmed by the owner.
-The example names TMDB and its public v3 API URL; the key remains a placeholder.
-Review provider terms before adding an adapter. The app
-currently reads no environment files, keys or live endpoint. Metro blocks all
-`.env`/`.env.*` imports, including the example; Git separately allows the example. `.env.example` is
-placeholder-only documentation for a future separately run local/backend proxy;
-it does not configure a working integration.
+## Verification — 28 October 2026
 
-A separately implemented proxy may use `MOVIE_DATABASE_API_KEY` as its TMDB v3
-`api_key` credential; see [TMDB authentication](https://developer.themoviedb.org/docs/authentication-application).
-That value stays server-side and must not appear in client requests or responses.
+Working branch: `no-ticket/redisign-simple-app`, owner baseline `dffaf17`.
+TypeScript, full ESLint and37 serial JavaScript tests passed. Proxy tests use
+fake credentials and injected responses, including hostile requests, bounded
+concurrency, secret-echo sanitization, identity validation and stale state.
+Collection tests include ownership handoff and rejected stale preparation.
 
-Developers may copy the example into an ignored server-side environment file,
-then supply their own provider settings to their own proxy process. Keep the
-real file outside mobile assets and bundler inputs. Do not add dotenv/Babel
-transforms, `EXPO_PUBLIC_*` variables, React Native key constants, JSON imports,
-or native resource entries for secrets. Never send a provider key to the app.
+An offline single-worker incremental Android debug build passed with768MiB JVM
+heap,384MiB metaspace and Kotlin in-process. The app targets arm64-v8a; existing
+host-probe tasks also checked their configured ABI outputs. Debug Metro port is
+8096 (`-PreactNativeDevServerPort=8096`). Only the Itar app was reinstalled/restarted;
+the owner's emulator and existing Metro process were preserved.
 
-A future consumer adapter should call only a credential-free proxy API: bounded
-catalogue requests with kind/query/cursor; responses with public title/cast data,
-licensed artwork references and an opaque next cursor. Validate/schema-map the
-response to the existing content/occurrence identities, preserve cancellation and
-stale-response protection, and keep all upstream authorization, rate limits and
-key handling in the proxy. The existing client continues using local fixtures
-until that adapter and an actual proxy are implemented. Never silently map real
-films to fictional playback. Review provider/asset permissions before distribution.
+The owner explicitly permitted the existing Android TV emulator5554 and use of
+the saved key for the live test. Real catalogue, artwork, title/credits and person
+biography responses were observed. Screenshots and focus hierarchy captures
+record the tested navigation; see [design QA and remaining gaps](../design-qa.md).
+Android emulator results do not establish tvOS, physical-device, screen-reader,
+release-build, performance or exhaustive focus acceptance.
 
-## Integration verification — 28 October 2026
+## Owner-requested design corrections
 
-On existing main `478ca6d` (one commit behind locally recorded `origin/main`):
-TypeScript passed before and after integration; targeted app/new-script lint passed
-with zero warnings; all26 JavaScript tests passed serially (including6 fixture/
-session and2 environment-boundary tests); `git diff --check` passed. Existing
-native/configuration/lockfile fingerprints were preserved, except the intentional
-Metro resolver guard. Environment-file metadata stayed unchanged without reading
-real environment contents during the environment work. Original `ProbeApp.tsx`
-bytes match the prior committed root. All16 image hashes and sibling project
-preservation checks passed. `.env.example` is not ignored and eligible for Git;
-no files were staged or committed.
+The supplied screen PNGs remain unchanged. Newer owner instructions override
+the reference sidebar on Profiles, two-poster Search, card subtitles and the
+old Details return button. Startup now shows a branded JavaScript splash then
+a full-screen profile chooser. Explorer/Stargazer select a session profile;
+the third Add a New Profile button is focusable and intentionally does nothing.
+The bottom current-profile sidebar entry opens that chooser.
 
-These checks establish source integration, not native execution. No dependency
-installation, Metro server/bundle, native generation/build, OS permission change,
-emulator/simulator command, physical-device test or visual/reader verification
-was performed. No live provider or proxy is implemented/configured. No fetch/pull,
-branch switch, commit, push or PR occurred.
+Compact shared sizing keeps Settings controls visible. Cards show image/title
+only, rails hide scroll indicators, Search uses a smaller keyboard with three
+complete 16:9 results across, and Home Explore opens its title. Details has Play,
+tighter Cast & crew heading spacing and real TMDB recommendations (similar
+titles fallback); related selection opens another title.
+
+Android debug/test builds and three selected instrumentation tests passed after
+the native styling/player addition. Real HLS decoded frames, pause and Back to
+Details were observed. After the Mac reconnected, live Search H and focus from
+N into M*A*S*H, all five Settings controls, full-screen chooser, current-profile
+switching and the bottom profile entry were rechecked without restarting the
+app/emulator/server. See the dated QA report for remaining verification gaps.
+
+## Review checkpoint
+
+Implementation is paused for review. [Known focus/design issues and planned
+weekend work](ott-next-steps.md) remain open; this is not a release acceptance claim.
