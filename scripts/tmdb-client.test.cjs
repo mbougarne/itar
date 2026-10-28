@@ -1,0 +1,49 @@
+const {test} = require('node:test');
+const assert = require('node:assert/strict');
+const {readFileSync, mkdtempSync, writeFileSync, rmSync} = require('node:fs');
+const {tmpdir} = require('node:os');
+const path = require('node:path');
+const ts = require('typescript');
+const temporary = mkdtempSync(path.join(tmpdir(), 'itar-tmdb-client-'));
+let api;
+try {
+  const result = ts.transpileModule(readFileSync(path.join(__dirname, '../apps/probe/ott/src/tmdb.ts'), 'utf8'), {compilerOptions: {module: ts.ModuleKind.CommonJS}});
+  writeFileSync(path.join(temporary, 'tmdb.cjs'), result.outputText);api = require(path.join(temporary, 'tmdb.cjs'));
+} finally { rmSync(temporary, {recursive: true}); }
+const film = {id: 'tmdb:movie:11', title: 'Mapped title', kind: 'movie', year: 2026, synopsis: 'Actual mapped synopsis', category: 'Adventure', source: 'tmdb', posterUrl: 'https://image.tmdb.org/t/p/w500/test.jpg', backdropUrl: null};
+test('public mapper rejects arbitrary artwork URLs and inconsistent media identity', () => {
+  assert.equal(api.parseFilm(film).posterUrl, film.posterUrl);
+  assert.throws(() => api.parseFilm({...film, posterUrl: 'http://example.invalid/image.jpg'}), /artwork/);
+  assert.throws(() => api.parseFilm({...film, kind: 'series'}), /metadata/);
+  assert.throws(() => api.parseFilm({...film, source: 'invented'}), /metadata/);
+});
+test('client talks only to the public loopback proxy and preserves mapped page identity/source', async () => {
+  const original = global.fetch;
+  global.fetch = async (url, options) => {
+    const parsed = new URL(url);assert.equal(parsed.origin, 'http://127.0.0.1:8787');
+    assert.equal(parsed.pathname, '/v1/catalogue');assert.equal(parsed.searchParams.get('kind'), 'movie');
+    assert.ok(!parsed.searchParams.has('api_key'));assert.equal(options.headers, undefined);
+    return new Response(JSON.stringify({source: 'tmdb', rows: [{id: 'page-1', title: 'Popular', format: 'poster', entries: [film]}], nextCursor: 'next'}));
+  };
+  try {
+    const page = await api.fetchProxyPage('movie', '', null, {signal: new AbortController().signal});
+    assert.equal(page.source, 'tmdb');assert.equal(page.rows[0].entries[0].id, film.id);assert.equal(page.nextCursor, 'next');
+  } finally { global.fetch = original; }
+});
+test('client refuses details for a different selected title and does not substitute fixture metadata', async () => {
+  const original = global.fetch;
+  global.fetch = async () => new Response(JSON.stringify({film: {...film, id: 'tmdb:movie:12'}, cast: []}));
+  try { await assert.rejects(api.fetchDetails(film, new AbortController().signal), /identity/); }
+  finally { global.fetch = original; }
+});
+test('details accepts bounded related metadata and rejects duplicates or a selected-title echo', async () => {
+  const original = global.fetch;
+  let related = [{...film, id: 'tmdb:movie:12', title: 'Related title'}];
+  global.fetch = async () => new Response(JSON.stringify({film, cast: [], related}));
+  try {
+    assert.equal((await api.fetchDetails(film, new AbortController().signal)).related[0].title, 'Related title');
+    related = [film];await assert.rejects(api.fetchDetails(film, new AbortController().signal), /related identities/);
+    related = [{...film, id: 'tmdb:movie:12'}, {...film, id: 'tmdb:movie:12'}];
+    await assert.rejects(api.fetchDetails(film, new AbortController().signal), /related identities/);
+  } finally { global.fetch = original; }
+});

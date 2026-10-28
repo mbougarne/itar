@@ -7,6 +7,7 @@ import android.widget.ScrollView
 import android.widget.HorizontalScrollView
 import android.content.Context
 import android.os.SystemClock
+import java.lang.ref.WeakReference
 import android.view.accessibility.AccessibilityManager
 import org.json.JSONArray
 import org.json.JSONObject
@@ -52,9 +53,49 @@ internal class Collections(private val root: SurfaceView) {
     private var source: Mount? = null
     private var handles: Map<String, LongArray> = emptyMap()
     fun entry(key: String) = document?.nodes?.firstOrNull { it.key == key }
-    fun accepts(key: String, dataset: String, scope: Boolean): Boolean {
+    fun accepts(key: String, dataset: String, scope: Boolean, view: View? = null): Boolean {
         val entry = entry(key) ?: return dataset.isEmpty()
-        return entry.scope == scope && dataset == this.dataset.toString()
+        return entry.scope == scope && (dataset == this.dataset.toString() || retainedDeclaration(key, dataset, scope, view))
+    }
+    // At most the focused view and its two collection ancestors may retain an
+    // older declaration. These are exact live bindings, never reusable key grants.
+    private data class ScopeLease(val view: WeakReference<ScopeView>, val dataset: String, val node: LongArray)
+    private data class PublicationLease(val view: WeakReference<TargetView>, val mount: Mount,
+        val lifetime: Long, val dataset: String, val scopes: List<ScopeLease>)
+    private var publicationLease: PublicationLease? = null
+    private fun retainedDeclaration(key: String, declared: String, scope: Boolean, view: View?): Boolean {
+        val lease = publicationLease ?: return false
+        val target = lease.view.get() ?: return false
+        if (lease.lifetime != root.connection.lifetime || target.surface !== root ||
+            root.targets[lease.mount]?.get() !== target || target.logicalLifetime != lease.lifetime || target.mount != lease.mount ||
+            !target.isAttachedToWindow || target.occurrenceKey != lease.mount.key) return false
+        return if (!scope) view === target && key == lease.mount.key && declared == lease.dataset
+        else lease.scopes.any { item -> item.view.get()?.let { candidate ->
+            candidate === view && candidate.scopeKey == key && declared == item.dataset &&
+                candidate.isAttachedToWindow && candidate.owner === root && candidate.node.contentEquals(item.node)
+        } == true }
+    }
+    private fun retainFocused(next: CollectionDocument): PublicationLease? {
+        val previous = document ?: return null
+        val target = root.rootView.findFocus() as? TargetView ?: return null
+        val mount = target.mount ?: return null
+        if (target.surface !== root || root.live(mount) !== target ||
+            !accepts(target.occurrenceKey, target.collectionDataset, false, target)) return null
+        val ancestry = ArrayList<CollectionEntry>()
+        var item = previous.nodes.firstOrNull { it.key == target.occurrenceKey }
+        repeat(3) {
+            val current = item ?: return@repeat
+            if (next.nodes.firstOrNull { it.key == current.key } != current) return null
+            ancestry.add(current)
+            item = previous.nodes.firstOrNull { it.key == current.parent }
+        }
+        if (ancestry.isEmpty() || item != null) return null
+        val scopes = ancestry.filter { it.scope }.map { entry ->
+            val view = root.scopes[entry.key]?.get() ?: return null
+            if (!accepts(view.scopeKey, view.collectionDataset, true, view)) return null
+            ScopeLease(WeakReference(view), view.collectionDataset, view.node.copyOf())
+        }
+        return PublicationLease(WeakReference(target), mount, root.connection.lifetime, target.collectionDataset, scopes)
     }
     val dataset get() = document?.dataset ?: 0
     fun retained(mount: Mount?) = pending != null && source == mount && mount != null && root.rootView.findFocus() === root.targets[mount]?.get()
@@ -71,19 +112,27 @@ internal class Collections(private val root: SurfaceView) {
             if (next == null) { emit(JSONObject().put("state", "rejected")); return@post }
             val values = next.nodes.flatMap { listOf(it.order.toLong(), if (it.scope) 1L else 0L,
                 if (it.enabled) 1L else 0L, it.layout.toLong(), java.lang.Double.doubleToRawLongBits(it.extent)) }.toLongArray()
+            val retained = retainFocused(next)
             val result = root.connection.collections(next.dataset, next.nodes.map { it.key }.toTypedArray(),
                 next.nodes.map { it.parent }.toTypedArray(), values)
             if (result < 0) { root.close(); return@post }
             if (result > 1) { emit(JSONObject().put("state", "rejected").put("dataset", next.dataset.toString())); return@post }
             val previousHandles = handles
+            publicationLease = retained
             document = next
             root.retireCollectionKeys(previousHandles.filterKeys { key -> next.nodes.none { it.key == key } })
             handles = next.nodes.associate { it.key to root.connection.exchange(25, key = it.key).copyOfRange(1, 3) }
+            publicationLease = publicationLease?.takeIf { lease ->
+                handles[lease.mount.key]?.let { it[0] == lease.mount.slot && it[1] == lease.mount.generation } == true &&
+                    lease.scopes.all { scope -> scope.view.get()?.let { view ->
+                        handles[view.scopeKey]?.contentEquals(scope.node) == true
+                    } == true }
+            }
             root.targets.values.mapNotNull { it.get() }.filter { target ->
                 val owned = previousHandles[target.occurrenceKey]
                 val mount = target.mount
                 owned != null && mount != null && mount.slot == owned[0] && mount.generation == owned[1] &&
-                    (target.collectionDataset != next.dataset.toString() || entry(target.occurrenceKey) == null)
+                    !accepts(target.occurrenceKey, target.collectionDataset, false, target)
             }.forEach { it.maskCollectionAccessibility(); root.detach(it) }
             emit(JSONObject().put("state", "catalog").put("dataset", next.dataset.toString()))
             root.scopeChanged()
@@ -188,5 +237,5 @@ internal class Collections(private val root: SurfaceView) {
         pending = null; steps = emptyList(); source = null; prepared = false; scrolled = false; realized = false
         effect?.let { emit(JSONObject().put("state", "release").put("request", it[3].toString()).put("effect", it[4].toString())) }
     }
-    fun close() { release(); document = null; handles = emptyMap() }
+    fun close() { release(); publicationLease = null; document = null; handles = emptyMap() }
 }

@@ -1,0 +1,82 @@
+import React, {createContext, useContext, useMemo} from 'react';
+import {StyleSheet, useWindowDimensions} from 'react-native';
+export const colors = {base: '#0D141D', raised: '#1D2C3C', text: '#F4EEE4', muted: '#BDC8D3', focus: '#26D9F2'};
+export function createStyles(u: number) {
+  return StyleSheet.create({
+    pageBackdrop: {position: 'absolute', top: -40 * u, left: -40 * u, height: 440 * u},
+    switcherAvatar: {position: 'absolute', left: 4 * u},
+    settingContents: {height: 76 * u, paddingHorizontal: 20 * u, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: u, borderColor: '#2B3D4B'},
+    splash: {flex: 1, backgroundColor: colors.base, alignItems: 'center', justifyContent: 'center', gap: 20 * u},
+    splashBrand: {color: colors.text, fontSize: 64 * u, letterSpacing: 10 * u, fontWeight: '300'},
+    profileSwitcher: {height: 64 * u, width: 296 * u, backgroundColor: 'transparent'},
+    chooserTitle: {color: colors.text, fontSize: 56 * u, fontWeight: '700', textAlign: 'center'},
+    chooserCard: {width: 260 * u, height: 308 * u},
+    chooserAction: {position: 'absolute', top: 0, left: 0, width: 260 * u, height: 308 * u},
+    addProfileImage: {width: 260 * u, height: 260 * u, backgroundColor: colors.raised, borderRadius: 8 * u, justifyContent: 'center', alignItems: 'center'},
+    addProfileIcon: {width: 72 * u, height: 72 * u, tintColor: colors.muted},
+    player: {flex: 1, backgroundColor: '#000000'},
+    video: {flex: 1}, playerChrome: {padding: 32 * u, gap: 12 * u, backgroundColor: '#0D141D'},
+    playerControls: {flexDirection: 'row', gap: 20 * u},
+    fill: {flex: 1}, row: {flexDirection: 'row', gap: 24 * u}, column: {gap: 24 * u},
+    shell: {flex: 1, flexDirection: 'row', backgroundColor: colors.base},
+    sidebar: {width: 360 * u, paddingHorizontal: 32 * u, paddingTop: 40 * u, paddingBottom: 40 * u, backgroundColor: '#0B1720'},
+    brand: {color: colors.text, fontSize: 26 * u, fontWeight: '300', letterSpacing: 3 * u, marginBottom: 48 * u},
+    brandStrong: {fontWeight: '800'}, nav: {gap: 8 * u}, navRow: {height: 72 * u, justifyContent: 'center'},
+    routeMarker: {position: 'absolute', left: -16 * u, width: 5 * u, height: 48 * u, borderRadius: 3 * u, backgroundColor: colors.focus},
+    navIconSlot: {position: 'absolute', left: 12 * u, width: 36 * u, height: 36 * u},
+    navIcon: {width: '100%', height: '100%', tintColor: colors.text},
+    navAction: {height: 64 * u, width: 296 * u, paddingLeft: 40 * u, backgroundColor: 'transparent', borderRadius: 8 * u},
+    sidebarBottom: {marginTop: 'auto', gap: 18 * u}, profileTag: {flexDirection: 'row', alignItems: 'center', gap: 18 * u},
+    avatar: {width: 48 * u, height: 48 * u, borderRadius: 24 * u}, fixtureLabel: {color: colors.muted, fontSize: 16 * u, letterSpacing: 3 * u},
+    content: {flex: 1, paddingTop: 40 * u, paddingLeft: 40 * u, paddingRight: 40 * u},
+    hiddenPlayer: {position: 'absolute', left: 0, right: 0, top: 0, bottom: 0},
+    hidden: {position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, opacity: 0},
+    inactiveSidebar: {opacity: 0.5}, viewport: {flex: 1}, scrollContent: {paddingBottom: 40 * u},
+    pageTitle: {color: colors.text, fontSize: 64 * u, fontWeight: '700', marginBottom: 8 * u},
+    subtitle: {color: colors.muted, fontSize: 24 * u, lineHeight: 32 * u, marginBottom: 24 * u},
+    heading: {color: colors.text, fontSize: 30 * u, lineHeight: 40 * u, fontWeight: '600', marginBottom: 18 * u},
+    body: {color: colors.text, fontSize: 26 * u, lineHeight: 36 * u}, muted: {color: colors.muted, fontSize: 20 * u, lineHeight: 28 * u},
+    eyebrow: {color: colors.text, fontSize: 14 * u, letterSpacing: 3 * u, marginBottom: 12 * u},
+    footer: {color: colors.muted, fontSize: 15 * u, lineHeight: 22 * u, paddingVertical: 8 * u},
+    action: {height: 64 * u, minWidth: 160 * u, backgroundColor: '#12202C', borderRadius: 10 * u, borderWidth: u, borderColor: '#52616E'},
+    cardAction: {height: 80 * u, width: '100%', backgroundColor: 'transparent', borderRadius: 8 * u},
+    pill: {height: 56 * u, width: 260 * u, borderRadius: 28 * u, borderWidth: 2 * u, borderColor: '#647482', backgroundColor: '#0B1720'},
+    landscapeCard: {width: 472 * u, marginRight: 24 * u, gap: 5 * u}, posterCard: {width: 300 * u, marginRight: 32 * u, gap: 5 * u},
+    landscape: {width: 472 * u, height: 265.5 * u, borderRadius: 8 * u}, poster: {width: 196 * u, height: 294 * u, borderRadius: 8 * u},
+    fallback: {backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center'}, rail: {marginBottom: 32 * u},
+    browseHero: {height: 310 * u, justifyContent: 'center'},
+    virtualHero: {height: 304 * u, justifyContent: 'center'},
+    virtualHeading: {color: colors.text, fontSize: 28 * u, lineHeight: 34 * u, fontWeight: '600'},
+    virtualSynopsis: {color: colors.muted, fontSize: 26 * u, lineHeight: 34 * u, marginTop: 12 * u},
+    hero: {height: 450 * u, marginBottom: 20 * u, justifyContent: 'center'},
+    backdrop: {position: 'absolute', left: 0, right: 0, top: 0, bottom: 0},
+    heroImage: {position: 'absolute', left: 0, top: 0, width: '100%', height: '100%'},
+    heroCopy: {width: '65%', gap: 12 * u}, heroTitle: {color: colors.text, fontSize: 64 * u, lineHeight: 72 * u, fontWeight: '700'},
+    detailShade: {position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(13,20,29,0.6)'},
+    scrim: {position: 'absolute', left: 0, top: 0, width: '100%', height: '100%'},
+    search: {flex: 1, flexDirection: 'row', gap: 32 * u}, keyboardPanel: {width: 376 * u}, keyboard: {gap: 8 * u},
+    keyboardRow: {flexDirection: 'row', gap: 8 * u}, key: {minWidth: 0, width: 46 * u, height: 52 * u, borderRadius: 10 * u, backgroundColor: colors.raised},
+    editAction: {minWidth: 0, height: 52 * u, flex: 1, backgroundColor: colors.raised, borderRadius: 10 * u},
+    query: {height: 76 * u, borderWidth: 2 * u, borderColor: '#4B5C69', borderRadius: 14 * u, padding: 8 * u, marginBottom: 24 * u, justifyContent: 'center'},
+    queryText: {color: colors.text, fontSize: 24 * u, lineHeight: 28 * u}, searchResults: {flex: 1, paddingTop: 8 * u},
+    feedbackMessage: {height: 320 * u},
+    message: {paddingVertical: 48 * u, gap: 18 * u}, messageTitle: {color: colors.text, fontSize: 40 * u, lineHeight: 50 * u, fontWeight: '700'},
+    loadingRow: {flexDirection: 'row', gap: 24 * u, marginBottom: 40 * u}, skeleton: {backgroundColor: '#243746'},
+    profilePage: {flex: 1, backgroundColor: colors.base, padding: 80 * u, justifyContent: 'center'}, profiles: {flexDirection: 'row', justifyContent: 'center', gap: 64 * u, marginVertical: 40 * u},
+    profileCard: {width: 260 * u, gap: 12 * u}, profilePicture: {width: 260 * u, height: 260 * u, borderRadius: 14 * u},
+    currentProfile: {flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12 * u},
+    check: {width: 28 * u, height: 28 * u, tintColor: colors.focus}, centered: {textAlign: 'center'},
+    settingsGroup: {marginTop: 20 * u, marginBottom: 32 * u}, setting: {height: 100 * u, width: '100%', borderBottomWidth: u, borderColor: '#2B3D4B', backgroundColor: 'transparent', borderRadius: 8 * u},
+    detailHero: {minHeight: 500 * u, flexDirection: 'row', gap: 52 * u, paddingTop: 40 * u, marginBottom: 40 * u},
+    detailCopy: {flex: 1, justifyContent: 'center', gap: 12 * u}, castCard: {width: 240 * u, gap: 8 * u, marginRight: 36 * u},
+    portrait: {width: 160 * u, height: 160 * u, borderRadius: 8 * u}, biography: {paddingTop: 36 * u, paddingBottom: 24 * u, maxWidth: 1000 * u},
+  });
+}
+const Context = createContext({s: createStyles(1), u: 1});
+export function DesignTheme({children}: {children: React.ReactNode}) {
+  const {width, height} = useWindowDimensions();
+  const u = Math.min(width / 1920, height / 1080);
+  const value = useMemo(() => ({s: createStyles(u), u}), [u]);
+  return <Context.Provider value={value}>{children}</Context.Provider>;
+}
+export const useDesign = () => useContext(Context);

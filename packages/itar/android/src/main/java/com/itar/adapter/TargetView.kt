@@ -3,14 +3,37 @@ package com.itar.adapter
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Rect
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.InsetDrawable
+import android.view.Gravity
+import android.util.TypedValue
 import android.os.Bundle
 import android.view.View
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import java.lang.ref.WeakReference
 import androidx.appcompat.widget.AppCompatButton
+import androidx.core.view.ViewCompat
 
 class TargetView(context: Context) : AppCompatButton(context) {
+    private val outline = GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius = 6 * resources.displayMetrics.density }
+    private var outlineLayer: android.graphics.drawable.Drawable = outline
+    var actionLabel = ""
+        set(value) { field = value; contentDescription = value; updateLabel() }
+    var displayLabel = ""
+        set(value) { field = value; updateLabel() }
+    private fun updateLabel() { text = displayLabel }
+    fun placeLabel(value: String?) {
+        gravity = if (value?.startsWith("bottom") == true) Gravity.BOTTOM or (if (value == "bottom") Gravity.START else Gravity.CENTER_HORIZONTAL) else Gravity.CENTER
+        setPadding(8, 0, 8, if (value?.startsWith("bottom") == true) (4 * resources.displayMetrics.density).toInt() else 0)
+    }
+    fun labelSize(value: Float) { setTextSize(TypedValue.COMPLEX_UNIT_SP, if (value.isFinite() && value > 0) value else 14f) }
+    fun outlineInset(value: Float) {
+        val inset = if (value.isFinite()) (value.coerceIn(0f, 10000f) * resources.displayMetrics.density).toInt() else 0
+        outlineLayer = InsetDrawable(outline, 0, 0, 0, inset)
+        applyFocusStyle()
+    }
     var occurrenceKey = ""
     var order = 0
     var scopeKey = ""
@@ -30,16 +53,32 @@ class TargetView(context: Context) : AppCompatButton(context) {
     internal var onActivation: ((Long, Mount, Long, String) -> Unit)? = null
     private var activationSerial = 0L
     private var collectionAccessibility: Int? = null
-    init { isFocusable = false }
+    init {
+        isFocusable = false
+        // RN owns the declared frame/background; theme button insets and tint
+        // otherwise clip labels and replace the application's base colors.
+        isAllCaps = false
+        minWidth = 0
+        minHeight = 0
+        setPadding(0, 0, 0, 0)
+        ViewCompat.setBackgroundTintList(this, null)
+        background = null
+        maxLines = 1
+        ellipsize = android.text.TextUtils.TruncateAt.END
+    }
     fun setBaseColor(value: Int?) {
         baseColors = value?.let { ColorStateList.valueOf(it) } ?: originalColors
         applyFocusStyle()
     }
     private fun applyFocusStyle() {
         val color = focusColor
-        if (styling && hasFocus() && color != null) setTextColor(color) else setTextColor(baseColors)
+        if (styling && hasFocus() && color != null) {
+            setTextColor(color)
+            outline.setStroke((2 * resources.displayMetrics.density).toInt().coerceAtLeast(1), color)
+            foreground = outlineLayer
+        } else { setTextColor(baseColors); foreground = null }
     }
-    internal fun resetStyle() { styling = false; setTextColor(baseColors) }
+    internal fun resetStyle() { styling = false; setTextColor(baseColors); foreground = null }
     internal fun resumeStyle() { styling = true; applyFocusStyle() }
     internal fun maskCollectionAccessibility() {
         if (collectionAccessibility == null) collectionAccessibility = importantForAccessibility

@@ -22,11 +22,16 @@ public final class ItarTargetHost: UIButton {
             }
         }
     }
+    private let cardOutline = CAShapeLayer()
+    @objc public var displayLabel = "" { didSet { setTitle(displayLabel, for: .normal) } }
+    @objc public var labelPlacement = "center" { didSet { contentVerticalAlignment = labelPlacement.hasPrefix("bottom") ? .bottom : .center; contentHorizontalAlignment = labelPlacement == "bottom" ? .leading : .center } }
+    @objc public var labelSize: CGFloat = 14 { didSet { titleLabel?.font = UIFontMetrics.default.scaledFont(for: .systemFont(ofSize: labelSize > 0 ? labelSize : 14, weight: .semibold)) } }
+    @objc public var outlineInsetBottom: CGFloat = 0 { didSet { applyFocusStyle() } }
     @objc public var label = "" {
         didSet {
             accessibilityLabel = label
             isAccessibilityElement = !label.isEmpty
-            if oldValue != label { setTitle(label, for: .normal); semanticsChanged() }
+            if oldValue != label { setTitle(displayLabel.isEmpty ? label : displayLabel, for: .normal); semanticsChanged() }
         }
     }
     @objc public var order: Int32 = 0 { didSet { if oldValue != order { semanticsChanged() } } }
@@ -43,8 +48,11 @@ public final class ItarTargetHost: UIButton {
 
     public override init(frame: CGRect) {
         super.init(frame: frame)
+        layer.addSublayer(cardOutline)
+        cardOutline.fillColor = UIColor.clear.cgColor
         isAccessibilityElement = false
         accessibilityTraits = .button
+        titleLabel?.adjustsFontForContentSizeCategory = true
         addTarget(self, action: #selector(selected), for: .primaryActionTriggered)
         applyFocusStyle()
     }
@@ -74,6 +82,7 @@ public final class ItarTargetHost: UIButton {
     }
     public override func layoutSubviews() {
         super.layoutSubviews()
+        applyFocusStyle()
         if let owner { owner.targetLayoutChanged(self) } else { nearestSurface()?.geometryChanged() }
     }
     public override var isHidden: Bool { didSet { if oldValue != isHidden { semanticsChanged() } } }
@@ -81,10 +90,16 @@ public final class ItarTargetHost: UIButton {
 
     func applyFocusStyle() {
         let focused = isFocused && window != nil && owner?.dispatcher?.closed == false && registration?.target === self
-        layer.borderWidth = focused ? 5 : 1
+        let card = outlineInsetBottom > 0
+        cardOutline.isHidden = !card || !focused
+        cardOutline.path = UIBezierPath(roundedRect: CGRect(x: 2, y: 2, width: max(0, bounds.width - 4), height: max(0, bounds.height - outlineInsetBottom - 4)), cornerRadius: 6).cgPath
+        cardOutline.lineWidth = 4
+        cardOutline.strokeColor = (focusColor ?? .cyan).cgColor
+        layer.borderWidth = card ? 0 : focused ? 5 : 1
         layer.borderColor = (focused ? focusColor ?? .systemOrange : baseColor ?? .darkGray).cgColor
     }
     func restoreBaseStyle() {
+        cardOutline.isHidden = true
         layer.borderWidth = 1
         layer.borderColor = (baseColor ?? .darkGray).cgColor
     }

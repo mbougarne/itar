@@ -85,6 +85,10 @@ apps/probe/ios/
 vendor/bundle/
 .vscode
 
+# Local provider credentials (server-side only; never bundle in React Native)
+.env
+.env.*
+!.env.example
 # Mechanically staged npm tarball inputs (prepack)
 packages/itar/cpp/
 packages/itar/LICENSE

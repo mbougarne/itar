@@ -1,0 +1,62 @@
+[
+  {
+    "asset": "atlas.jpg",
+    "prompt": "Generate one production artwork asset, not a UI mockup. Use case: stylized-concept. Reference images are STYLE/SCENE references only; do not reproduce any UI, typography or borders. Original fictional cinematic mountain adventure scene for Beyond the Atlas: golden sunset over snow-covered Atlas-like mountain peaks and blue misty valleys, a small backpacked hiker near the center on a rocky viewpoint. Match the rich warm amber / cool deep blue painterly photorealistic premium streaming artwork visible in the references. Wide 16:9 landscape composition, subject inside middle third so a center crop to 2:3 remains useful. Full bleed art, no text, lettering, logos, watermark, frame, menus or graphics. Detailed natural texture and warm dramatic light.",
+    "generator": "built-in image_gen.imagegen"
+  },
+  {
+    "asset": "night.jpg",
+    "prompt": "Use case: stylized-concept. Create one original fictional cinematic production artwork asset, NOT a UI mockup. The supplied image is a STYLE reference only, specifically its orange-lit mountain train artwork. A warmly lit passenger night train curves across a dramatic stone viaduct in a snowy deep-blue mountain valley at blue hour, distant village lights and mist, jagged peaks, amber windows and subtle steam. Rich realistic painterly film-key-art texture matching this premium streaming reference. Wide 16:9, train locomotive / viaduct focal subject within central third so center crop to 2:3 remains useful. Full bleed scenery. Absolutely no text, logos, title lettering, watermark, borders, menus, focus ring or UI.",
+    "generator": "built-in image_gen.imagegen"
+  },
+  {
+    "asset": "tide.jpg",
+    "prompt": "Use case: stylized-concept. One production cinematic scenery artwork asset for a fictional coastal drama A Different Tide. Reference images are STYLE only, especially their warm coastal sunset art. Single person seen from behind near center of frame on a dark rocky coastline, amber sunset reflected in ocean tide pools, dramatic sea stacks, expansive glowing peach clouds and deep-blue shadows. Original fictional scene with premium photorealistic/painterly film-key-art richness, matching warm/cool palette of supplied references. Wide 16:9; person and main sea stack within central third so a center crop to vertical 2:3 works. Full bleed image. No text, lettering, logo, watermarks, borders, focus ring, menu or UI.",
+    "generator": "built-in image_gen.imagegen"
+  },
+  {
+    "asset": "glass.jpg",
+    "prompt": "Use case: stylized-concept. Create one full-bleed production artwork asset for fictional story The Glass Orchard, not UI. Reference images provide STYLE and subject inspiration only: a lush Victorian-like glass conservatory full of citrus trees, orange fruit glowing in warm low sunlight, vines, golden leaves and glass panes, an elegant imagined distant city skyline visible through central windows. Rich warm amber / dark teal cinematic painterly photorealism like premium original film artwork. Wide 16:9 landscape, central path/windows/orange-tree focal point within middle third so center crop to vertical 2:3 remains meaningful. No people needed. Absolutely no text, lettering, logos, watermark, borders, focus ring, menus, icons or UI.",
+    "generator": "built-in image_gen.imagegen"
+  },
+  {
+    "asset": "signal.jpg",
+    "prompt": "Use case: stylized-concept. Generate ONE standalone cinematic streaming catalogue artwork, wide 16:9 composition. A huge radio telescope at a snowy mountain observatory, small lone person centrally beneath it, brilliant cyan-green aurora and violet Milky Way filling midnight sky, warm amber cabin lights, richly detailed cinematic illustrative realism. Match the Quiet Signal artwork palette and atmosphere in the reference screenshots, using screenshots as style/reference only; do not reproduce their UI. Keep telescope and person in center third so center 2:3 cropping is useful. Original fictional scene. NO text, lettering, logos, UI, borders or watermark. Full bleed image.",
+    "generator": "built-in image_gen.imagegen"
+  },
+  {
+    "asset": "letters.jpg",
+    "prompt": "Use case: stylized-concept. ONE standalone original fictional cinematic catalogue artwork, wide16:9. A solitary woman in a long flowing coat stands centrally on rugged coastal rocks watching luminous amber-pink sunset, sea waves and distant beautiful imagined slender towers across the water. Warm apricot clouds, deep blue shadows, detailed premium streaming-film illustrative realism. Match warm cinematic palette of Letters from Tomorrow poster in supplied reference, reference style only. Keep figure and distant city near center third, useful for 2:3 center crop. Full bleed, NO words, lettering, logos, UI, borders or watermark.",
+    "generator": "built-in image_gen.imagegen"
+  },
+  {
+    "asset": "lights.jpg",
+    "prompt": "Use case: stylized-concept. ONE cinematic streaming catalogue artwork, full-bleed wide16:9. A small cozy timber cabin with glowing amber windows at the edge of a still alpine lake and snowy fir forest, reflections on water, dense night stars and flowing blue-cyan-violet northern lights overhead. Tiny gathering silhouettes near cabin, peaceful inviting atmosphere. Match the Northern Lights Club image in supplied reference: premium warm cinematic illustrative realism, textured natural detail, dark navy shadows and warm cabin lights. Center the cabin so vertical2:3 center cropping retains subject. Original fictional scene. No words, lettering, titles, logos, user interface, borders or watermark.",
+    "generator": "built-in image_gen.imagegen"
+  },
+  {
+    "asset": "home.jpg",
+    "prompt": "Use case: stylized-concept. ONE standalone cinematic streaming catalogue artwork wide16:9. A small classic road-trip car traveling a winding alpine forest road curving centrally beside a still mountain lake, dramatic distant mountains, luminous orange apricot sunset, layered dark pines and golden sunlit mist. Scenic quiet adventure, premium detailed cinematic illustrative realism matching The Long Way Home artwork in the supplied reference. Car and road bend in center third so center vertical2:3 crop remains useful. Original fictional scenery. NO text, titles, lettering, logos, interface, borders or watermark. Full bleed.",
+    "generator": "built-in image_gen.imagegen"
+  },
+  {
+    "asset": "cast-aya.jpg",
+    "prompt": "Use case: photorealistic-natural. Asset type: square 1:1 original fictional cast portrait for a premium cinematic TV catalogue. Subject: fictional North African young adult woman with dark wavy shoulder-length hair, olive skin, brown eyes, expedition jacket and scarf. Head and shoulders, centered face, natural thoughtful expression looking slightly camera-left, outdoors with softly blurred cool blue snow mountains. Warm sunset rim light on hair and face, rich warm/cool cinematic realism with subtle painterly finish. Match the cast portrait art direction in the supplied UI references, but produce ONLY one clean standalone photograph-like portrait, no UI, letters, logos, borders, watermark or real celebrity likeness. Crop with head comfortably inside frame and shoulders visible. References are style guidance only.",
+    "generator": "built-in image_gen.imagegen"
+  },
+  {
+    "asset": "cast-sami.jpg",
+    "prompt": "Use case: photorealistic-natural. Asset type: square 1:1 original fictional cinematic cast portrait. Subject: fictional adult man in his early forties, tousled dark hair, short trimmed beard, expressive brown eyes, charcoal scarf and weathered expedition jacket. Centered head-and-shoulders, looking slightly camera-right, thoughtful rugged but approachable expression, softly blurred cool blue snow mountain backdrop. Rich cinematic photographic realism with subtle painterly finish, warm sunset rim light and natural skin texture. Match supplied cast art direction. Distinct invented identity, not a real person or celebrity. Produce a standalone portrait only: no text, no logos, no UI, no border, no watermark. Head completely inside square with shoulders visible.",
+    "generator": "built-in image_gen.imagegen"
+  },
+  {
+    "asset": "cast-lina.jpg",
+    "prompt": "Use case: photorealistic-natural. Asset type: square 1:1 original fictional cinematic cast portrait. Subject: fictional young adult woman with auburn/red hair, visible natural freckles, burgundy knit beanie, olive expedition jacket. Centered head-and-shoulders, gaze slightly camera-right, calm warm expression, outdoors with softly blurred cool blue alpine mountains. Rich premium cinematic photographic realism with subtle painterly finish and warm late sunset rim light. Match the cast visual style of supplied reference, but create a distinct invented identity, not a real celebrity. Standalone portrait only: no text, logos, UI, borders or watermark. Entire head and shoulders fit frame; natural skin texture.",
+    "generator": "built-in image_gen.imagegen"
+  },
+  {
+    "asset": "cast-noor.jpg",
+    "prompt": "Use case: photorealistic-natural. Asset type: square 1:1 original fictional cinematic cast/director portrait. Subject: fictional adult man late thirties/forties, medium brown skin, short dark beard, thin dark-rim glasses, charcoal outdoor cap, dark outdoors jacket. Centered head-and-shoulders, looking slightly camera-left, thoughtful relaxed expression, softly blurred cool blue alpine mountains behind. Premium cinematic photographic realism with subtle painterly finish and warm golden sunset rim light, natural skin texture. Match supplied cast art direction without copying a real person or celebrity. One clean standalone portrait only: no text, logos, UI, border, watermark. Entire head inside square and shoulders visible.",
+    "generator": "built-in image_gen.imagegen"
+  }
+]

@@ -83,6 +83,10 @@ export function FocusScope({id, active = true, layout = 'spatial', boundary = 's
 export type FocusableProps = {
   occurrenceKey: string;
   contentId?: string;
+  displayLabel?: string;
+  labelPlacement?: 'center' | 'bottom' | 'bottom-center';
+  labelSize?: number;
+  outlineInsetBottom?: number;
   accessibilityLabel: string;
   enabled?: boolean;
   order?: number;
@@ -94,7 +98,7 @@ export type FocusableProps = {
 };
 // Render allocates only an identity. Registration is published at host/effect commit.
 export const Focusable = memo(function FocusableButton({occurrenceKey: key, contentId, accessibilityLabel,
-  enabled = true, order = 0, style, focusStyle, baseAccentColor, onPress, testID}: FocusableProps) {
+  enabled = true, order = 0, style, focusStyle, baseAccentColor, onPress, testID, displayLabel, labelPlacement = 'center', labelSize = 14, outlineInsetBottom = 0}: FocusableProps) {
   const store = useStore();
   const scope = useContext(ScopeContext);
   const collectionDataset = useContext(CollectionDatasetContext);
@@ -111,7 +115,8 @@ export const Focusable = memo(function FocusableButton({occurrenceKey: key, cont
   if (!supported) { return <View style={style} testID={testID} accessibilityLabel={accessibilityLabel} />; }
   return <NativeTarget occurrenceKey={nativeTargetKey(key)} scopeKey={scope.key} registrationId={lease.registration}
     collectionDataset={collectionDataset}
-    label={accessibilityLabel} enabled={enabled} order={order} style={style} testID={testID}
+    label={accessibilityLabel} displayLabel={displayLabel ?? accessibilityLabel} labelPlacement={labelPlacement}
+    labelSize={labelSize} outlineInsetBottom={outlineInsetBottom} enabled={enabled} order={order} style={style} testID={testID}
     baseColor={baseAccentColor} focusColor={focusStyle?.accentColor}
     onActivate={event => {
       const activation = store.activation(event.nativeEvent, committed.current.key, lease.token);
