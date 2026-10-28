@@ -142,6 +142,10 @@ _host.onSurfaceRecord = ^(NSDictionary *record) {
   _host.collectionDataset = [[NSString alloc] initWithBytes:next.collectionDataset.data() length:next.collectionDataset.size() encoding:NSUTF8StringEncoding];
   _host.registrationId = [[NSString alloc] initWithBytes:next.registrationId.data() length:next.registrationId.size() encoding:NSUTF8StringEncoding];
   _host.label = [[NSString alloc] initWithBytes:next.label.data() length:next.label.size() encoding:NSUTF8StringEncoding];
+  _host.displayLabel = [[NSString alloc] initWithBytes:next.displayLabel.data() length:next.displayLabel.size() encoding:NSUTF8StringEncoding];
+  _host.labelPlacement = next.labelPlacement == ItarTargetLabelPlacement::Bottom ? @"bottom" : next.labelPlacement == ItarTargetLabelPlacement::BottomCenter ? @"bottom-center" : @"center";
+  _host.labelSize = next.labelSize;
+  _host.outlineInsetBottom = next.outlineInsetBottom;
   _host.order = next.order;
   _host.targetEnabled = next.enabled;
   _host.baseColor = RCTUIColorFromSharedColor(next.baseColor);

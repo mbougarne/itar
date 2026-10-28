@@ -1,5 +1,5 @@
 import type {ColorValue, ViewProps, HostComponent} from 'react-native';
-import type {DirectEventHandler, Int32, WithDefault} from 'react-native/Libraries/Types/CodegenTypes';
+import type {DirectEventHandler, Int32, Float, WithDefault} from 'react-native/Libraries/Types/CodegenTypes';
 import {codegenNativeComponent} from 'react-native';
 
 export interface NativeProps extends ViewProps {
@@ -8,6 +8,10 @@ export interface NativeProps extends ViewProps {
   registrationId?: string;
   collectionDataset?: string;
   label: string;
+  displayLabel?: string;
+  labelPlacement?: WithDefault<'center' | 'bottom' | 'bottom-center', 'center'>;
+  labelSize?: Float;
+  outlineInsetBottom?: Float;
   enabled?: WithDefault<boolean, true>;
   order?: Int32;
   baseColor?: ColorValue;

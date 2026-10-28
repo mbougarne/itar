@@ -21,7 +21,11 @@ class TargetManager : SimpleViewManager<TargetView>(), ItarTargetManagerInterfac
     override fun setScopeKey(view: TargetView, value: String?) { view.scopeKey = value ?: "" }
     override fun setRegistrationId(view: TargetView, value: String?) { view.registrationId = value ?: "" }
     override fun setCollectionDataset(view: TargetView, value: String?) { view.collectionDataset = value ?: "" }
-    override fun setLabel(view: TargetView, value: String?) { view.text = value; view.contentDescription = value }
+    override fun setLabel(view: TargetView, value: String?) { view.actionLabel = value ?: "" }
+    override fun setDisplayLabel(view: TargetView, value: String?) { view.displayLabel = value ?: "" }
+    override fun setLabelPlacement(view: TargetView, value: String?) { view.placeLabel(value) }
+    override fun setLabelSize(view: TargetView, value: Float) { view.labelSize(value) }
+    override fun setOutlineInsetBottom(view: TargetView, value: Float) { view.outlineInset(value) }
     override fun setEnabled(view: TargetView, value: Boolean) { view.isEnabled = value }
     override fun setOrder(view: TargetView, value: Int) { view.order = value }
     override fun setBaseColor(view: TargetView, value: Int?) { view.setBaseColor(value) }

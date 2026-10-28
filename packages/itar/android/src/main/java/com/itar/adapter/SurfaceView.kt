@@ -195,13 +195,14 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         if (!refreshScopes()) { target.isFocusable = false; return }
         val parent = scopes[target.scopeKey]?.get()
         if (!target.scopeKey.isEmpty() && (parent == null || !parent.isAttachedToWindow || parent.owner !== this ||
-            parent.root() !== this || !collections.accepts(parent.scopeKey, parent.collectionDataset, true) ||
-            (parent.collectionDataset.isNotEmpty() && parent.collectionDataset != target.collectionDataset))) {
+            parent.root() !== this || !collections.accepts(parent.scopeKey, parent.collectionDataset, true, parent) ||
+            (parent.collectionDataset.isNotEmpty() && parent.collectionDataset != target.collectionDataset &&
+                collections.entry(target.occurrenceKey) == null))) {
             target.maskCollectionAccessibility(); detach(target); return
         }
         val scope = parent?.node ?: longArrayOf(0, 0)
         val collection = collections.entry(target.occurrenceKey)
-        if (!collections.accepts(target.occurrenceKey, target.collectionDataset, false) ||
+        if (!collections.accepts(target.occurrenceKey, target.collectionDataset, false, target) ||
             (collection != null && collection.parent != target.scopeKey)) {
             target.maskCollectionAccessibility(); detach(target); return
         }
@@ -221,7 +222,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         val values = longArrayOf(logical?.slot ?: 0, logical?.generation ?: 0, mountSerial,
             target.order.toLong(), if (target.isEnabled && acceptsInput) 1 else 0, epoch,
             if (target.width <= 0 || target.height <= 0) 0 else if (measured) 2 else 4,
-            rect.left.toLong(), rect.top.toLong(), rect.width().toLong(), rect.height().toLong(), logical?.serial ?: 0) + scope + (target.collectionDataset.toLongOrNull() ?: 0L)
+            rect.left.toLong(), rect.top.toLong(), rect.width().toLong(), rect.height().toLong(), logical?.serial ?: 0) + scope + (if (collection != null) collections.dataset else 0L)
         val result = connection.exchange(1, values, target.occurrenceKey)
         if (result[0] == 0L) {
             val mount = Mount(result[1], result[2], result[3], target.occurrenceKey)
@@ -300,7 +301,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             if (current.isEmpty()) return true
             val scope = scopes[current]?.get() ?: return false
             if (!scope.active || !scope.isAttachedToWindow || scope.owner !== this || scope.root() !== this ||
-                !collections.accepts(current, scope.collectionDataset, true)) return false
+                !collections.accepts(current, scope.collectionDataset, true, scope)) return false
             current = scope.parentScopeKey
         }
         return false
@@ -317,7 +318,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             val view = pending.removeFirst()
             if (view is SurfaceView) continue
             if (view is ScopeView && view.isAttachedToWindow &&
-                collections.accepts(view.scopeKey, view.collectionDataset, true) &&
+                collections.accepts(view.scopeKey, view.collectionDataset, true, view) &&
                 collections.entry(view.scopeKey)?.let { it.parent == view.parentScopeKey } != false) groups.add(view)
             if (view is ViewGroup) for (i in 0 until view.childCount) pending.addLast(view.getChildAt(i))
         }
@@ -339,7 +340,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
                     else scopes[scope.parentScopeKey]?.get()?.node ?: return false
                 val parentScope = scopes[scope.parentScopeKey]?.get()
                 if (parentScope != null && parentScope.collectionDataset.isNotEmpty() &&
-                    parentScope.collectionDataset != scope.collectionDataset) continue
+                    collections.entry(scope.scopeKey) == null) continue
                 if (!scope.publish(parent)) { close(); return false }
                 scopes[scope.scopeKey] = WeakReference(scope)
                 published.add(scope.scopeKey)

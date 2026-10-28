@@ -8,7 +8,8 @@ import {Focusable, FocusScope} from './react';
 import type {FocusableProps} from './react';
 
 export type VirtualizedFocusItem = Omit<FocusableProps, 'order' | 'style'>;
-export type VirtualizedFocusRail = Readonly<{id: string; items: readonly VirtualizedFocusItem[]}>;
+export type VirtualizedFocusRail = Readonly<{id: string; items: readonly VirtualizedFocusItem[];
+  overlayTarget?: boolean; itemExtent?: number; itemStyle?: StyleProp<ViewStyle>}>;
 type FocusRailRow = VirtualizedFocusRail & {key: string};
 type Common = {id: string; itemExtent: number; viewportExtent: number; style?: StyleProp<ViewStyle>;
   itemStyle?: StyleProp<ViewStyle>; testID?: string};
@@ -31,21 +32,29 @@ function useCollection() {
   if (!store) { throw new Error('Virtualized lists require FocusProvider'); }
   return store;
 }
-function usePublished<T extends {nodes: readonly CollectionNode[]}>(model: T) {
+function usePublished<T extends {nodes: readonly CollectionNode[]}>(model: T, active = true) {
   const store = useCollection();
   const [owner] = useState(() => ({}));
-  const pending = useRef<{dataset: string; model: T} | null>(null);
+  const pending = useRef<{dataset: string; model: T; signature: string} | null>(null);
+  const signature = useMemo(() => JSON.stringify(model.nodes), [model.nodes]);
   const [accepted, setAccepted] = useState<{dataset: string; model: T} | null>(null);
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
   useLayoutEffect(() => {
+    if (!active) { store.remove(owner); pending.current = null; setAccepted(null); return; }
+    if (pending.current?.signature === signature) {
+      pending.current = {...pending.current, model};
+      if (store.snapshot().accepted === pending.current.dataset) { setAccepted(pending.current); }
+      return;
+    }
     const dataset = store.publish(owner, model.nodes);
-    pending.current = {dataset, model};
-  }, [store, owner, model]);
+    pending.current = {dataset, model, signature};
+  }, [store, owner, model, active, signature]);
   useLayoutEffect(() => () => store.remove(owner), [store, owner]);
   useLayoutEffect(() => {
     if (pending.current?.dataset === snapshot.accepted) { setAccepted(pending.current); }
   }, [snapshot.accepted]);
-  if (snapshot.rejected) { throw new Error('Native collection publication was rejected; check keys, parent scope and surface capacity'); }
+  if (active && snapshot.rejected) { throw new Error('Native collection publication was rejected; check keys, parent scope and surface capacity'); }
+  if (!active) { return null; }
   return supported ? accepted : {dataset: '', model};
 }
 
@@ -63,21 +72,29 @@ function renderer<T>(store: CollectionStore, collection: string, key: (item: T) 
     </View>;
   };
 }
-const ItemList = memo(function ItemListView({data, collection, horizontal, itemExtent, viewportExtent, itemStyle, testID}: {
+const ItemList = memo(function ItemListView({data, collection, horizontal, itemExtent, viewportExtent, itemStyle, testID, crossExtent = 100, renderDecoration, overlayTarget = false}: {
   data: readonly VirtualizedFocusItem[]; collection: string; horizontal: boolean; itemExtent: number;
-  viewportExtent: number; itemStyle?: StyleProp<ViewStyle>; testID?: string;
+  viewportExtent: number; itemStyle?: StyleProp<ViewStyle>; testID?: string; crossExtent?: number;
+  overlayTarget?: boolean; renderDecoration?: (item: VirtualizedFocusItem) => React.ReactNode;
 }) {
   const store = useCollection();
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
   const Cell = useMemo(() => renderer<VirtualizedFocusItem>(store, collection, item => nativeTargetKey(item.occurrenceKey)), [store, collection]);
   return <FlatList data={data} horizontal={horizontal} testID={testID}
-    style={horizontal ? [styles.horizontalViewport, {width: viewportExtent}] : [styles.verticalViewport, {height: viewportExtent}]}
+    style={horizontal ? [styles.horizontalViewport, {width: viewportExtent, height: crossExtent}] : [styles.verticalViewport, {height: viewportExtent}]}
+    showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false}
     keyExtractor={item => item.occurrenceKey} CellRendererComponent={Cell} extraData={snapshot.preparation}
     additionalRenderRegions={store.regions(collection)} initialNumToRender={2} maxToRenderPerBatch={2} windowSize={3}
     getItemLayout={(_, index) => ({length: itemExtent, offset: itemExtent * index, index})}
-    renderItem={({item, index}) => <Focusable {...item} order={index}
-      style={[horizontal ? styles.horizontalItem : styles.verticalItem,
-        horizontal ? {width: itemExtent} : {height: itemExtent}, itemStyle]} />} />;
+    renderItem={({item, index}) => {
+      const target = <Focusable {...item} order={index}
+        style={[horizontal ? styles.horizontalItem : styles.verticalItem,
+          horizontal ? {width: itemExtent} : {height: itemExtent}, itemStyle, overlayTarget && styles.overlayTarget]} />;
+      return renderDecoration ? <View style={horizontal ? {width: itemExtent, height: crossExtent} : {height: itemExtent}}>
+        <View accessible={false} importantForAccessibility="no-hide-descendants" pointerEvents="none">{renderDecoration(item)}</View>
+        {target}
+      </View> : target;
+    }} />;
 });
 
 /** Fixed-extent owned buttons using the pinned react-native-tvos FlatList. */
@@ -103,6 +120,7 @@ export function FocusVirtualizedList({id, data, horizontal = true, itemExtent, v
   </CollectionDatasetContext.Provider>;
 }
 const styles = StyleSheet.create({
+  overlayTarget: {position: 'absolute', top: 0, left: 0},
   commitMarker: {position: 'absolute', width: 1, height: 1},
   horizontalViewport: {height: 100}, verticalViewport: {width: 240},
   horizontalItem: {height: 80}, verticalItem: {width: 220},
@@ -110,38 +128,48 @@ const styles = StyleSheet.create({
 
 /** Two-level row-then-item realization with logical column entry. */
 export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewportExtent, viewportRows = 2,
-  style, itemStyle, testID}: Common & {rails: readonly VirtualizedFocusRail[]; rowExtent: number; viewportRows?: number}) {
+  style, itemStyle, testID, viewportHeight, headerExtent = 0, renderDecoration, renderRailHeader, active = true, onReady}: Common & {
+    active?: boolean; onReady?: () => void; rails: readonly VirtualizedFocusRail[]; rowExtent: number; viewportRows?: number; viewportHeight?: number; headerExtent?: number;
+    renderDecoration?: (item: VirtualizedFocusItem) => React.ReactNode;
+    renderRailHeader?: (rail: VirtualizedFocusRail) => React.ReactNode;
+  }) {
   const parent = useContext(ScopeContext);
   const store = useCollection();
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
   const model = useMemo(() => {
     extent(itemExtent); extent(rowExtent); extent(viewportExtent);
+    if (viewportHeight !== undefined) { extent(viewportHeight); }
+    if (!Number.isFinite(headerExtent) || headerExtent < 0 || headerExtent >= rowExtent) { throw new Error('Rail header must fit inside its fixed row extent'); }
     if (!id || !Number.isInteger(viewportRows) || viewportRows < 1 || viewportRows > 10) { throw new Error('Rails require a stable id and 1–10 viewport rows'); }
     const path = [...parent.path, id];
     const key = nativeScopeKey(path);
     const rows = rails.map(rail => {
       if (!rail.id) { throw new Error('Rails require stable nonempty ids'); }
+      if (rail.itemExtent !== undefined) { extent(rail.itemExtent); }
       return {...rail, key: nativeScopeKey([...path, rail.id])};
     });
     const nodes = [list(key, parent.key, 0, false, rowExtent), ...rows.flatMap((row, index) =>
-      [list(row.key, key, index, true, itemExtent), ...items(row.items, row.key)])];
-    return {id, key, rows, nodes, itemExtent, rowExtent, viewportExtent, viewportRows};
-  }, [id, rails, rowExtent, itemExtent, viewportExtent, viewportRows, parent.path, parent.key]);
-  const published = usePublished(model);
+      [list(row.key, key, index, true, row.itemExtent ?? itemExtent), ...items(row.items, row.key)])];
+    return {id, key, rows, nodes, itemExtent, rowExtent, viewportExtent, viewportRows, viewportHeight, headerExtent, renderDecoration, renderRailHeader};
+  }, [id, rails, rowExtent, itemExtent, viewportExtent, viewportRows, viewportHeight, headerExtent, renderDecoration, renderRailHeader, parent.path, parent.key]);
+  const published = usePublished(model, active);
+  React.useEffect(() => { if (published) { onReady?.(); } }, [published, onReady]);
   const collection = published?.model.key ?? model.key;
   const Cell = useMemo(() => renderer<FocusRailRow>(store, collection, row => row.key), [store, collection]);
   if (!published) { return <View style={style} testID={testID} />; }
   const value = published.model;
   return <CollectionDatasetContext.Provider value={published.dataset}>
     <FocusScope id={value.id} layout="column" boundary="parent" style={style}>
-      <FlatList data={value.rows} keyExtractor={row => row.id} testID={testID}
-        style={{height: value.rowExtent * value.viewportRows, width: value.viewportExtent}}
+      <FlatList showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} data={value.rows} keyExtractor={row => row.id} testID={testID}
+        style={{height: value.viewportHeight ?? value.rowExtent * value.viewportRows, width: value.viewportExtent}}
         CellRendererComponent={Cell} extraData={snapshot.preparation} additionalRenderRegions={store.regions(value.key)}
         initialNumToRender={1} maxToRenderPerBatch={1} windowSize={3}
         getItemLayout={(_, index) => ({length: value.rowExtent, offset: value.rowExtent * index, index})}
         renderItem={({item}) => <FocusScope id={item.id} layout="row" boundary="parent" style={{height: value.rowExtent}}>
-          <ItemList data={item.items} collection={item.key} horizontal itemExtent={value.itemExtent}
-            viewportExtent={value.viewportExtent} itemStyle={itemStyle} />
+          {value.headerExtent > 0 && <View accessible={false} pointerEvents="none" style={{height: value.headerExtent}}>{value.renderRailHeader?.(item)}</View>}
+          <ItemList data={item.items} collection={item.key} horizontal itemExtent={item.itemExtent ?? value.itemExtent}
+            viewportExtent={value.viewportExtent} crossExtent={value.rowExtent - value.headerExtent}
+            overlayTarget={item.overlayTarget} itemStyle={item.itemStyle ?? itemStyle} renderDecoration={value.renderDecoration} />
         </FocusScope>} />
     </FocusScope>
   </CollectionDatasetContext.Provider>;

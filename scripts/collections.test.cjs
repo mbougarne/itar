@@ -95,3 +95,22 @@ test('nested preparation retains two indices per list and acknowledges only the 
   assert.equal(f.store.regions('row-a').length, 1);
   assert.equal(f.store.regions('row-b').length, 1);
 });
+
+test('collection ownership handoff rejects stale preparation from the prior screen', () => {
+  const f = fixture();
+  f.record({state: 'catalog', dataset: f.dataset});
+  f.record(f.prepare);
+  const stale = f.store.snapshot().preparation;
+  f.store.remove(f.owner);
+  const detailsOwner = {};
+  const dataset = f.store.publish(detailsOwner, nodes);
+  f.record({state: 'catalog', dataset});
+  f.store.committed(stale, 'item-9');
+  f.record(f.prepare);
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.store.snapshot().preparation, null);
+  f.store.remove(f.owner);
+  assert.equal(f.store.snapshot().dataset, dataset);
+  f.store.remove(detailsOwner);
+  assert.deepEqual(JSON.parse(f.store.snapshot().data).nodes, []);
+});
