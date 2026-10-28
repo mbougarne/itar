@@ -1,52 +1,71 @@
-import React from 'react';
-import {Image, StyleSheet, Text, View} from 'react-native';
+import React, {useEffect, useState} from 'react';
+import {Image, Text, View, type StyleProp, type ViewStyle, type ImageSourcePropType} from 'react-native';
 import {Focusable} from 'itar/react';
 import type {Film} from './catalog';
-const art = [
-  {landscape: require('../assets/0-landscape.png'), poster: require('../assets/0-poster.png')},
-  {landscape: require('../assets/1-landscape.png'), poster: require('../assets/1-poster.png')},
-  {landscape: require('../assets/2-landscape.png'), poster: require('../assets/2-poster.png')},
-  {landscape: require('../assets/3-landscape.png'), poster: require('../assets/3-poster.png')},
-  {landscape: require('../assets/4-landscape.png'), poster: require('../assets/4-poster.png')},
-  {landscape: require('../assets/5-landscape.png'), poster: require('../assets/5-poster.png')},
-  {landscape: require('../assets/6-landscape.png'), poster: require('../assets/6-poster.png')},
-  {landscape: require('../assets/7-landscape.png'), poster: require('../assets/7-poster.png')},
+import {useDesign} from './theme';
+export const art = [
+  require('../assets/cinematic/atlas.jpg'), require('../assets/cinematic/night.jpg'),
+  require('../assets/cinematic/tide.jpg'), require('../assets/cinematic/signal.jpg'),
+  require('../assets/cinematic/glass.jpg'), require('../assets/cinematic/letters.jpg'),
+  require('../assets/cinematic/lights.jpg'), require('../assets/cinematic/home.jpg'),
 ];
-export const css = StyleSheet.create({
-  screen: {flex: 1, backgroundColor: '#0d141d', padding: 28},
-  white: {color: '#f4eee4'}, muted: {color: '#bdc8d3'}, title: {color: '#f4eee4', fontSize: 28, fontWeight: '700'},
-  heading: {color: '#f4eee4', fontSize: 21, fontWeight: '600', marginVertical: 10},
-  body: {color: '#bdc8d3', fontSize: 17, lineHeight: 25},
-  row: {flexDirection: 'row', gap: 12}, column: {gap: 12}, fill: {flex: 1},
-  button: {height: 48, minWidth: 116, backgroundColor: '#1d2c3c', borderRadius: 6},
-  landscape: {width: 230, height: 128, borderRadius: 6}, poster: {width: 154, height: 216, borderRadius: 6},
-  landscapeCard: {width: 230, gap: 5, marginRight: 16}, posterCard: {width: 154, gap: 5, marginRight: 16},
-  hero: {flexDirection: 'row', gap: 24, paddingVertical: 16}, heroArt: {width: 320, height: 180},
-  hidden: {position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, opacity: 0},
-  viewport: {flex: 1}, textEntry: {color: '#f4eee4', fontSize: 24, paddingVertical: 8},
-  key: {width: 82, height: 42, backgroundColor: '#1d2c3c'}, keyboard: {gap: 5},
-  footer: {color: '#bdc8d3', fontSize: 13, marginVertical: 8},
-});
-const accents = {gold: {accentColor: '#ffd58a'}, white: {accentColor: '#ffffff'}};
-export function Action({id, label, onPress, enabled = true, highContrast = false, compact = false, contentId}: {
-  id: string; label: string; onPress: () => void; enabled?: boolean; highContrast?: boolean; compact?: boolean; contentId?: string;
+export const portraits: Readonly<Partial<Record<string, ImageSourcePropType>>> = {
+  aya: require('../assets/cinematic/cast-aya.jpg'), sami: require('../assets/cinematic/cast-sami.jpg'),
+  lina: require('../assets/cinematic/cast-lina.jpg'), noor: require('../assets/cinematic/cast-noor.jpg'),
+};
+export const icons = {
+  Home: require('../assets/cinematic/icons/home.png'), Movies: require('../assets/cinematic/icons/film.png'),
+  Series: require('../assets/cinematic/icons/monitor.png'), Search: require('../assets/cinematic/icons/search.png'),
+  Profile: require('../assets/cinematic/icons/user.png'), Settings: require('../assets/cinematic/icons/settings.png'),
+  check: require('../assets/cinematic/icons/check.png'),
+};
+const accents = {cyan: {accentColor: '#26D9F2'}, white: {accentColor: '#FFFFFF'}};
+export function Action({id, label, onPress, enabled = true, highContrast = false, contentId, style, order = 0, displayLabel}: {
+  displayLabel?: string; order?: number; id: string; label: string; onPress: () => void; enabled?: boolean; highContrast?: boolean; contentId?: string; style?: StyleProp<ViewStyle>;
 }) {
-  return <Focusable occurrenceKey={id} contentId={contentId} accessibilityLabel={label} enabled={enabled} onPress={onPress}
-    baseAccentColor="#bdc8d3" focusStyle={highContrast ? accents.white : accents.gold}
-    style={compact ? css.key : css.button} />;
+  const {s, u} = useDesign();
+  return <Focusable displayLabel={displayLabel ?? label} labelSize={24 * u} order={order} occurrenceKey={id} contentId={contentId} accessibilityLabel={label} enabled={enabled} onPress={onPress}
+    baseAccentColor="#BDC8D3" focusStyle={highContrast ? accents.white : accents.cyan} style={[s.action, style]} />;
+}
+export function Picture({source, style, fallback}: {source?: ImageSourcePropType; style: StyleProp<Pick<ViewStyle, 'width' | 'height' | 'borderRadius'>>; fallback: string}) {
+  const {s} = useDesign();
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [source]);
+  return !source || failed ? <View accessible={false} style={[style, s.fallback]}><Text accessible={false} style={s.muted}>{fallback}</Text></View>
+    : <Image accessible={false} source={source} resizeMode="cover" style={style} onError={() => setFailed(true)} />;
+}
+export function filmArtwork(film: Film, poster = false): ImageSourcePropType | undefined {
+  if (film.source) {
+    const uri = poster ? film.posterUrl : film.backdropUrl || film.posterUrl;
+    return uri ? {uri} : undefined;
+  }
+  return art[film.art];
 }
 export function Artwork({film, poster = false}: {film: Film; poster?: boolean}) {
-  return <Image accessible={false} source={art[film.art][poster ? 'poster' : 'landscape']} style={poster ? css.poster : css.landscape} />;
+  const {s} = useDesign();
+  return <Picture source={filmArtwork(film, poster)} style={poster ? s.poster : s.landscape} fallback="Artwork unavailable" />;
+}
+export function Backdrop({film, details = false}: {film: Film; details?: boolean}) {
+  const {s} = useDesign();
+  const source = filmArtwork(film);
+  return <View pointerEvents="none" accessible={false} style={s.backdrop}>
+    {source && <Image accessible={false} source={source} style={s.heroImage} resizeMode="cover" />}
+    <Image accessible={false} source={require('../assets/cinematic/scrim.png')} style={s.scrim} resizeMode="stretch" />
+    {details && <View style={s.detailShade} />}
+  </View>;
 }
 export function Header({children}: {children: React.ReactNode}) {
-  return <Text accessibilityRole="header" style={css.heading}>{children}</Text>;
+  const {s} = useDesign();
+  return <Text accessibilityRole="header" style={s.heading}>{children}</Text>;
 }
 export function Card({film, id, poster, onPress, highContrast}: {
   film: Film; id: string; poster: boolean; onPress: () => void; highContrast: boolean;
 }) {
-  return <View style={poster ? css.posterCard : css.landscapeCard}>
+  const {s} = useDesign();
+  return <View style={poster ? s.posterCard : s.landscapeCard}>
     <Artwork film={film} poster={poster} />
-    <Action id={id} contentId={film.id} label={film.title} onPress={onPress} highContrast={highContrast} />
-    <Text style={css.muted}>{film.year} · {film.kind === 'movie' ? 'Movie' : 'Series'}</Text>
+    <Action id={id} contentId={film.id} label={`${film.title}, ${film.kind === 'movie' ? 'Movie' : 'Series'}`}
+      onPress={onPress} highContrast={highContrast} style={s.cardAction} />
+    <Text style={s.muted}>{film.year} · {film.kind === 'movie' ? 'Movie' : 'Series'}</Text>
   </View>;
 }
