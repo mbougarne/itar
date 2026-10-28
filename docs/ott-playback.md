@@ -37,3 +37,9 @@ so lint can validate its included service code. The showcase explicitly disables
 notification controls, never requests that runtime permission and does not start
 background playback. Android 13+ runtime permission is not granted merely by its
 manifest declaration. Native lint enforcement remains enabled.
+
+The pinned6.19.3 Android dependency also has a missing `@WorkerThread` on its
+zero-argument manifest-track wrapper ([upstream issue4885](https://github.com/TheWidlarzGroup/react-native-video/issues/4885)).
+Shell generation applies that annotation with version/shape guards. Its only
+caller already runs in a worker executor; runtime logic is unchanged. A version
+upgrade must review this patch rather than silently carrying it forward.
