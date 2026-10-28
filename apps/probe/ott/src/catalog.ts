@@ -1,6 +1,8 @@
+export type DataSource = 'simulated-local' | 'tmdb' | 'tmdb-mock';
+export type CastMember = Readonly<{id: string; name: string; role: string; bio?: string; portraitUrl?: string | null}>;
 export type Kind = 'all' | 'movie' | 'series';
 export type Film = Readonly<{id: string; title: string; category: string; year: number;
-  kind: 'movie' | 'series'; synopsis: string; art: number}>;
+  kind: 'movie' | 'series'; synopsis: string; art: number; source?: 'tmdb' | 'tmdb-mock'; posterUrl?: string | null; backdropUrl?: string | null}>;
 const stories = [
   ['Beyond the Atlas', 'Adventure', 'A cartographer follows an unfinished map through a mountain range where every village tells a different story.'],
   ['The Last Night Train', 'Mystery', 'Two strangers board a train whose destination is missing from every timetable.'],
@@ -27,7 +29,7 @@ export const cast = [
   {id: 'noor', name: 'Noor Idris', role: 'Director', bio: 'A fictional storyteller exploring imagined places and unfamiliar journeys.'},
 ] as const;
 export type Rail = Readonly<{id: string; title: string; format: 'landscape' | 'poster'; entries: readonly Film[]}>;
-export type Page = Readonly<{rows: readonly Rail[]; nextCursor: string | null; source: 'simulated-local'}>;
+export type Page = Readonly<{rows: readonly Rail[]; nextCursor: string | null; source: DataSource; attribution?: string}>;
 export async function fetchPage(kind: Kind, query: string, cursor: string | null,
   {signal, delay = 180, fail = false}: {signal: AbortSignal; delay?: number; fail?: boolean}): Promise<Page> {
   if (!Number.isFinite(delay) || delay < 0 || delay > 2000) { throw new Error('Invalid fixture delay'); }

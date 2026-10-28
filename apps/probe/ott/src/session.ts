@@ -1,6 +1,6 @@
-import {fetchPage, type Kind, type Rail} from './catalog';
-export type CatalogueState = Readonly<{rows: readonly Rail[]; cursor: string | null; loading: boolean; error: string; ended: boolean}>;
-const empty = (): CatalogueState => ({rows: [], cursor: null, loading: false, error: '', ended: false});
+import {fetchPage, type Kind, type Rail, type DataSource} from './catalog';
+export type CatalogueState = Readonly<{rows: readonly Rail[]; cursor: string | null; loading: boolean; error: string; ended: boolean; source: DataSource | null; limitReached: boolean}>;
+const empty = (): CatalogueState => ({rows: [], cursor: null, loading: false, error: '', ended: false, source: null, limitReached: false});
 export class CatalogueSession {
   private state = empty();
   private generation = 0;
@@ -29,8 +29,14 @@ export class CatalogueSession {
     try {
       const page = await this.provider(this.kind, this.query, before.cursor, {signal: request.signal, ...this.options()});
       if (this.closed || owner !== this.generation || request.signal.aborted) { return; }
-      this.publish({rows: [...before.rows, ...page.rows], cursor: page.nextCursor,
-        loading: false, error: '', ended: page.nextCursor === null});
+      let remaining = 48;
+      const rows = [...before.rows, ...page.rows].map(row => {
+        const entries = row.entries.slice(0, remaining); remaining -= entries.length;
+        return entries.length === row.entries.length ? row : {...row, entries};
+      }).filter(row => row.entries.length > 0);
+      const limitReached = remaining === 0 && page.nextCursor !== null;
+      this.publish({rows, cursor: limitReached ? null : page.nextCursor, source: page.source,
+        loading: false, error: '', limitReached, ended: page.nextCursor === null || limitReached});
     } catch (error) {
       if (this.closed || owner !== this.generation || request.signal.aborted) { return; }
       this.publish({...before, loading: false, error: error instanceof Error ? error.message : 'Fixture fetch failed'});

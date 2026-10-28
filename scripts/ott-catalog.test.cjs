@@ -78,10 +78,24 @@ test('a disposed/restarted request cannot overwrite new state even when transpor
   const session = new CatalogueSession('all', '', () => ({delay: 0, fail: false}), () => new Promise(resolve => resolvers.push(resolve)));
   const old = session.start();
   const next = session.start();
-  resolvers[1]({rows: [{id: 'new'}], nextCursor: null});
+  resolvers[1]({rows: [{id: 'new', title: 'New', format: 'landscape', entries: [catalog.films[0]]}], nextCursor: null, source: 'simulated-local'});
   await next;
-  resolvers[0]({rows: [{id: 'old'}], nextCursor: null});
+  resolvers[0]({rows: [{id: 'old', title: 'Old', format: 'landscape', entries: [catalog.films[1]]}], nextCursor: null, source: 'simulated-local'});
   await old;
   assert.equal(session.snapshot().rows[0].id, 'new');
   session.dispose();
+});
+
+test('a larger provider preserves prior targets and explicitly caps the viewing window at48', async () => {
+  let page = 0;
+  const session = new CatalogueSession('all', '', () => ({delay: 0, fail: false}), async () => {
+    const entries = catalog.films.slice(page * 20, ++page * 20);
+    return {rows: [{id: `page-${page}`, title: 'Page', format: 'landscape', entries}], nextCursor: String(page), source: 'tmdb-mock'};
+  });
+  await session.start();const original = session.snapshot().rows[0];
+  await session.loadMore();await session.loadMore();
+  assert.equal(session.snapshot().rows.reduce((count, row) => count + row.entries.length, 0), 48);
+  assert.equal(session.snapshot().rows[0], original);
+  assert.equal(session.snapshot().ended, true);assert.equal(session.snapshot().limitReached, true);
+  await session.loadMore();assert.equal(page, 3);session.dispose();
 });
