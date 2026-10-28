@@ -66,7 +66,10 @@ NodeHandle geometricDestination(const State& state, NodeHandle source,
     const auto b = axes(*bounds);
     const auto delta = (b[0] + b[1] / 2) - (a[0] + a[1] / 2);
     if (!std::isfinite(delta)) { continue; }
-    if (!wrap && (positive ? delta <= 0 : delta >= 0)) { continue; }
+    // A shifted center alone does not put an overlapping region to one side:
+    // different-width rows above/below must not capture horizontal escape.
+    if (!wrap && (positive ? (b[0] <= a[0] || b[0] + b[1] <= a[0] + a[1])
+                           : (b[0] >= a[0] || b[0] + b[1] >= a[0] + a[1]))) { continue; }
     const auto forward = std::max(0.0L, positive ? b[0] - (a[0] + a[1])
                                                : a[0] - (b[0] + b[1]));
     const auto gap = std::max({0.0L, b[2] - (a[2] + a[3]), a[2] - (b[2] + b[3])});

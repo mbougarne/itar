@@ -35,7 +35,11 @@ Parent continuation is bounded by registry size. `core.navigation_order` include
 
 ## Provisional geometry (ITAR-0032)
 
-`itar-linear-v1` admits centers strictly forward in the physical direction. Rank
+`itar-linear-v2` requires both directional edges to advance strictly in the
+physical direction. A changed center inside an overlapping region is insufficient:
+a wider editing row below must not become a Right destination for a keyboard row.
+This eligibility refinement is versioned because it changes winners; ranking is
+otherwise unchanged. Rank
 lexicographically by `(forwardGap + 2*perpendicularGap + perpendicularCenter/4,
 forwardGap, perpendicularCenter, declaredOrder, occurrenceKey)`. Gaps are edge
 distances clamped to zero; perpendicular overlap makes its gap zero. Unequal
@@ -89,7 +93,7 @@ neighbor precedence, current host reassignment and lost authority.
 ## Cross-policy fixtures (ITAR-0035)
 
 `core.navigation_scenarios` records source, physical direction, destination, kind,
-reason and `itar-linear-v1` for nested rails/sidebar and irregular trapped controls.
+reason and `itar-linear-v2` for nested rails/sidebar and irregular trapped controls.
 An inactive route has a deceptively near rectangle but cannot win. Forward/reverse
 batch registration yields the same occurrence destination. Thirty repeated queries
 per case preserve every record, revision, both focus channels and scope histories;
