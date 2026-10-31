@@ -18,6 +18,7 @@ final class EngineDispatcher {
         case request(String, Int32, UInt64, UInt64)
         case requestCommand(String, String, UInt64, UInt64)
         case restoreScopeCommand(String, String, UInt64, UInt64)
+        case restoreScope(String, UInt64, UInt64)
         case cancelCommand(String)
         case cancel(UInt64)
         case time(UInt64)
@@ -95,6 +96,11 @@ final class EngineDispatcher {
             if time.code == 10 { requested?(time) }
             let result = try connection.requestFocus(key, owner: owner, deadline: deadline, dataset: 1)
             requested?(result)
+        case .restoreScope(let key, let now, let deadline):
+            _ = try connection.advance(to: now)
+            let request = try connection.snapshot().active_request
+            if request != 0 { requested?(try connection.cancel(request)) }
+            requested?(try connection.restoreScope(key, deadline: deadline))
         case .requestCommand(let key, let command, let now, let deadline),
              .restoreScopeCommand(let key, let command, let now, let deadline):
             let time = try connection.advance(to: now)

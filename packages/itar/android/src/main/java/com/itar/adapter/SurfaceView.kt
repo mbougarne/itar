@@ -45,6 +45,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         set(value) { if (field != value) { field = value; updateActivity() } }
     internal val acceptsInput get() = active && !covered && !closed
     private val input = Input(this)
+    internal val readerOwnsInput get() = input.owner == 3L
     private val deferred = ArrayList<WeakReference<TargetView>>()
     private var refreshPosted = false
     var closed = false

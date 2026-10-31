@@ -184,6 +184,48 @@ import UIKit
         XCTAssertEqual(root.classify(UIButton()).kind, 1)
         XCTAssertEqual(root.classify(nil).kind, 2)
     }
+    func testScopePreferenceWithoutHistoryFromAnotherScope() async throws {
+        let scope = ItarScopeHost(frame: root.bounds)
+        scope.configure("sidebar", parent: "", active: true, layout: 1, boundary: 0, trap: false, entryReady: true, preferred: "b")
+        root.addSubview(scope)
+        scope.addSubview(b)
+        b.scopeKey = "sidebar"
+        root.commitGeometry()
+        root.focus("a")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.a.isFocused }, object: nil)], timeout: 3)
+        var confirmed = false
+        root.onRequestRecord = {
+            if $0["command"] as? String == "first" && $0["status"] as? String == "confirmed" { confirmed = true }
+        }
+        root.restoreScopeRequest("sidebar", command: "first")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.b.isFocused && confirmed }, object: nil)], timeout: 3)
+    }
+    func testUnreadyScopePreventsDefaultButAllowsExplicitFocus() async throws {
+        let scope = ItarScopeHost(frame: root.bounds)
+        scope.configure("waiting", parent: "", active: true, layout: 1, boundary: 2, trap: false, entryReady: false, preferred: "")
+        root.addSubview(scope)
+        scope.addSubview(b)
+        b.scopeKey = "waiting"
+        root.commitGeometry()
+        root.focus("a")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.a.isFocused }, object: nil)], timeout: 3)
+        XCTAssertFalse(b.canBecomeFocused)
+        XCTAssertFalse(scope.accessibilityElementsHidden)
+        var observations: [String] = []
+        root.onFocusRecord = { observations.append($0["occurrenceKey"] as? String ?? "") }
+        a.removeFromSuperview()
+        let system = try XCTUnwrap(UIFocusSystem.focusSystem(for: root))
+        system.requestFocusUpdate(to: root)
+        system.updateFocusIfNeeded()
+        XCTAssertFalse(b.isFocused)
+        XCTAssertFalse(observations.contains("b"))
+        root.focus("b")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.b.isFocused }, object: nil)], timeout: 3)
+        XCTAssertTrue(b.canBecomeFocused) // Closing entry preserves confirmed focus.
+        scope.configure("waiting", parent: "", active: true, layout: 1, boundary: 2, trap: false, entryReady: true, preferred: "")
+        root.commitGeometry()
+        XCTAssertTrue(b.isFocused)
+    }
     func testCommittedScopeActivityAndNativeHistory() async throws {
         let scope = ItarScopeHost(frame: root.bounds)
         scope.configure("rail", parent: "", active: true, layout: 1, boundary: 0, trap: false, entryReady: true, preferred: "")
@@ -210,6 +252,34 @@ import UIKit
         scope.recycle()
         XCTAssertEqual(try root.dispatcher?.connection.find("b").slot, 0)
         XCTAssertFalse(b.accessibilityActivate())
+    }
+    func testDirectionalScopeEntryUsesHistoryAndCancelsStaleHandoff() async throws {
+        let scope = ItarScopeHost(frame: root.bounds)
+        scope.configure("menu", parent: "", active: true, layout: 2, boundary: 2, trap: false, entryReady: true, preferred: "b")
+        scope.restoreOnEntry = true
+        root.addSubview(scope); scope.addSubview(a); scope.addSubview(b)
+        a.scopeKey = "menu"; b.scopeKey = "menu"
+        a.frame = CGRect(x: 0, y: 0, width: 200, height: 80)
+        b.frame = CGRect(x: 0, y: 150, width: 200, height: 80)
+        let outside = target("outside", x: 450)
+        root.addSubview(outside); root.commitGeometry()
+        root.focus("a")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.a.isFocused }, object: nil)], timeout: 3)
+        root.focus("outside")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in outside.isFocused }, object: nil)], timeout: 3)
+        var observations: [String] = []
+        root.onFocusRecord = { observations.append($0["occurrenceKey"] as? String ?? "") }
+        XCTAssertTrue(root.redirectScopeEntry(from: outside, to: b))
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.a.isFocused }, object: nil)], timeout: 3)
+        XCTAssertFalse(observations.contains("b"))
+        root.focus("outside")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in outside.isFocused }, object: nil)], timeout: 3)
+        XCTAssertTrue(root.redirectScopeEntry(from: outside, to: b))
+        root.focus("b") // A newer explicit command invalidates the queued entry.
+        let turn = expectation(description: "next owner turn")
+        DispatchQueue.main.async { turn.fulfill() }
+        await fulfillment(of: [turn], timeout: 3)
+        XCTAssertTrue(b.isFocused)
     }
 }
 

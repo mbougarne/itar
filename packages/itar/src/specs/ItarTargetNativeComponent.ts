@@ -12,10 +12,23 @@ export interface NativeProps extends ViewProps {
   labelPlacement?: WithDefault<'center' | 'bottom' | 'bottom-center', 'center'>;
   labelSize?: Float;
   outlineInsetBottom?: Float;
+  cornerRadius?: Float;
   enabled?: WithDefault<boolean, true>;
   order?: Int32;
   baseColor?: ColorValue;
   focusColor?: ColorValue;
+  focusBackgroundColor?: ColorValue;
+  adjustable?: WithDefault<boolean, false>;
+  onAdjust?: DirectEventHandler<Readonly<{
+    lifetime: string;
+    occurrenceKey: string;
+    mount: string;
+    sequence: string;
+    source: string;
+    provider: string;
+    registration: string;
+    delta: string;
+  }>>;
   onActivate?: DirectEventHandler<Readonly<{
     lifetime: string;
     occurrenceKey: string;

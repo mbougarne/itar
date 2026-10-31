@@ -73,6 +73,12 @@ internal class Input(private val root: SurfaceView) {
         }
         if (event.action != KeyEvent.ACTION_DOWN || !owns(root.findFocus())) return false
         ownedKeys.add(event.keyCode)
+        val target = root.findFocus() as? TargetView
+        // Horizontal adjustment belongs to the control, not to navigation.
+        if (value < 2 && target?.adjustable == true) {
+            target.adjust(if (value == 0L) -1 else 1)
+            return true
+        }
         root.dispatcher.batch {
             root.refreshGeometry()
             root.observe()

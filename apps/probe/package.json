@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "lint": "eslint . --ext .js,.cjs,.ts,.tsx --max-warnings 0",
+    "lint:fix": "npm run lint -- --fix",
+    "format": "prettier --write \"**/*.{js,cjs,ts,tsx,json}\" && npm run lint:fix && prettier --write \"**/*.{js,cjs,ts,tsx,json}\"",
+    "format:check": "prettier --check \"**/*.{js,cjs,ts,tsx,json}\"",
+    "check": "npm run lint && npm run format:check",
     "start": "react-native start --port 8096",
     "android": "react-native run-android --port 8096",
     "tvos": "react-native run-ios --port 8096 --scheme ItarProbe",

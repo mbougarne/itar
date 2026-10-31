@@ -81,11 +81,14 @@ Proposal resolveEntry(const State& state, NodeHandle scope,
     return result;
   }
   NodeHandle best;
-  if (entry.reason == EntryReason::returning) {
+  const bool restore = entry.reason == EntryReason::returning ||
+      (entry.reason == EntryReason::adjacent && region->navigation.restoreOnEntry);
+  const bool anchored = entry.reason == EntryReason::adjacent && !restore;
+  if (restore) {
     if (const auto* history = state.history(scope)) { best = registry.find(*history); }
   }
   if (!eligible(best)) { best = {}; }
-  if (!best && entry.reason != EntryReason::adjacent) {
+  if (!best && !anchored) {
     if (const auto* preferred = registry.preferred(scope)) {
       const auto candidate = registry.find(*preferred);
       if (eligible(candidate)) { best = candidate; }
@@ -93,7 +96,7 @@ Proposal resolveEntry(const State& state, NodeHandle scope,
     }
   }
   const bool horizontal = entry.direction == Direction::left || entry.direction == Direction::right;
-  if (!entry.anchor && entry.reason == EntryReason::adjacent) {
+  if (!entry.anchor && anchored) {
     if (const auto source = usableGeometry(state.snapshot(), state.surface(), input.source.node)) {
       const auto r = source->bounds;
       entry.anchor = horizontal ? r.y + r.height / 2 : r.x + r.width / 2;
@@ -105,7 +108,7 @@ Proposal resolveEntry(const State& state, NodeHandle scope,
       const auto node = registry.handleAt(i);
       if (!eligible(node)) { continue; }
       auto rank = std::numeric_limits<long double>::infinity();
-      if (entry.reason == EntryReason::adjacent && entry.anchor) {
+      if (anchored && entry.anchor) {
         if (const auto geometry = usableGeometry(state.snapshot(), state.surface(), node)) {
           const auto r = geometry->bounds;
           const long double center = horizontal ? static_cast<long double>(r.y) + r.height / 2
@@ -125,7 +128,7 @@ Proposal resolveEntry(const State& state, NodeHandle scope,
                     ? ProposalKind::ready : ProposalKind::reveal;
   result.mount = result.kind == ProposalKind::ready ? registry.lookup(best)->mount : MountGeneration{};
   result.reason = entry.reason == EntryReason::first ? ProposalReason::first_entry
-                  : entry.reason == EntryReason::returning ? ProposalReason::restoration
+                  : restore ? ProposalReason::restoration
                                                           : ProposalReason::anchor_entry;
   return result;
 }

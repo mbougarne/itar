@@ -21,6 +21,7 @@ public final class ItarScopeHost: UIView {
     var boundary: Int32 = 0
     var trap = false
     var entryReady = true
+    @objc public var restoreOnEntry = false { didSet { if oldValue != restoreOnEntry { nearestSurface()?.geometryChanged() } } }
     var preferred = ""
     var registeredKey = ""
     @objc public func configure(_ key: String, parent: String, active: Bool, layout: Int32,
@@ -56,6 +57,40 @@ public final class ItarScopeHost: UIView {
 }
 
 extension ItarSurfaceHost {
+    // Reject UIKit's geometric entry before it highlights an unrelated menu item.
+    // The next owner turn uses C++ history; never call UIKit recursively here.
+    func redirectScopeEntry(from previous: ItarTargetHost, to next: ItarTargetHost) -> Bool {
+        guard previous.owner === self, next.owner === self, previous.isFocused,
+              !UIAccessibility.isVoiceOverRunning, let origin = previous.registration,
+              live(origin) === previous, let dispatcher, !dispatcher.closed else { return false }
+        var current = next.scopeKey
+        for _ in 0...256 {
+            if current.isEmpty || insideScope(previous.scopeKey, ancestor: current) { return false }
+            guard let scope = scopes[current]?.view else { return false }
+            if scope.restoreOnEntry && scope.entryReady && scopeActive(current) {
+                entryWork?.cancel()
+                let sequence = eventSequence, mount = origin.mount, now = dispatcher.clock(), destination = current
+                guard now <= UInt64.max - 3000 else { return false }
+                let work = DispatchWorkItem { [weak self, weak previous, weak scope] in
+                    guard let self, let previous, let scope, self.eventSequence == sequence,
+                          previous.isFocused, previous.registration?.mount == mount,
+                          self.live(origin) === previous, scope.owner === self, scope.scopeKey == destination,
+                          scope.restoreOnEntry, scope.entryReady, self.scopeActive(scope.scopeKey),
+                          self.acceptsInput, !UIAccessibility.isVoiceOverRunning else { return }
+                    self.entryWork = nil
+                    self.commitGeometry()
+                    let receivedAt = dispatcher.clock()
+                    guard self.eventSequence == sequence, previous.isFocused, receivedAt < now + 3000 else { return }
+                    dispatcher.enqueue(.restoreScope(destination, receivedAt, now + 3000))
+                }
+                entryWork = work
+                DispatchQueue.main.async(execute: work)
+                return true
+            }
+            current = scope.parentKey
+        }
+        return false
+    }
     func scopeAllows(_ context: UIFocusUpdateContext) -> Bool {
         guard context.focusHeading != [], !UIAccessibility.isVoiceOverRunning,
               let previous = context.previouslyFocusedView as? ItarTargetHost, previous.owner === self,

@@ -213,6 +213,21 @@ void restoration() {
   CHECK(host.effects().empty());
 }
 void scopeRestoration() {
+  {
+    Fixture first;
+    auto child = item("b", 1);
+    child.kind = 1; child.expected = first.b; child.parent = bytes("sidebar");
+    ItarMutation sidebar{};
+    sidebar.key = bytes("sidebar");
+    sidebar.record.scope = sidebar.record.active = sidebar.record.enabled = sidebar.record.entry_ready = 1;
+    sidebar.has_preferred = 1; sidebar.preferred = bytes("b");
+    std::array batch{sidebar, child};
+    CHECK(itar_engine_apply(first.engine, 10, 1, batch.data(), batch.size()).code == 0);
+    // Focus remains on a outside the destination, which has no history yet.
+    const auto entry = itar_engine_restore_scope(first.engine, 10, bytes("sidebar"), 100, 1);
+    CHECK(entry.code == ITAR_REQUEST_STARTED);
+    CHECK(first.effects()[0].target.slot == first.b.slot);
+  }
   Fixture f;
   auto a = item("a"), b = item("b", 1);
   a.kind = b.kind = 1;

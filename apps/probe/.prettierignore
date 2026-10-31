@@ -1,0 +1,10 @@
+# Generated native projects and dependencies
+android/
+ios/
+node_modules/
+build/
+coverage/
+
+# Design references and generated artwork metadata
+design/
+ott/assets/

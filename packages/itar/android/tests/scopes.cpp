@@ -17,12 +17,20 @@ int main() {
     return session.state.snapshot().registry.find(OccurrenceKey{std::string(key)});
   };
   const auto a = add("a", 0, true), b = add("b", 1, true), c = add("outside", 2, false);
+  std::array<std::int64_t, 3> returning{0, 0, 100};
+  // A first explicit restore enters from another scope using the preference.
+  CHECK(!session.state.history(group));
+  CHECK(session.state.observeFocus({SurfaceId{1}, FocusChannel::input,
+      {FocusKind::managed, c, MountGeneration{3}}}) == ObservationStatus::changed);
+  CHECK(scope(session, 23, returning, "rail", "", out) == ok);
+  CHECK(out[1] == static_cast<std::int64_t>(RequestStatus::started));
+  CHECK(session.transactions.drainEffects()[0].target == b);
+  session.transactions.cancel(RequestId{static_cast<std::uint64_t>(out[2])});
   CHECK(session.state.observeFocus({SurfaceId{1}, FocusChannel::input,
       {FocusKind::managed, a, MountGeneration{1}}}) == ObservationStatus::changed);
   InputContext input{SurfaceId{1}, {}, InputOwner::engine, session.state.snapshot().inputFocus};
   CHECK(resolve(session.state, Direction::right, input).target == b);
   CHECK(session.state.observeFocus({SurfaceId{1}, FocusChannel::input, {FocusKind::unmanaged, {}, {}}}) == ObservationStatus::changed);
-  std::array<std::int64_t, 3> returning{0, 0, 100};
   CHECK(scope(session, 23, returning, "rail", "", out) == ok);
   CHECK(out[1] == static_cast<std::int64_t>(RequestStatus::started));
   CHECK(session.transactions.drainEffects()[0].target == a);

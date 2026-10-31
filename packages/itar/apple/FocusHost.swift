@@ -12,7 +12,15 @@ extension ItarSurfaceHost {
     // UIKit chooses mounted destinations. Only cold collection arrow requests
     // use scoped press ownership; swipe/momentum parity requires separate evidence.
     func allowsFocus(_ context: UIFocusUpdateContext) -> Bool {
+        // Swipes propose a UIKit focus update; adjustment keeps the same target.
+        if !UIAccessibility.isVoiceOverRunning, let source = context.previouslyFocusedView as? ItarTargetHost,
+           source.owner === self, source.adjustable,
+           (context.focusHeading == .left || context.focusHeading == .right),
+           source.adjust(context.focusHeading == .left ? -1 : 1) { return false }
         guard scopeAllows(context) else { return false }
+        if context.focusHeading != [], let previous = context.previouslyFocusedView as? ItarTargetHost,
+           let next = context.nextFocusedView as? ItarTargetHost,
+           redirectScopeEntry(from: previous, to: next) { return false }
         if context.focusHeading != [], !UIAccessibility.isVoiceOverRunning,
            pendingRequest != 0,
            let source = context.previouslyFocusedView as? ItarTargetHost,
@@ -24,12 +32,13 @@ extension ItarSurfaceHost {
             guard acceptsInput else { return false }
             if UIAccessibility.isVoiceOverRunning { return true }
             guard let registration = next.registration else { return false }
-            return live(registration) === next
+            return live(registration) === next && next.allowsHostEntry
         }
         return true
     }
 
     func observedFocus(_ context: UIFocusUpdateContext) {
+        entryWork?.cancel(); entryWork = nil
         let next = context.nextFocusedView
         // Callback destination is the host fact, independent of the preference.
         if let next { dispatcher?.enqueue(.focus(classify(next), 0, nil)) }

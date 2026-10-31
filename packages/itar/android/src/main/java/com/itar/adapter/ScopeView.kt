@@ -13,6 +13,7 @@ class ScopeView(context: Context) : ReactViewGroup(context) {
     var boundary = "stop"
     var trap = false
     var entryReady = true
+    var restoreOnEntry = false
     var preferredKey = ""
     internal var node = longArrayOf(0, 0)
     internal var owner: SurfaceView? = null
@@ -27,18 +28,18 @@ class ScopeView(context: Context) : ReactViewGroup(context) {
         owner = root
         descendantFocusability = if (active) FOCUS_BEFORE_DESCENDANTS else FOCUS_BLOCK_DESCENDANTS
         importantForAccessibility = if (active) IMPORTANT_FOR_ACCESSIBILITY_AUTO else IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-        val next = listOf(root, root?.connection?.lifetime, scopeKey, parentScopeKey, active, layout, boundary, trap, entryReady, preferredKey, collectionDataset)
+        val next = listOf(root, root?.connection?.lifetime, scopeKey, parentScopeKey, active, layout, boundary, trap, entryReady, preferredKey, restoreOnEntry, collectionDataset)
         if (next != declared) { declared = next; root?.scopeChanged() }
     }
     internal fun publish(parentNode: LongArray): Boolean {
         val root = owner ?: return false
-        val config = listOf(scopeKey, parentScopeKey, active, layout, boundary, trap, entryReady, preferredKey,
+        val config = listOf(scopeKey, parentScopeKey, active, layout, boundary, trap, entryReady, preferredKey, restoreOnEntry,
             parentNode[0], parentNode[1], root.connection.lifetime)
         if (config == committed && node[0] != 0L) return true
         val layouts = listOf("spatial", "row", "column")
         val boundaries = listOf("stop", "wrap", "parent")
         val values = node + parentNode + longArrayOf(if (active) 1 else 0, layouts.indexOf(layout).toLong(),
-            boundaries.indexOf(boundary).toLong(), if (trap) 1 else 0, if (entryReady) 1 else 0)
+            boundaries.indexOf(boundary).toLong(), if (trap) 1 else 0, if (entryReady) 1 else 0, if (restoreOnEntry) 1 else 0)
         val result = root.connection.exchange(20, values, scopeKey, preferredKey)
         if (result[0] != 0L) return false
         node = longArrayOf(result[1], result[2])

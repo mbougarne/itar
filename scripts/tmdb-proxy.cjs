@@ -2,9 +2,11 @@
 const http = require('node:http');
 const {readFile} = require('node:fs/promises');
 const path = require('node:path');
+const {metadata} = require('./tmdb-metadata.cjs');
 const {mockTmdb} = require('./tmdb-mock.cjs');
 const API = 'https://api.themoviedb.org/3';
 const IMAGE = 'https://image.tmdb.org/t/p/';
+const genres = {Action: {movie: 28, series: 10759}, Comedy: {movie: 35, series: 35}, Drama: {movie: 18, series: 18}, Documentary: {movie: 99, series: 99}, 'Sci-fi': {movie: 878, series: 10765}};
 const notice = 'This product uses the TMDB API but is not endorsed or certified by TMDB.';
 const image = (value, size) => typeof value === 'string' && /^\/[\w.-]+\.(jpg|png|webp)$/.test(value) ? `${IMAGE}${size}${value}` : null;
 const text = (value, limit = 4000) => typeof value === 'string' ? value.slice(0, limit) : '';
@@ -12,7 +14,7 @@ const validId = value => Number.isSafeInteger(Number(value)) && Number(value) > 
 function mapFilm(item, kind, mock) {
   if (!validId(item.id)) { return null; }
   return {id: `tmdb:${kind}:${item.id}`, title: text(kind === 'movie' ? item.title : item.name, 200) || 'Untitled',
-    kind, category: Array.isArray(item.genres) ? item.genres.map(g => text(g.name, 40)).filter(Boolean).join(' / ') : kind === 'movie' ? 'Movie' : 'Series',
+    ...metadata(item, kind), kind, category: Array.isArray(item.genres) ? item.genres.map(g => text(g.name, 40)).filter(Boolean).join(' / ') : kind === 'movie' ? 'Movie' : 'Series',
     year: Number(text(kind === 'movie' ? item.release_date : item.first_air_date, 4)) || 0,
     synopsis: text(item.overview) || 'No synopsis available.', art: 0, source: mock ? 'tmdb-mock' : 'tmdb',
     posterUrl: mock ? `http://127.0.0.1:8787/v1/mock-art/${item.id % 8}` : image(item.poster_path, 'w500'),
@@ -68,6 +70,8 @@ function createProxy({apiKey = '', mock = true, fetcher = fetch} = {}) {
         const kind = url.searchParams.get('kind') || 'all';
         const query = (url.searchParams.get('query') || '').trim().toLowerCase();
         if (!['all', 'movie', 'series'].includes(kind) || query.length > 80) { send(400, {error: 'Invalid catalogue query'}); return; }
+        const category = url.searchParams.get('category') || 'All';
+        if (category !== 'All' && (!Object.hasOwn(genres, category) || kind === 'all' || query)) { send(400, {error: 'Invalid catalogue category'}); return; }
         let page = 1;
         const cursor = url.searchParams.get('cursor');
         if (cursor) {
@@ -75,14 +79,14 @@ function createProxy({apiKey = '', mock = true, fetcher = fetch} = {}) {
           try { decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString()); }
           catch { send(400, {error: 'Invalid cursor'}); return; }
           if (!decoded || typeof decoded !== 'object') { send(400, {error: 'Invalid cursor'}); return; }
-          if (decoded.kind !== kind || decoded.query !== query || !Number.isInteger(decoded.page) || decoded.page < 2 || decoded.page > 50) {
+          if (decoded.kind !== kind || decoded.query !== query || (decoded.category || 'All') !== category || !Number.isInteger(decoded.page) || decoded.page < 2 || decoded.page > 50) {
             send(400, {error: 'Cursor does not belong to this query'}); return;
           }
           page = decoded.page;
         }
         const type = kind === 'series' ? 'tv' : kind;
-        const route = query ? `/search/${type === 'all' ? 'multi' : type}` : kind === 'all' ? '/trending/all/week' : `/${type}/popular`;
-        const result = await upstream(route, {page, language: 'en-US', include_adult: false, ...(query ? {query} : {})}, controller.signal);
+        const route = category !== 'All' ? `/discover/${type}` : query ? `/search/${type === 'all' ? 'multi' : type}` : kind === 'all' ? '/trending/all/week' : `/${type}/popular`;
+        const result = await upstream(route, {page, language: 'en-US', include_adult: false, ...(query ? {query} : {}), ...(category !== 'All' ? {with_genres: genres[category][kind], sort_by: 'popularity.desc'} : {})}, controller.signal);
         if (!Array.isArray(result.results)) { throw new Error('TMDB returned an invalid catalogue.'); }
         const seen = new Set();
         const films = result.results.slice(0, 20).flatMap(item => {
@@ -95,12 +99,12 @@ function createProxy({apiKey = '', mock = true, fetcher = fetch} = {}) {
         const rows = Array.from({length: Math.ceil(films.length / 5)}, (_, i) => ({id: `tmdb-page-${page}-row-${i}`,
           title: ['Popular stories', 'Worth exploring', 'The poster collection', 'More discoveries'][i], format: i < 2 ? 'landscape' : 'poster', entries: films.slice(i * 5, i * 5 + 5)}));
         const nextCursor = page < Math.min(Number(result.total_pages) || 1, 50)
-          ? Buffer.from(JSON.stringify({kind, query, page: page + 1})).toString('base64url') : null;
+          ? Buffer.from(JSON.stringify({kind, query, category, page: page + 1})).toString('base64url') : null;
         send(200, {rows, nextCursor, source: mock ? 'tmdb-mock' : 'tmdb', attribution: notice});
       } else if (url.pathname === '/v1/details') {
         const match = /^tmdb:(movie|series):(\d+)$/.exec(url.searchParams.get('id') || '');
         if (!match || !validId(match[2])) { send(400, {error: 'Invalid title identity'}); return; }
-        const result = await upstream(`/${match[1] === 'movie' ? 'movie' : 'tv'}/${match[2]}`, {append_to_response: 'credits,recommendations,similar', language: 'en-US'}, controller.signal);
+        const result = await upstream(`/${match[1] === 'movie' ? 'movie' : 'tv'}/${match[2]}`, {append_to_response: `credits,recommendations,similar,${match[1] === 'movie' ? 'release_dates' : 'content_ratings'}`, language: 'en-US'}, controller.signal);
         const film = mapFilm(result, match[1], mock);
         if (!film) { throw new Error('TMDB returned invalid details.'); }
         const castIds = new Set();

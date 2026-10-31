@@ -16,6 +16,7 @@ struct NavigationConfig {
   bool rtl{};  // Row order runs from right to left when explicitly enabled.
   bool trap{};
   bool entryReady{true};
+  bool restoreOnEntry{}; // Opt-in history/preference instead of adjacent-rail anchoring.
   bool operator==(const NavigationConfig&) const = default;
 };
 

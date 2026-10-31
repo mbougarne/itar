@@ -11,6 +11,7 @@ export interface NativeProps extends ViewProps {
   boundary?: WithDefault<'stop' | 'wrap' | 'parent', 'stop'>;
   trap?: WithDefault<boolean, false>;
   entryReady?: WithDefault<boolean, true>;
+  restoreOnEntry?: WithDefault<boolean, false>;
   preferredKey?: string;
 }
 export default codegenNativeComponent<NativeProps>('ItarScope') as HostComponent<NativeProps>;

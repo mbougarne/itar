@@ -92,6 +92,7 @@ NodeRecord record(const ItarRecord& value) {
   output.navigation.boundary = static_cast<Boundary>(value.boundary);
   output.navigation.rtl = flag(value.rtl); output.navigation.trap = flag(value.trap);
   output.navigation.entryReady = flag(value.entry_ready);
+  output.navigation.restoreOnEntry = flag(value.restore_on_entry);
   return output;
 }
 template <class Function>
@@ -223,7 +224,8 @@ extern "C" ItarRequestResult itar_engine_restore_scope(ItarEngine *engine, uint6
     const auto scope = engine->state.snapshot().registry.find(key(bytes));
     const auto *record = engine->state.snapshot().registry.lookup(scope);
     if (!record || !record->scope || !record->active || !record->navigation.entryReady) return {RequestStatus::unavailable, {}};
-    const InputContext input{engine->state.surface(), scope, InputOwner::engine, engine->state.snapshot().inputFocus};
+    // The destination can differ from the source scope; authority is the surface.
+    const InputContext input{engine->state.surface(), {}, InputOwner::engine, engine->state.snapshot().inputFocus};
     if (const auto *remembered = engine->state.history(scope);
         remembered && logicalTarget(engine->state, engine->state.snapshot().registry.find(*remembered))) {
       auto options = engine->collections.options(*remembered, deadline);

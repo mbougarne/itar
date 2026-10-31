@@ -1,5 +1,9 @@
 # OTT showcase checkpoint and next work
 
+31 October: the owner resumed implementation. See the [redesign evidence and
+joint focus checklist](ott-redesign-2026-10-31.md). The stop/draft instructions
+below describe the superseded 28 October checkpoint, not the current request.
+
 The current feature branch is a work-in-progress checkpoint for review. Stop new
 implementation at this point; keep the PR draft and do not merge automatically.
 Earlier targeted fixes and passing regressions do not mean all focus behavior

@@ -31,6 +31,7 @@ public final class ItarSurfaceHost: UIView {
     @objc public var onCollectionRecord: ((NSDictionary) -> Void)?
     @objc public func prepareCollection(_ payload: String) { collections.acknowledge(payload) }
     var preferredToken: ItarToken?
+    var entryWork: DispatchWorkItem?
     weak var preferred: ItarTargetHost?
     var covered = false
     var presentation: ApplePresentation?
@@ -108,6 +109,7 @@ public final class ItarSurfaceHost: UIView {
     }
 
     @objc public func shutdown() {
+        entryWork?.cancel(); entryWork = nil
         if dispatcher?.closed == false { surfaceRecord("disposed") }
         collections.close()
         collectionInput.isEnabled = false
@@ -274,6 +276,7 @@ public final class ItarSurfaceHost: UIView {
             record.order = collections.entry(scope.key)?.order ?? 0
             record.scope = 1; record.active = view.active ? 1 : 0; record.enabled = 1
             record.entry_ready = view.entryReady ? 1 : 0
+            record.restore_on_entry = view.restoreOnEntry ? 1 : 0
             record.layout = view.layout; record.boundary = view.boundary; record.trap = view.trap ? 1 : 0
             mutations.append(EngineMutation(kind: scope.node.slot == 0 ? 0 : 1, key: scope.key,
                 parent: view.parentKey, expected: scope.node, record: record,

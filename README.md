@@ -1,6 +1,13 @@
 # itar
 أطار - Itar a C++ focus library for OTT streaming TV apps
 
+**Beta — actively developed and unfinished.** APIs and behavior may change.
+This repository is ready for code review and experimental testing, not production
+adoption. Bug reports and reproducible focus scenarios are welcome; include the
+platform, device/runtime, navigation steps, and expected versus observed focus.
+See the [TV demo](docs/ott-app.md) and [validation evidence](docs/validation/phase11-review.md)
+for setup and current limitations.
+
 Itar is a new focus-management library for TV and set-top-box applications built with React Native. Its foundation is an independent C++20 engine designed around explicit ownership, predictable resource use, data locality, and clear platform boundaries.
 
 Native focus styles and accessibility are core requirements: supported styles must update without a React rerender, and accessibility navigation, activation, and restoration must be designed and validated alongside every feature.

@@ -5,15 +5,16 @@ const {tmpdir} = require('node:os');
 const path = require('node:path');
 const ts = require('typescript');
 const temporary = mkdtempSync(path.join(tmpdir(), 'itar-ott-catalog-'));
-let catalog, CatalogueSession;
+let catalog, CatalogueSession, layoutRows;
 try {
-  for (const name of ['catalog', 'session']) {
+  for (const name of ['catalog', 'session', 'browse-layout']) {
     const compiled = ts.transpileModule(readFileSync(path.join(__dirname, `../apps/probe/ott/src/${name}.ts`), 'utf8'), {
       compilerOptions: {module: ts.ModuleKind.CommonJS},
     });
     writeFileSync(path.join(temporary, `${name}.js`), compiled.outputText);
   }
   catalog = require(path.join(temporary, 'catalog.js'));
+  ({layoutRows} = require(path.join(temporary, 'browse-layout.js')));
   ({CatalogueSession} = require(path.join(temporary, 'session.js')));
 } finally { rmSync(temporary, {recursive: true}); }
 const options = () => ({signal: new AbortController().signal, delay: 0});
@@ -91,11 +92,56 @@ test('a larger provider preserves prior targets and explicitly caps the viewing 
   const session = new CatalogueSession('all', '', () => ({delay: 0, fail: false}), async () => {
     const entries = catalog.films.slice(page * 20, ++page * 20);
     return {rows: [{id: `page-${page}`, title: 'Page', format: 'landscape', entries}], nextCursor: String(page), source: 'tmdb-mock'};
-  });
+  }, 48);
   await session.start();const original = session.snapshot().rows[0];
   await session.loadMore();await session.loadMore();
   assert.equal(session.snapshot().rows.reduce((count, row) => count + row.entries.length, 0), 48);
   assert.equal(session.snapshot().rows[0], original);
   assert.equal(session.snapshot().ended, true);assert.equal(session.snapshot().limitReached, true);
   await session.loadMore();assert.equal(page, 3);session.dispose();
+});
+
+test('browse continues beyond48 while a bounded home source stops at80 without removing prior rows', async () => {
+  const provider = async (_kind, _query, cursor) => {
+    const page = Number(cursor || 0);
+    return {rows: [{id: `page-${page}`, title: 'Page', format: 'landscape', entries: Array.from({length: 20}, (_, i) => ({...catalog.films[0], id: `movie:${page * 20 + i}`}))}], nextCursor: String(page + 1), source: 'tmdb-mock'};
+  };
+  const home = new CatalogueSession('all', '', () => ({delay: 0, fail: false}), provider, 80);
+  await home.start();for (let i = 0; i < 8; i++) { await home.loadMore(); }assert.equal(home.snapshot().rows.length, 4);assert.equal(home.snapshot().limitReached, true);home.dispose();
+  const browse = new CatalogueSession('movie', '', () => ({delay: 0, fail: false}), provider);
+  await browse.start();const first = browse.snapshot().rows[0];
+  for (let i = 0; i < 20; i++) { await browse.loadMore(); }
+  assert.equal(browse.snapshot().rows.flatMap(row => row.entries).length, 160);
+  assert.equal(browse.snapshot().rows[0], first);assert.equal(browse.snapshot().limitReached, true);await browse.nextWindow();assert.equal(browse.snapshot().rows[0].entries[0].id, 'movie:160');browse.dispose();
+});
+test('repeated cursors cannot append the same logical page', async () => {
+  const session = new CatalogueSession('all', '', () => ({delay: 0, fail: false}), async () => ({rows: [{id: 'same', entries: [catalog.films[0]]}], nextCursor: 'same', source: 'tmdb-mock'}));
+  await session.start();const first = session.snapshot().rows;
+  await session.loadMore();assert.equal(session.snapshot().rows, first);assert.match(session.snapshot().error, /did not advance/);session.dispose();
+});
+
+test('Home packs sixty distinct titles into four fifteen-title rails with stable append positions', () => {
+  const page = n => ({id: `page-${n}`, entries: Array.from({length: 20}, (_, i) => ({...catalog.films[0], id: `movie:${n * 20 + i}`}))});
+  const initial = layoutRows([page(0)], 'home');
+  const rows = layoutRows([page(0), page(1), page(2), page(0)], 'home');
+  assert.deepEqual(rows.map(row => row.entries.length), [15, 15, 15, 15]);
+  assert.equal(new Set(rows.flatMap(row => row.entries.map(f => f.id))).size, 60);
+  rows.forEach((row, index) => assert.deepEqual(row.entries.slice(0, 5), initial[index].entries));
+  assert.deepEqual(rows.map(row => row.format), ['landscape', 'landscape', 'poster', 'poster']);
+});
+test('grid has five landscape titles per row and fills a partial row without dropping page-boundary items', () => {
+  const first = {id: 'first', entries: catalog.films.slice(0, 8)};
+  const next = {id: 'next', entries: catalog.films.slice(7, 16)};
+  const rows = layoutRows([first, next], 'grid');
+  assert.deepEqual(rows.map(row => row.entries.length), [5, 5, 5, 1]);
+  assert.deepEqual(rows.flatMap(row => row.entries), catalog.films.slice(0, 16));
+  assert.ok(rows.every(row => row.format === 'landscape'));
+  assert.deepEqual(rows[0], layoutRows([first], 'grid')[0]);
+});
+test('fixture categories filter both media kinds without treating a genre as a title search', async () => {
+  for (const kind of ['movie', 'series']) {
+    const page = await catalog.fetchPage(kind, '', null, {...options(), category: 'Drama'});
+    assert.ok(page.rows.length);
+    assert.ok(page.rows.flatMap(row => row.entries).every(f => f.kind === kind && f.category === 'Drama'));
+  }
 });

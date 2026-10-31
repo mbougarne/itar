@@ -126,6 +126,14 @@ _host.onSurfaceRecord = ^(NSDictionary *record) {
   _host = [[ItarTargetHost alloc] initWithFrame:self.bounds];
   self.contentView = _host;
   __weak ItarTargetComponentView *weakSelf = self;
+  _host.onAdjust = ^(NSDictionary *record) {
+    ItarTargetComponentView *owner = weakSelf;
+    if (!owner || !owner->_eventEmitter) return;
+    static_cast<const ItarTargetEventEmitter &>(*owner->_eventEmitter).onAdjust({
+      value(record, @"lifetime"), value(record, @"occurrenceKey"), value(record, @"mount"),
+      value(record, @"sequence"), value(record, @"source"), value(record, @"provider"), value(record, @"registration"),
+      value(record, @"delta")});
+  };
   _host.onActivate = ^(NSDictionary *record) {
     ItarTargetComponentView *owner = weakSelf;
     if (!owner || !owner->_eventEmitter) return;
@@ -148,8 +156,11 @@ _host.onSurfaceRecord = ^(NSDictionary *record) {
   _host.outlineInsetBottom = next.outlineInsetBottom;
   _host.order = next.order;
   _host.targetEnabled = next.enabled;
+  _host.adjustable = next.adjustable;
   _host.baseColor = RCTUIColorFromSharedColor(next.baseColor);
   _host.focusColor = RCTUIColorFromSharedColor(next.focusColor);
+  _host.cornerRadius = next.cornerRadius;
+  _host.focusBackgroundColor = RCTUIColorFromSharedColor(next.focusBackgroundColor);
 }
 - (BOOL)isAccessibilityElement { return NO; }
 - (NSObject *)accessibilityElement { return _host; }
@@ -189,6 +200,7 @@ _host.onSurfaceRecord = ^(NSDictionary *record) {
   int32_t boundary = next.boundary == ItarScopeBoundary::Wrap ? 1 : next.boundary == ItarScopeBoundary::Parent ? 2 : 0;
   [_host configure:text(next.scopeKey) parent:text(next.parentScopeKey) active:next.active layout:layout
           boundary:boundary trap:next.trap entryReady:next.entryReady preferred:text(next.preferredKey)];
+  _host.restoreOnEntry = next.restoreOnEntry;
 }
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)child index:(NSInteger)index { [_host insertSubview:child atIndex:index]; }
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)child index:(NSInteger)index { [child removeFromSuperview]; }

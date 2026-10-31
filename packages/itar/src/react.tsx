@@ -1,6 +1,6 @@
 import React, {createContext, memo, useCallback, useContext, useEffect, useLayoutEffect,
   useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {AccessibilityInfo, Platform, View} from 'react-native';
+import {AccessibilityInfo, Platform, StyleSheet, View} from 'react-native';
 import type {ColorValue, StyleProp, ViewStyle} from 'react-native';
 import NativeSurface, {Commands} from './specs/ItarSurfaceNativeComponent';
 import NativeScope from './specs/ItarScopeNativeComponent';
@@ -58,9 +58,15 @@ export function FocusProvider({children, active = true, style, testID}: {
 }
 
 export function FocusScope({id, active = true, layout = 'spatial', boundary = 'stop', trap = false,
-  entryReady = true, preferredKey, children, style, testID}: {
+  entryReady = true, restoreOnEntry = false, preferredKey, children, style, testID}: {
   id: string; active?: boolean; layout?: 'spatial' | 'row' | 'column'; boundary?: 'stop' | 'wrap' | 'parent';
-  trap?: boolean; entryReady?: boolean; preferredKey?: string; children: React.ReactNode;
+  trap?: boolean;
+  /** Gate automatic native entry while preparing content; explicit focusByKey still works.
+   * Commit false before removing the source, then reopen after the request settles.
+   * Existing input focus and screen-reader ownership are preserved. */
+  entryReady?: boolean; preferredKey?: string; children: React.ReactNode;
+  /** Restore valid native history (then preference) on directional scope entry. */
+  restoreOnEntry?: boolean;
   style?: StyleProp<ViewStyle>; testID?: string;
 }) {
   useStore();
@@ -74,7 +80,7 @@ export function FocusScope({id, active = true, layout = 'spatial', boundary = 's
   const content = <ScopeContext.Provider value={context}>{children}</ScopeContext.Provider>;
   return supported ? <NativeScope scopeKey={context.key} parentScopeKey={parent.key} active={context.active}
     collectionDataset={collectionDataset}
-    layout={layout} boundary={boundary} trap={trap} entryReady={entryReady}
+    layout={layout} boundary={boundary} trap={trap} entryReady={entryReady} restoreOnEntry={restoreOnEntry}
     preferredKey={preferredKey === undefined ? '' : nativeTargetKey(preferredKey)} style={style} testID={testID}>
     {content}
   </NativeScope> : <View style={style} testID={testID}>{content}</View>;
@@ -91,33 +97,42 @@ export type FocusableProps = {
   enabled?: boolean;
   order?: number;
   style?: StyleProp<ViewStyle>;
-  focusStyle?: Readonly<{accentColor: ColorValue}>;
+  focusStyle?: Readonly<{accentColor: ColorValue; backgroundColor?: ColorValue}>;
   baseAccentColor?: ColorValue;
   onPress?(activation: Activation): void;
+  onAdjust?(delta: -1 | 1): void;
   testID?: string;
 };
 // Render allocates only an identity. Registration is published at host/effect commit.
 export const Focusable = memo(function FocusableButton({occurrenceKey: key, contentId, accessibilityLabel,
-  enabled = true, order = 0, style, focusStyle, baseAccentColor, onPress, testID, displayLabel, labelPlacement = 'center', labelSize = 14, outlineInsetBottom = 0}: FocusableProps) {
+  enabled = true, order = 0, style, focusStyle, baseAccentColor, onPress, onAdjust, testID, displayLabel, labelPlacement = 'center', labelSize = 14, outlineInsetBottom = 0}: FocusableProps) {
   const store = useStore();
   const scope = useContext(ScopeContext);
   const collectionDataset = useContext(CollectionDatasetContext);
   const lease = useMemo(() => ({token: {key, scope: scope.key}, registration: store.registrationId()}), [store, key, scope.key]);
-  const committed = useRef({key, contentId, onPress});
+  const committed = useRef({key, contentId, onPress, onAdjust});
   if (!key || !accessibilityLabel || !Number.isInteger(order) || order < -2147483648 || order > 2147483647) {
     throw new Error('Focusable requires an occurrence key, label and Int32 order');
   }
   useLayoutEffect(() => store.register(key, lease.token, lease.registration, false, false), [store, key, lease]);
   useLayoutEffect(() => {
-    committed.current = {key, contentId, onPress};
+    committed.current = {key, contentId, onPress, onAdjust};
     store.updateTarget(key, lease.token, enabled, scope.active);
-  }, [store, key, lease, contentId, onPress, enabled, scope.active]);
+  }, [store, key, lease, contentId, onPress, onAdjust, enabled, scope.active]);
+  const radius = StyleSheet.flatten(style)?.borderRadius;
   if (!supported) { return <View style={style} testID={testID} accessibilityLabel={accessibilityLabel} />; }
   return <NativeTarget occurrenceKey={nativeTargetKey(key)} scopeKey={scope.key} registrationId={lease.registration}
     collectionDataset={collectionDataset}
     label={accessibilityLabel} displayLabel={displayLabel ?? accessibilityLabel} labelPlacement={labelPlacement}
     labelSize={labelSize} outlineInsetBottom={outlineInsetBottom} enabled={enabled} order={order} style={style} testID={testID}
-    baseColor={baseAccentColor} focusColor={focusStyle?.accentColor}
+    cornerRadius={typeof radius === 'number' && Number.isFinite(radius) ? Math.max(0, radius) : 6}
+    baseColor={baseAccentColor} focusColor={focusStyle?.accentColor} focusBackgroundColor={focusStyle?.backgroundColor}
+    adjustable={onAdjust !== undefined}
+    onAdjust={event => {
+      const record = event.nativeEvent;
+      if (record.delta !== '-1' && record.delta !== '1') { return; }
+      if (store.activation(record, committed.current.key, lease.token)) { committed.current.onAdjust?.(record.delta === '1' ? 1 : -1); }
+    }}
     onActivate={event => {
       const activation = store.activation(event.nativeEvent, committed.current.key, lease.token);
       if (activation) { committed.current.onPress?.({...activation, contentId: committed.current.contentId}); }
