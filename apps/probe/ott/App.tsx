@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, Image, Platform, Text, View } from 'react-native';
+import { Alert, BackHandler, Image, Platform, Text, View } from 'react-native';
 import {
   FocusProvider,
   FocusScope,
@@ -53,6 +53,10 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
   const [contrast, setContrast] = useState(false);
   const [slow, setSlow] = useState(false);
   const [notice, setNotice] = useState('');
+  const [entryVersion, setEntryVersion] = useState(0);
+  const [entering, setEntering] = useState(true);
+  const [pendingEntry, setPendingEntry] = useState<(() => void) | null>(null);
+  const exitPrompt = useRef(false);
   const fail = useRef(false);
   const [failureArmed, setFailureArmed] = useState(false);
 
@@ -93,29 +97,63 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
   const returning = useRef(false);
   const bookmark = useRef<string | null>(null);
   const entered = useRef('');
-  const openPlayer = useCallback(() => setPlaying(true), []);
+
+  const entryRequest = useRef<ReturnType<typeof commands.focusByKey> | null>(
+    null,
+  );
+
+  const beginEntry = useCallback((change: () => void) => {
+    // Keep Android's temporary fallback focus out of sidebar history while
+    // the previous content unmounts and the next target becomes ready.
+    entryRequest.current?.cancel();
+    entryRequest.current = null;
+    entered.current = '';
+    setEntering(true);
+    setPendingEntry(() => change);
+  }, []);
+
+  useEffect(() => {
+    // Commit the inactive sidebar before removing the currently focused content.
+    if (pendingEntry) {
+      pendingEntry();
+      setPendingEntry(null);
+    }
+  }, [pendingEntry]);
+
+  const openPlayer = useCallback(
+    () => beginEntry(() => setPlaying(true)),
+    [beginEntry],
+  );
 
   const closeFilm = useCallback(() => {
-    entered.current = '';
-    setFilm(null);
-  }, []);
+    beginEntry(() => setFilm(null));
+  }, [beginEntry]);
 
   const closePlayer = useCallback(() => {
-    entered.current = '';
-    setPlaying(false);
-  }, []);
+    beginEntry(() => setPlaying(false));
+  }, [beginEntry]);
 
-  const openFilm = useCallback((value: Film) => {
-    if (!filmRef.current) {
-      bookmark.current = focusRef.current.occurrenceKey;
-    }
+  const openFilm = useCallback(
+    (value: Film) => {
+      if (!filmRef.current) {
+        bookmark.current = focusRef.current.occurrenceKey;
+      }
 
-    entered.current = '';
-    setNotice('');
-    setFilm(value);
-  }, []);
+      beginEntry(() => setFilm(value));
+      setNotice('');
+    },
+    [beginEntry],
+  );
 
   const page = `${profile}:${mode}:${screen}`;
+
+  const restoreNavigation = useCallback(() => {
+    commands.restoreScope(['navigation']).result.then(result => {
+      if (result.status !== 'applied' && result.status !== 'cancelled') {
+        setNotice('Navigation focus could not be restored.');
+      }
+    });
+  }, [commands]);
 
   useEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -135,17 +173,67 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
         return true;
       }
 
-      if (screen !== 'Home') {
-        setScreen('Home');
+      if (screen === 'Profile' || screen === 'Settings') {
+        returning.current = false;
+        beginEntry(() => setScreen('Home'));
 
         return true;
       }
 
-      return false;
+      if (!expanded) {
+        entryRequest.current?.cancel();
+        entryRequest.current = null;
+        entered.current = `${page}:${entryVersion}`;
+        setEntering(false);
+        restoreNavigation();
+
+        return true;
+      }
+
+      if (!exitPrompt.current) {
+        exitPrompt.current = true;
+
+        const cancelExit = () => {
+          exitPrompt.current = false;
+          restoreNavigation();
+        };
+
+        Alert.alert(
+          'Exit Itar?',
+          Platform.OS === 'android'
+            ? 'Would you like to exit the application?'
+            : 'Use the Home button on your remote to leave Itar.',
+          Platform.OS === 'android'
+            ? [
+                { text: 'Cancel', style: 'cancel', onPress: cancelExit },
+                { text: 'Exit', onPress: () => BackHandler.exitApp() },
+              ]
+            : [{ text: 'Cancel', onPress: cancelExit }],
+          {
+            cancelable: true,
+            onDismiss: cancelExit,
+          },
+        );
+      }
+
+      return true;
     });
 
     return () => handler.remove();
-  }, [authenticated, guideOpen, film, playing, screen, closeFilm, closePlayer]);
+  }, [
+    authenticated,
+    guideOpen,
+    film,
+    playing,
+    screen,
+    expanded,
+    closeFilm,
+    closePlayer,
+    restoreNavigation,
+    beginEntry,
+    page,
+    entryVersion,
+  ]);
 
   useEffect(() => {
     if (
@@ -154,17 +242,12 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
       guideOpen ||
       film ||
       playing ||
-      returning.current
+      screen !== 'Profile'
     ) {
       return;
     }
 
-    const key =
-      screen === 'Profile'
-        ? occurrenceKey('profiles', profile)
-        : occurrenceKey('nav', screen);
-
-    const request = commands.focusByKey(key);
+    const request = commands.focusByKey(occurrenceKey('profiles', profile));
 
     return () => request.cancel();
   }, [
@@ -179,52 +262,71 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
     page,
   ]);
 
-  const collectionReady = useCallback(() => {
-    if (playing || guideOpen) {
-      return;
-    }
+  const collectionReady = useCallback(
+    (initialKey?: string) => {
+      if (playing || guideOpen || pendingEntry) {
+        return;
+      }
 
-    const route = film ? `details:${film.id}` : page;
+      const route = film ? `details:${film.id}` : `${page}:${entryVersion}`;
 
-    if (entered.current === route) {
-      return;
-    }
+      if (entered.current === route) {
+        return;
+      }
 
-    entered.current = route;
+      const key = film
+        ? occurrenceKey('details', 'play')
+        : returning.current
+        ? bookmark.current
+        : initialKey;
 
-    if (!film && !returning.current) {
-      return;
-    }
+      if (!key) {
+        return;
+      }
 
-    const key = film ? occurrenceKey('details', 'play') : bookmark.current;
+      entered.current = route;
+      returning.current = !!film;
 
-    returning.current = !!film;
+      const request = commands.focusByKey(key);
 
-    if (key) {
-      commands.focusByKey(key).result.then(result => {
+      entryRequest.current = request;
+
+      request.result.then(result => {
+        if (entryRequest.current !== request) {
+          return;
+        }
+
+        entryRequest.current = null;
+        setEntering(false);
+
         if (result.status !== 'applied' && result.status !== 'cancelled') {
           setNotice('Continue with your remote.');
         }
       });
-    }
-  }, [commands, film, page, playing, guideOpen]);
+    },
+    [commands, film, page, playing, guideOpen, entryVersion, pendingEntry],
+  );
 
   const navigate = (name: Screen) => {
     returning.current = false;
-    setFilm(null);
+
+    beginEntry(() => {
+      setEntryVersion(value => value + 1);
+      setFilm(null);
+      setScreen(name);
+    });
+
     setNotice('');
-    setScreen(name);
   };
 
   const closeGuide = useCallback(() => {
-    entered.current = '';
-    setGuideOpen(false);
-  }, []);
+    beginEntry(() => setGuideOpen(false));
+  }, [beginEntry]);
 
   const openGuide = () => {
     bookmark.current = focusRef.current.occurrenceKey;
     returning.current = true;
-    setGuideOpen(true);
+    beginEntry(() => setGuideOpen(true));
   };
 
   if (!authenticated) {
@@ -258,8 +360,11 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
           highContrast={contrast}
           onSelect={name => {
             returning.current = false;
-            setProfile(name);
-            setScreen('Home');
+
+            beginEntry(() => {
+              setProfile(name);
+              setScreen('Home');
+            });
           }}
         />
       </FocusScope>
@@ -271,10 +376,11 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
       <View style={[s.shell, (playing || guideOpen) && s.hidden]}>
         <View style={s.sidebarSlot}>
           <FocusScope
-            id="navigation"
-            active={!playing && !guideOpen}
+            id={screen === 'Settings' ? 'account-navigation' : 'navigation'}
+            active={!playing && !guideOpen && !entering}
             layout="column"
             boundary="parent"
+            preferredKey={occurrenceKey('nav', screen)}
             style={[
               s.sidebar,
               s.sidebarOverlay,
@@ -394,10 +500,16 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
               {screen === 'Search' && <Search {...options} />}
               {screen === 'Settings' && (
                 <Settings
+                  onReady={collectionReady}
                   mode={mode}
                   onMode={() => {
                     returning.current = false;
-                    setMode(value => (value === 'proxy' ? 'fixture' : 'proxy'));
+
+                    beginEntry(() =>
+                      setMode(value =>
+                        value === 'proxy' ? 'fixture' : 'proxy',
+                      ),
+                    );
                   }}
                   id={page}
                   contrast={contrast}
@@ -416,6 +528,7 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
           </FocusScope>
           <FocusScope
             id="details"
+            boundary="parent"
             active={!!film && !playing}
             style={[s.fill, !film && s.hidden]}
           >

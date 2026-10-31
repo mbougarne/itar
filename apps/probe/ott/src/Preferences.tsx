@@ -88,6 +88,7 @@ export function Profiles({
 }
 
 export function Settings({
+  onReady,
   id,
   contrast,
   onContrast,
@@ -99,6 +100,7 @@ export function Settings({
   mode,
   onMode,
 }: {
+  onReady?: (initialKey?: string) => void;
   mode: ProviderMode;
   onMode: () => void;
   id: string;
@@ -114,6 +116,11 @@ export function Settings({
   const { width } = useWindowDimensions();
   const [height, setHeight] = useState(0);
   const viewport = Math.max(200 * u, width - 440 * u);
+
+  const reportReady = useCallback(
+    () => onReady?.(occurrenceKey(id, 'contrast')),
+    [id, onReady],
+  );
 
   const model = useMemo(() => {
     const values = [
@@ -234,6 +241,7 @@ export function Settings({
         {height > 0 && (
           <FocusVirtualizedRails
             id="settings-controls"
+            onReady={reportReady}
             rails={model.rails}
             itemExtent={viewport}
             viewportExtent={viewport}

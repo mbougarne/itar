@@ -1,5 +1,7 @@
 # Itar Cinema TV showcase
 
+Latest focus work: [restoration fixes and native regression results](ott-focus-restoration-2026-10-31.md).
+
 Current: [31 October redesign and verification](ott-redesign-2026-10-31.md).
 The sections below retain the earlier checkpoint history.
 

@@ -51,6 +51,7 @@ function Playback({ title, onClose }: { title: string; onClose: () => void }) {
   const [buffering, setBuffering] = useState(true);
   const [time, setTime] = useState(0);
   const position = useRef(0);
+  const ended = useRef(false);
   const pendingSeek = useRef<number | null>(null);
   const commands = useFocusCommands();
   const ready = useFocusReady();
@@ -90,6 +91,7 @@ function Playback({ title, onClose }: { title: string; onClose: () => void }) {
 
     const next = Math.max(0, Math.min(duration, value));
 
+    ended.current = false;
     position.current = next;
     pendingSeek.current = next;
     setTime(next);
@@ -97,6 +99,22 @@ function Playback({ title, onClose }: { title: string; onClose: () => void }) {
   };
 
   const seek = (offset: number) => seekTo(position.current + offset);
+
+  const togglePlayback = () => {
+    if (
+      paused &&
+      loaded &&
+      duration > 0 &&
+      (ended.current || position.current >= duration - 1)
+    ) {
+      seekTo(0);
+      setPaused(false);
+
+      return;
+    }
+
+    setPaused(value => !value);
+  };
 
   const clock = (value: number) =>
     `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(
@@ -122,6 +140,7 @@ function Playback({ title, onClose }: { title: string; onClose: () => void }) {
         playWhenInactive={false}
         progressUpdateInterval={2000}
         onLoad={event => {
+          ended.current = false;
           setDuration(event.duration);
           setLoaded(true);
           setError(false);
@@ -154,6 +173,15 @@ function Playback({ title, onClose }: { title: string; onClose: () => void }) {
           setLoaded(false);
         }}
         onEnd={() => {
+          // A completion from the old end position can arrive after replay seeks.
+          if (
+            pendingSeek.current !== null &&
+            pendingSeek.current < duration - 1
+          ) {
+            return;
+          }
+
+          ended.current = true;
           pendingSeek.current = null;
           position.current = duration;
           setTime(duration);
@@ -187,7 +215,7 @@ function Playback({ title, onClose }: { title: string; onClose: () => void }) {
               duration,
             )}. Left or right seeks 10 seconds. Select plays or pauses.`}
             onAdjust={delta => seek(delta * 10)}
-            onPress={() => setPaused(value => !value)}
+            onPress={togglePlayback}
             focusStyle={timelineFocusStyle}
             style={s.timelineAction}
           />
@@ -233,7 +261,7 @@ function Playback({ title, onClose }: { title: string; onClose: () => void }) {
             label={paused ? 'Play' : 'Pause'}
             icon={paused ? icons.play : icons.pause}
             size={88}
-            onPress={() => setPaused(value => !value)}
+            onPress={togglePlayback}
           />
           <IconAction
             order={1}

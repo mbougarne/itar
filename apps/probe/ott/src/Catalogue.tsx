@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { FocusScope, occurrenceKey } from 'itar/react';
 import Browse from './Browse';
@@ -9,6 +9,12 @@ import { useDesign } from './theme';
 export default function Catalogue(props: React.ComponentProps<typeof Browse>) {
   const { s } = useDesign();
   const [category, setCategory] = useState<Category>('All');
+  const { id, onReady } = props;
+
+  const reportReady = useCallback(
+    () => onReady?.(occurrenceKey(id, 'category', 'All')),
+    [id, onReady],
+  );
 
   return (
     <View style={s.fill}>
@@ -34,6 +40,7 @@ export default function Catalogue(props: React.ComponentProps<typeof Browse>) {
       <Browse
         key={category}
         {...props}
+        onReady={reportReady}
         id={`${props.id}:${category}`}
         category={category}
         grid

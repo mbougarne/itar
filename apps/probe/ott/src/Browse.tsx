@@ -63,7 +63,7 @@ export default function Browse({
   grid?: boolean;
   category?: Category;
   onGuide?: () => void;
-  onReady?: () => void;
+  onReady?: (initialKey?: string) => void;
   viewportWidth?: number;
   mode: ProviderMode;
   id: string;
@@ -415,6 +415,18 @@ export default function Browse({
     [model.titles, s.virtualHeading],
   );
 
+  const reportReady = useCallback(() => {
+    if (featured && !featuredFilm && state.loading) {
+      return;
+    }
+
+    onReady?.(
+      featured && featuredFilm
+        ? occurrenceKey(id, 'hero', featuredFilm.id)
+        : occurrenceKey(id, 'load-more'),
+    );
+  }, [featured, featuredFilm, state.loading, onReady, id]);
+
   return (
     <View style={s.fill}>
       {featured && featuredFilm && <Backdrop film={featuredFilm} />}
@@ -448,7 +460,7 @@ export default function Browse({
           <FocusVirtualizedRails
             active={active}
             onEndReached={!featured && !state.error ? loadMore : undefined}
-            onReady={onReady}
+            onReady={reportReady}
             id="catalogue"
             rails={model.rails}
             rowExtent={rowExtent}

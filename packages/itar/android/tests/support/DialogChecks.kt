@@ -3,6 +3,7 @@ package com.itar.adapter
 import android.view.View
 
 object DialogChecks {
+    fun hasWindowFocus(root: SurfaceView) = root.dialogs.currentSurface.hasWindowFocus()
     fun open(root: SurfaceView, opener: TargetView) {
         root.refreshGeometry()
         check(opener.requestFocus())

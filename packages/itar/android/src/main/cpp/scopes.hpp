@@ -12,7 +12,8 @@ inline std::int64_t scope(Session &s, int operation, std::span<const std::int64_
     const auto *record = registry.lookup(node);
     RequestResult result{RequestStatus::unavailable, {}};
     if (record && record->scope && record->active && record->navigation.entryReady && v[0] == 0) {
-      const InputContext input{s.state.surface(), node, InputOwner::engine, s.state.snapshot().inputFocus};
+      // The destination can differ from the source scope; authority is the surface.
+      const InputContext input{s.state.surface(), {}, InputOwner::engine, s.state.snapshot().inputFocus};
       if (const auto *remembered = s.state.history(node); remembered && logicalTarget(s.state, registry.find(*remembered)))
         result = s.transactions.requestFocus(*remembered, input, s.collections.options(*remembered, static_cast<TimePoint>(v[2])));
       else {

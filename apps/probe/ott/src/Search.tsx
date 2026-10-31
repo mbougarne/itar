@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { FocusScope, occurrenceKey } from 'itar/react';
 import Browse from './Browse';
@@ -19,7 +19,7 @@ export default function Search({
   mode,
   onReady,
 }: {
-  onReady?: () => void;
+  onReady?: (initialKey?: string) => void;
   mode: ProviderMode;
   id: string;
   active: boolean;
@@ -32,6 +32,11 @@ export default function Search({
   const [resultsWidth, setResultsWidth] = useState(0);
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
+
+  const reportReady = useCallback(
+    () => onReady?.(occurrenceKey(id, 'key', 'A')),
+    [id, onReady],
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => setQuery(text), 250);
@@ -128,7 +133,7 @@ export default function Search({
             : 'Suggested titles · Discover something new'}
         </Header>
         <Browse
-          onReady={onReady}
+          onReady={reportReady}
           viewportWidth={resultsWidth}
           mode={mode}
           id={id}

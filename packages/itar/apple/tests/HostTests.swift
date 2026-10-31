@@ -184,6 +184,22 @@ import UIKit
         XCTAssertEqual(root.classify(UIButton()).kind, 1)
         XCTAssertEqual(root.classify(nil).kind, 2)
     }
+    func testScopePreferenceWithoutHistoryFromAnotherScope() async throws {
+        let scope = ItarScopeHost(frame: root.bounds)
+        scope.configure("sidebar", parent: "", active: true, layout: 1, boundary: 0, trap: false, entryReady: true, preferred: "b")
+        root.addSubview(scope)
+        scope.addSubview(b)
+        b.scopeKey = "sidebar"
+        root.commitGeometry()
+        root.focus("a")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.a.isFocused }, object: nil)], timeout: 3)
+        var confirmed = false
+        root.onRequestRecord = {
+            if $0["command"] as? String == "first" && $0["status"] as? String == "confirmed" { confirmed = true }
+        }
+        root.restoreScopeRequest("sidebar", command: "first")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.b.isFocused && confirmed }, object: nil)], timeout: 3)
+    }
     func testCommittedScopeActivityAndNativeHistory() async throws {
         let scope = ItarScopeHost(frame: root.bounds)
         scope.configure("rail", parent: "", active: true, layout: 1, boundary: 0, trap: false, entryReady: true, preferred: "")
