@@ -57,7 +57,7 @@ jobs:
             echo 'C++ checks are NOT RUN: core/CMakeLists.txt does not exist yet. Only repository checks ran.' >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - uses: ruby/setup-ruby@824c0e29fdfc7d689c191c27acc969d2d04b7dd8 # v1
+      - uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1
         with:
           ruby-version: 3.3.6
           bundler: 2.6.9
@@ -151,7 +151,7 @@ jobs:
           cmdline-tools-version: '12266719'
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.1.12297006 cmake;3.22.1'
       - name: Cache Gradle dependencies
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.gradle/caches
