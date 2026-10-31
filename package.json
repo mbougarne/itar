@@ -14,6 +14,9 @@
   "scripts": {
     "typecheck": "node scripts/prepare-tv-types.cjs && tsc --noEmit",
     "lint": "eslint apps packages scripts --ext .js,.cjs,.ts,.tsx",
+    "lint:tv": "npm run lint -w itar-probe",
+    "format:tv": "npm run format -w itar-probe",
+    "check:tv": "npm run check -w itar-probe",
     "test": "node --test scripts/*.test.cjs",
     "build": "npm run build -w itar",
     "native:generate": "node scripts/generate-probe.cjs"

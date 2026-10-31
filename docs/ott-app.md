@@ -10,6 +10,31 @@ original `ProbeApp.tsx`, dependency versions and owner design references remain.
 Development Settings can open the original probes. The separate old `itar-ott`
 folder is untouched. No commit, push or PR was created.
 
+## Lint and formatting
+
+From the repository root:
+
+```sh
+npm run lint:tv       # ESLint; warnings fail the check
+npm run format:tv     # Apply Prettier and ESLint spacing fixes
+npm run check:tv      # Check lint and formatting without changing files
+npm run lint:fix -w itar-probe # Apply available ESLint fixes
+```
+
+These commands cover the app entrypoints, probe screens, OTT screens and app
+configuration. They reuse the pinned workspace ESLint 8.57.1 and Prettier 2.8.8.
+The app's `.prettierrc.cjs` defines formatting; generated Android/iOS projects,
+dependencies, design references and artwork metadata are excluded. CI runs
+`check:tv`. The initial formatting pass is mechanical and is separate from bug
+fixes; use `git diff -w` to help review it.
+
+The TV app's `.eslintrc.cjs` enforces spaces inside object/import braces, after
+commas and colons, and around operators and arrows. Blank lines separate imports
+from code, types, functions, multiline declarations/effects, control-flow blocks
+and returns. Short related declarations and simple state updates can stay grouped;
+at most one empty line is allowed. Prettier runs before ESLint fixes so padding
+rules see the final line wrapping, then runs again to normalize any other fixes.
+
 ## Content
 
 Home, Movies, Series, Search, Profile, Settings, title Details and Cast are

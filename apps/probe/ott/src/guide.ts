@@ -1,37 +1,93 @@
-import {useEffect, useState} from 'react';
-import {parseGuide, type Guide} from './guide-data';
-export {guideTime} from './guide-data';
-export type {Programme} from './guide-data';
-let cache: {at: number; data: unknown} | undefined;
+import { useEffect, useState } from 'react';
+import { parseGuide, type Guide } from './guide-data';
+
+export { guideTime } from './guide-data';
+
+export type { Programme } from './guide-data';
+
+let cache: { at: number; data: unknown } | undefined;
+
 export function useGuide(enabled: boolean) {
-  const [guide, setGuide] = useState<Guide | null>(null);const [error, setError] = useState('');const [attempt, retry] = useState(0);
+  const [guide, setGuide] = useState<Guide | null>(null);
+  const [error, setError] = useState('');
+  const [attempt, retry] = useState(0);
+
   useEffect(() => {
-    if (!enabled) { return; }
+    if (!enabled) {
+      return;
+    }
+
     const timer = setInterval(() => retry(value => value + 1), 30 * 60 * 1000);
+
     return () => clearInterval(timer);
   }, [enabled]);
+
   useEffect(() => {
-    if (!enabled) { return; }
-    const request = new AbortController();let live = true;setError('');
+    if (!enabled) {
+      return;
+    }
+
+    const request = new AbortController();
+    let live = true;
+
+    setError('');
+
     const timer = setTimeout(() => request.abort(), 12000);
+
     async function load() {
       try {
-        let data = cache && Date.now() - cache.at < 30 * 60 * 1000 ? cache.data : undefined;
+        let data =
+          cache && Date.now() - cache.at < 30 * 60 * 1000
+            ? cache.data
+            : undefined;
+
         const cached = !!data;
+
         if (!cached) {
-          const response = await fetch('https://epgtalk.com/api/now/uslocal.json', {signal: request.signal});
-          if (!response.ok) { throw new Error('Guide unavailable'); }
+          const response = await fetch(
+            'https://epgtalk.com/api/now/uslocal.json',
+            { signal: request.signal },
+          );
+
+          if (!response.ok) {
+            throw new Error('Guide unavailable');
+          }
+
           const body = await response.text();
-          if (body.length > 5 * 1024 * 1024) { throw new Error('Guide exceeded size limit'); }
+
+          if (body.length > 5 * 1024 * 1024) {
+            throw new Error('Guide exceeded size limit');
+          }
+
           data = JSON.parse(body);
         }
+
         const parsed = parseGuide(data);
-        if (live) { if (!cached) { cache = {at: Date.now(), data}; }setGuide(parsed); }
-      } catch { if (live) { setError('The EPGTalk schedule could not load. Try again.'); } }
-      finally { clearTimeout(timer); }
+
+        if (live) {
+          if (!cached) {
+            cache = { at: Date.now(), data };
+          }
+
+          setGuide(parsed);
+        }
+      } catch {
+        if (live) {
+          setError('The EPGTalk schedule could not load. Try again.');
+        }
+      } finally {
+        clearTimeout(timer);
+      }
     }
+
     load();
-    return () => { live = false;request.abort();clearTimeout(timer); };
+
+    return () => {
+      live = false;
+      request.abort();
+      clearTimeout(timer);
+    };
   }, [enabled, attempt]);
-  return {guide, error, retry: () => retry(value => value + 1)};
+
+  return { guide, error, retry: () => retry(value => value + 1) };
 }
