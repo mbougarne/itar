@@ -90,7 +90,19 @@ public final class ItarTargetHost: UIButton {
     public required init?(coder: NSCoder) { fatalError("Use the native component") }
     public override var canBecomeFocused: Bool {
         guard let owner, let registration else { return false }
+        guard allowsHostEntry else { return false }
         return owner.live(registration) === self || owner.collections.retained(registration)
+    }
+    var allowsHostEntry: Bool {
+        if isFocused || UIAccessibility.isVoiceOverRunning ||
+            (owner?.preferred === self && owner?.preferredToken != nil) { return true }
+        var ancestor = superview
+        while let view = ancestor {
+            if view is ItarSurfaceHost { break }
+            if let scope = view as? ItarScopeHost, !scope.entryReady { return false }
+            ancestor = view.superview
+        }
+        return true
     }
     func nearestSurface() -> ItarSurfaceHost? {
         var view = superview

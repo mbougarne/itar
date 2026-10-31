@@ -113,7 +113,7 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
   }, []);
 
   useEffect(() => {
-    // Commit the inactive sidebar before removing the currently focused content.
+    // Commit the sidebar and page entry guards before removing focused content.
     if (pendingEntry) {
       pendingEntry();
       setPendingEntry(null);
@@ -381,6 +381,7 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
             layout="column"
             boundary="parent"
             preferredKey={occurrenceKey('nav', screen)}
+            restoreOnEntry
             style={[
               s.sidebar,
               s.sidebarOverlay,
@@ -474,6 +475,7 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
           <FocusScope
             id="page"
             active={!film && !playing && !guideOpen}
+            entryReady={!entering}
             boundary="parent"
             style={[s.fill, film && s.hidden]}
           >
@@ -530,6 +532,7 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
             id="details"
             boundary="parent"
             active={!!film && !playing}
+            entryReady={!entering}
             style={[s.fill, !film && s.hidden]}
           >
             {film && (

@@ -58,9 +58,15 @@ export function FocusProvider({children, active = true, style, testID}: {
 }
 
 export function FocusScope({id, active = true, layout = 'spatial', boundary = 'stop', trap = false,
-  entryReady = true, preferredKey, children, style, testID}: {
+  entryReady = true, restoreOnEntry = false, preferredKey, children, style, testID}: {
   id: string; active?: boolean; layout?: 'spatial' | 'row' | 'column'; boundary?: 'stop' | 'wrap' | 'parent';
-  trap?: boolean; entryReady?: boolean; preferredKey?: string; children: React.ReactNode;
+  trap?: boolean;
+  /** Gate automatic native entry while preparing content; explicit focusByKey still works.
+   * Commit false before removing the source, then reopen after the request settles.
+   * Existing input focus and screen-reader ownership are preserved. */
+  entryReady?: boolean; preferredKey?: string; children: React.ReactNode;
+  /** Restore valid native history (then preference) on directional scope entry. */
+  restoreOnEntry?: boolean;
   style?: StyleProp<ViewStyle>; testID?: string;
 }) {
   useStore();
@@ -74,7 +80,7 @@ export function FocusScope({id, active = true, layout = 'spatial', boundary = 's
   const content = <ScopeContext.Provider value={context}>{children}</ScopeContext.Provider>;
   return supported ? <NativeScope scopeKey={context.key} parentScopeKey={parent.key} active={context.active}
     collectionDataset={collectionDataset}
-    layout={layout} boundary={boundary} trap={trap} entryReady={entryReady}
+    layout={layout} boundary={boundary} trap={trap} entryReady={entryReady} restoreOnEntry={restoreOnEntry}
     preferredKey={preferredKey === undefined ? '' : nativeTargetKey(preferredKey)} style={style} testID={testID}>
     {content}
   </NativeScope> : <View style={style} testID={testID}>{content}</View>;

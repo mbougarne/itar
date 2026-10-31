@@ -1,5 +1,8 @@
 # TV focus restoration — 31 October 2026
 
+Follow-up: [native entry readiness](ott-entry-readiness-2026-10-31.md) addresses
+the remaining All-before-card intermediate focus during Details return.
+
 This follow-up applies the app corrections from the navigation audit and tests
 the existing engine/binding restoration path. The architecture and core selection
 policy are unchanged. The larger-than-250-line slice includes the app handoff,
@@ -64,9 +67,9 @@ first-entry case, in addition to restoration of existing history.
 
 ## Remaining boundaries
 
-Directional Left still uses geometric sidebar entry, and Down from the full-width
-timeline selects Close. Automatic history-based directional entry is a separate
-policy/API task; these behaviors are not fixed by explicit Back restoration.
+At this checkpoint, directional Left used geometric sidebar entry; the later
+[sidebar/viewport follow-up](ott-sidebar-viewport-2026-10-31.md) adds opt-in history
+entry. Down from the full-width timeline still selects Close.
 Sending a direction immediately after Back, before the native exit dialog gains
 focus, can still move the underlying menu. Settled-dialog restoration and input
 during presentation are distinct; presentation input gating remains follow-up work.

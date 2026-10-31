@@ -145,7 +145,9 @@ internal class Dispatcher(private val root: SurfaceView) {
         var accepted = false
         active = true
         try {
-            if (effect[5] == 1L && target != null && root.hasWindowFocus()) accepted = target.requestFocus()
+            if (effect[5] == 1L && target != null && root.hasWindowFocus()) {
+                accepted = target.requestEngineFocus()
+            }
         } finally {
             active = false
             if (root.closed) root.connection.close()

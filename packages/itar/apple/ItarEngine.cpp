@@ -92,6 +92,7 @@ NodeRecord record(const ItarRecord& value) {
   output.navigation.boundary = static_cast<Boundary>(value.boundary);
   output.navigation.rtl = flag(value.rtl); output.navigation.trap = flag(value.trap);
   output.navigation.entryReady = flag(value.entry_ready);
+  output.navigation.restoreOnEntry = flag(value.restore_on_entry);
   return output;
 }
 template <class Function>

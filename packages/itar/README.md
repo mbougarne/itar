@@ -35,11 +35,31 @@ boundaries, traps, entry readiness and an optional preferred occurrence. Inactiv
 scope descendants leave navigation and the accessibility tree. Scope IDs are
 local to their parent; full scope paths address restoration.
 
+Set `restoreOnEntry` on a menu scope to use engine history when entering with a
+direction. Valid history takes precedence over `preferredKey`, then deterministic
+fallback. The default remains geometric/anchor entry for ordinary content rails.
+This affects input focus, not screen-reader navigation.
+
+For a controlled route/content replacement, commit `entryReady={false}` before
+removing the focused source. This blocks automatic native input-focus entry into
+that scope, including nested scopes, without preventing collection publication
+or explicit `focusByKey` requests. Request the intended key once its logical
+collection is published, then reopen entry when the request settles (including
+failure/cancellation). Existing focus is not evicted. Screen-reader ownership and
+unmanaged native controls are not suppressed. This is an explicit handoff
+contract, not a guarantee against arbitrary uncoordinated host removals.
+
 The mounted preview retains inactive routes with positioning and opacity, while
 `active` removes their native navigation and accessibility eligibility. Fabric can
 recycle a scope hidden with `display: none`; unmounting or recycling a scope
 disposes its native history. `restoreScope` does not persist history across a
 recreated scope, so retain the scope for route return in this initial mounted API.
+
+`FocusVirtualizedRails active={false}` releases logical catalogue ownership but
+keeps its existing FlatList viewport mounted. Its normal virtualization window
+remains bounded; it does not render the entire catalogue. Reactivation republishes
+before `onReady`, preserving scroll position during a retained route's Details
+handoff. Unmounting the component still disposes that viewport.
 
 Android uses the engine's mounted directional policy. UIKit retains directional
 selection and gestures, with explicit engine preferences and the owned directional

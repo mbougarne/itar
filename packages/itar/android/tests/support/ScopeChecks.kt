@@ -6,7 +6,39 @@ object ScopeChecks {
     fun run(root: SurfaceView, scope: ScopeView, a: TargetView, b: TargetView, foreign: View) {
         root.refreshGeometry()
         check(!root.closed && a.isFocusable && b.isFocusable)
+        check(b.requestFocus())
+        scope.entryReady = false
+        scope.commit()
+        root.refreshGeometry()
+        check(b.hasFocus()) // Closing entry must not evict confirmed focus.
+        check(!a.requestFocus()) { "Unready scope accepted automatic/default focus" }
+        check(foreign.requestFocus())
+        val observed = mutableListOf<View>()
+        val listener = android.view.ViewTreeObserver.OnGlobalFocusChangeListener { _, next ->
+            if (next != null) observed.add(next)
+        }
+        root.viewTreeObserver.addOnGlobalFocusChangeListener(listener)
+        foreign.visibility = View.GONE // Force host recovery with competing defaults.
+        check(!a.hasFocus() && !b.hasFocus() && a !in observed && b !in observed)
+        root.viewTreeObserver.removeOnGlobalFocusChangeListener(listener)
+        root.focus("a") // Explicit key intent can enter while content is preparing.
+        check(a.hasFocus())
+        foreign.visibility = View.VISIBLE
+        scope.entryReady = true
+        scope.commit()
+        root.refreshGeometry()
         root.onRequestRecord = { root.emitRequest(it, root.commandRequests[it[2]] ?: "") }
+        val outside = TargetView(root.context).apply { occurrenceKey = "outside"; contentDescription = "Outside" }
+        root.addView(outside); outside.layout(0, 400, 200, 480)
+        scope.restoreOnEntry = true; scope.commit(); root.refreshGeometry()
+        check(b.requestFocus()); root.focus("outside")
+        check(root.focusSearch(outside, View.FOCUS_UP) === b) // A is nearer, but B is remembered.
+        check(outside.hasFocus()) // Candidate queries remain read-only.
+        root.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_UP))
+        root.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_DPAD_UP))
+        check(b.hasFocus())
+        root.removeView(outside); outside.dropLogical()
+        scope.restoreOnEntry = false; scope.commit(); root.refreshGeometry()
         val initial = ScopeView(root.context).apply { scopeKey = "initial"; preferredKey = "initial-target" }
         val preferred = TargetView(root.context).apply {
             occurrenceKey = "initial-target"; scopeKey = "initial"; contentDescription = "Initial target"

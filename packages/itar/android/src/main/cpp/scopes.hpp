@@ -25,10 +25,11 @@ inline std::int64_t scope(Session &s, int operation, std::span<const std::int64_
     out[1] = static_cast<std::int64_t>(result.status); out[2] = result.request.value;
     return ok;
   }
-  if (operation == 20 && v.size() == 9 && !key.empty() && key.size() <= 512 && preferred.size() <= 512) {
+  if (operation == 20 && (v.size() == 9 || v.size() == 10) && !key.empty() && key.size() <= 512 && preferred.size() <= 512) {
     if ((v[0] == 0) != (v[1] == 0) || (v[2] == 0) != (v[3] == 0) ||
         v[4] < 0 || v[4] > 1 || v[5] < 0 || v[5] > 2 || v[6] < 0 || v[6] > 2 ||
-        v[7] < 0 || v[7] > 1 || v[8] < 0 || v[8] > 1) return conversion;
+        v[7] < 0 || v[7] > 1 || v[8] < 0 || v[8] > 1 ||
+        (v.size() == 10 && (v[9] < 0 || v[9] > 1))) return conversion;
     auto expected = handle(v);
     const auto parent = handle(v.subspan(2));
     const auto *collection = s.collections.find(OccurrenceKey{std::string(key)});
@@ -46,6 +47,7 @@ inline std::int64_t scope(Session &s, int operation, std::span<const std::int64_
     mutation.record.navigation.boundary = static_cast<itar::Boundary>(v[6]);
     mutation.record.navigation.trap = v[7] != 0;
     mutation.record.navigation.entryReady = v[8] != 0;
+    mutation.record.navigation.restoreOnEntry = v.size() == 10 && v[9] != 0;
     const auto preferredKey = OccurrenceKey{std::string(preferred)};
     const auto* previousPreferred = registry.preferred(expected);
     if (preferredKey != (previousPreferred ? *previousPreferred : OccurrenceKey{})) mutation.preferred = preferredKey;

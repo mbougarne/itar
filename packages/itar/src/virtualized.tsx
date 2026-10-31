@@ -40,7 +40,7 @@ function usePublished<T extends {nodes: readonly CollectionNode[]}>(model: T, ac
   const [accepted, setAccepted] = useState<{dataset: string; model: T} | null>(null);
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
   useLayoutEffect(() => {
-    if (!active) { store.remove(owner); pending.current = null; setAccepted(null); return; }
+    if (!active) { store.remove(owner); pending.current = null; return; }
     if (pending.current?.signature === signature) {
       pending.current = {...pending.current, model};
       if (store.snapshot().accepted === pending.current.dataset) { setAccepted(pending.current); }
@@ -54,7 +54,9 @@ function usePublished<T extends {nodes: readonly CollectionNode[]}>(model: T, ac
     if (pending.current?.dataset === snapshot.accepted) { setAccepted(pending.current); }
   }, [snapshot.accepted]);
   if (active && snapshot.rejected) { throw new Error('Native collection publication was rejected; check keys, parent scope and surface capacity'); }
-  if (!active) { return null; }
+  // Retain the existing virtualized viewport while another route owns the catalog.
+  // Its old dataset is ineligible natively; reactivation republishes before entry.
+  if (!active) { return accepted; }
   return supported ? accepted : {dataset: '', model};
 }
 
@@ -153,13 +155,16 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
     return {id, key, rows, nodes, itemExtent, rowExtent, viewportExtent, viewportRows, viewportHeight, headerExtent, renderDecoration, renderRailHeader};
   }, [id, rails, rowExtent, itemExtent, viewportExtent, viewportRows, viewportHeight, headerExtent, renderDecoration, renderRailHeader, parent.path, parent.key]);
   const published = usePublished(model, active);
-  React.useEffect(() => { if (published) { onReady?.(); } }, [published, onReady]);
+  React.useEffect(() => {
+    if (active && published && (!supported ||
+        (published.dataset === snapshot.dataset && published.dataset === snapshot.accepted))) { onReady?.(); }
+  }, [active, published, snapshot.dataset, snapshot.accepted, onReady]);
   const collection = published?.model.key ?? model.key;
   const Cell = useMemo(() => renderer<FocusRailRow>(store, collection, row => row.key), [store, collection]);
   if (!published) { return <View style={style} testID={testID} />; }
   const value = published.model;
   return <CollectionDatasetContext.Provider value={published.dataset}>
-    <FocusScope id={value.id} layout="column" boundary="parent" style={style}>
+    <FocusScope id={value.id} active={active} layout="column" boundary="parent" style={style}>
       <FlatList onEndReached={active ? onEndReached : undefined} onEndReachedThreshold={0.5} showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} data={value.rows} keyExtractor={row => row.id} testID={testID}
         style={{height: value.viewportHeight ?? value.rowExtent * value.viewportRows, width: value.viewportExtent}}
         CellRendererComponent={Cell} extraData={snapshot.preparation} additionalRenderRegions={store.regions(value.key)}

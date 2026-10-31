@@ -35,7 +35,7 @@ typedef struct {
   ItarGeometry geometry;
   ItarNode overrides[4]; // left, right, up, down
   int32_t layout, boundary; // spatial/row/column; stop/wrap/parent = 0..2
-  uint8_t rtl, trap, entry_ready;
+  uint8_t rtl, trap, entry_ready, restore_on_entry;
 } ItarRecord;
 typedef struct {
   int32_t kind; // insert, update, replace, erase = 0..3

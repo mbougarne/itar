@@ -84,6 +84,19 @@ class TargetView(context: Context) : AppCompatButton(context) {
         super.onDraw(canvas)
     }
     internal var mount: Mount? = null
+    private var engineFocusRequest = false
+    internal fun requestEngineFocus(): Boolean {
+        engineFocusRequest = true
+        return try { requestFocus() } finally { engineFocusRequest = false }
+    }
+    override fun requestFocus(direction: Int, previouslyFocusedRect: Rect?): Boolean {
+        // Keep logical/mount eligibility available to explicit engine requests.
+        // Only unsolicited host entry waits for the application's readiness.
+        if (!engineFocusRequest && !isFocused && surface?.readerOwnsInput != true &&
+            generateSequence(parent) { it.parent }.takeWhile { it !is SurfaceView }
+                .filterIsInstance<ScopeView>().any { !it.entryReady }) return false
+        return super.requestFocus(direction, previouslyFocusedRect)
+    }
     internal var surface: SurfaceView? = null
     internal var logicalMount: Mount? = null
     internal var logicalOwner: WeakReference<SurfaceView>? = null

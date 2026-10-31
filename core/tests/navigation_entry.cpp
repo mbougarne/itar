@@ -23,6 +23,16 @@ int main() {
   CHECK(resolveEntry(f.state, upper, input, {EntryReason::adjacent, Direction::up, 105}).target == b);
   CHECK(resolve(f.state, Direction::up, input).target == b);
   CHECK(resolveEntry(f.state, upper, input).reason == ProposalReason::existing_focus);
+  scope.navigation.restoreOnEntry = true;
+  f.update(upper, scope, OccurrenceKey{"b"});
+  CHECK(resolve(f.state, Direction::up, input).target == a);
+  auto retired = *f.state.snapshot().registry.lookup(a);
+  retired.enabled = false;
+  f.update(a, retired);
+  CHECK(resolve(f.state, Direction::up, input).target == b);
+  retired.enabled = true;
+  f.update(a, retired);
+  scope.navigation.restoreOnEntry = false;
   scope.navigation.entryReady = false;
   f.update(upper, scope, OccurrenceKey{"b"});
   CHECK(resolveEntry(f.state, upper, input, {EntryReason::returning}).reason == ProposalReason::entry_not_ready);
