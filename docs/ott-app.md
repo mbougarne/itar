@@ -1,5 +1,8 @@
 # Itar Cinema TV showcase
 
+Current: [31 October redesign and verification](ott-redesign-2026-10-31.md).
+The sections below retain the earlier checkpoint history.
+
 The existing `apps/probe/App.tsx` opens the OTT source in `apps/probe/ott/`.
 This is one React Native TV app registered as `ItarProbe`, using the workspace
 Itar package and pinned `react-native-tvos`. Android and Apple native projects,

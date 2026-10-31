@@ -1,6 +1,10 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Button, StyleSheet, Text, View} from 'react-native';
-import ComparisonLibrary from './ComparisonLibrary';
+// The pinned comparison bundles React 18 JSX internals. Keep an optional probe
+// load failure from preventing the React 19 consumer and other probes starting.
+const ComparisonLibrary = React.lazy(() => import('./ComparisonLibrary').catch(() => ({
+  default: () => <Text>Comparison library 5.2.0 could not load in this runtime. Native and Itar probes remain available.</Text>,
+})));
 import {FocusProvider, FocusScope, Focusable, occurrenceKey} from 'itar/react';
 
 const focusStyle = {accentColor: '#ff8800'};
@@ -47,7 +51,7 @@ export default function ValidationScreen() {
       {[0, 750, 2000].map(duration => <Button key={duration} title={`Schedule ${duration}ms JS load`}
         disabled={scheduled} onPress={() => schedule(duration)} />)}
     </View>
-    {mode === 'library' ? <ComparisonLibrary /> : mode === 'itar' ? <FocusProvider key="itar" style={styles.grid}>
+    {mode === 'library' ? <React.Suspense fallback={<Text>Loading comparison…</Text>}><ComparisonLibrary /></React.Suspense> : mode === 'itar' ? <FocusProvider key="itar" style={styles.grid}>
       <FocusScope id="validation" layout="column" style={styles.grid}>{grid}</FocusScope>
     </FocusProvider> : grid}
     <Text>Focus the first target before load. Alternate Right/Left 20 times with the same remote cadence.</Text>

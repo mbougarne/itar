@@ -54,6 +54,15 @@ uses widths 1 and 5, coordinates with UIKit focus animation, and respects reduce
 motion. Visual feedback follows observed host focus. Custom React visuals can use
 subscriptions but may wait for JavaScript.
 
+For an adjustable control, supply `onAdjust(delta)` where delta is `-1` or `1`.
+The native target consumes horizontal input and keeps focus; Up/Down still use
+normal navigation. Accessibility increment/decrement actions use the same callback.
+The application owns the value, step size, bounds and descriptive label. Adjustment
+records use activation's lifetime/registration/sequence validation; `onPress`
+remains a separate Select action. See the showcase [timeline](../../docs/ott-playback.md).
+Android remote behavior is checked on the emulator; tvOS gesture and screen-reader
+acceptance require device testing.
+
 ```tsx
 import {useFocusCommands, useFocusReady, useIsFocused, useFocusState} from 'itar/react';
 

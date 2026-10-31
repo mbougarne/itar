@@ -10,6 +10,18 @@ object ActivationChecks {
         val activations = ArrayList<String>()
         a.onActivation = { _, mount, _, source -> activations.add("${mount.key}:$source") }
         b.onActivation = { _, mount, _, source -> activations.add("${mount.key}:$source") }
+        val adjustments = ArrayList<Int>()
+        a.adjustable = true
+        a.onAdjustment = { _, _, _, _, delta -> adjustments.add(delta) }
+        for (key in listOf(KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_LEFT)) {
+            root.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key))
+            root.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key))
+        }
+        check(a.hasFocus() && adjustments == listOf(1, 1, -1) && activations.isEmpty())
+        check(a.performAccessibilityAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, null))
+        check(adjustments == listOf(1, 1, -1, 1))
+        a.adjustable = false
+        check(!a.adjust(1))
         root.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_CENTER))
         root.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_CENTER))
         check(activations == listOf("a:input"))
@@ -23,6 +35,6 @@ object ActivationChecks {
         b.isEnabled = false; b.commitProps()
         check(!b.performClick() && activations.size == 2)
         root.close()
-        check(!a.performClick() && activations.size == 2)
+        check(!a.performClick() && !a.adjust(1) && activations.size == 2)
     }
 }

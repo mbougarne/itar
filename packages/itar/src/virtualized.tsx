@@ -128,8 +128,8 @@ const styles = StyleSheet.create({
 
 /** Two-level row-then-item realization with logical column entry. */
 export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewportExtent, viewportRows = 2,
-  style, itemStyle, testID, viewportHeight, headerExtent = 0, renderDecoration, renderRailHeader, active = true, onReady}: Common & {
-    active?: boolean; onReady?: () => void; rails: readonly VirtualizedFocusRail[]; rowExtent: number; viewportRows?: number; viewportHeight?: number; headerExtent?: number;
+  style, itemStyle, testID, viewportHeight, headerExtent = 0, renderDecoration, renderRailHeader, active = true, onReady, onEndReached}: Common & {
+    active?: boolean; onReady?: () => void; onEndReached?: () => void; rails: readonly VirtualizedFocusRail[]; rowExtent: number; viewportRows?: number; viewportHeight?: number; headerExtent?: number;
     renderDecoration?: (item: VirtualizedFocusItem) => React.ReactNode;
     renderRailHeader?: (rail: VirtualizedFocusRail) => React.ReactNode;
   }) {
@@ -160,7 +160,7 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
   const value = published.model;
   return <CollectionDatasetContext.Provider value={published.dataset}>
     <FocusScope id={value.id} layout="column" boundary="parent" style={style}>
-      <FlatList showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} data={value.rows} keyExtractor={row => row.id} testID={testID}
+      <FlatList onEndReached={active ? onEndReached : undefined} onEndReachedThreshold={0.5} showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} data={value.rows} keyExtractor={row => row.id} testID={testID}
         style={{height: value.viewportHeight ?? value.rowExtent * value.viewportRows, width: value.viewportExtent}}
         CellRendererComponent={Cell} extraData={snapshot.preparation} additionalRenderRegions={store.regions(value.key)}
         initialNumToRender={1} maxToRenderPerBatch={1} windowSize={3}

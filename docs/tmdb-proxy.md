@@ -43,8 +43,12 @@ placeholder-only; do not copy real values into it. No credentials appear in
 command arguments. The backend does not log URLs, upstream bodies or raw errors,
 and redacts credential echoes from public responses. It limits concurrent
 upstream requests to4, timeout to8seconds, JSON to2MiB and pagination to50pages.
-The client separately caps a mounted viewing window at48 titles and reports
-that limit rather than pretending TMDB has no more results.
+The client uses 160-title browsing windows with explicit cursor continuation,
+while Home fills four rails of up to 15 unique titles (at most 80 source records).
+Movies/Series support allowlisted genre filters through Discover; continuation
+cursors bind to the category as well as media kind and query. Near-end prefetch
+appends within a window. See
+[the current design and verification](ott-redesign-2026-10-31.md).
 
 The normal app/Metro configuration and server-side `.env` exclusion remain.
 Use `adb -s <authorized-serial> reverse tcp:8787 tcp:8787` for the selected emulator;

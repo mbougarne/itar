@@ -47,3 +47,10 @@ test('details accepts bounded related metadata and rejects duplicates or a selec
     await assert.rejects(api.fetchDetails(film, new AbortController().signal), /related identities/);
   } finally { global.fetch = original; }
 });
+
+test('metadata accepts real rating and territory but rejects nonfinite and oversized values', () => {
+  const mapped = api.parseFilm({...film, rating: 8.4, votes: 150, runtime: 128, certification: 'PG-13', certificationRegion: 'US', languages: 'English'});
+  assert.equal(mapped.rating, 8.4);assert.equal(mapped.certificationRegion, 'US');assert.equal(mapped.runtime, 128);
+  for (const rating of [NaN, Infinity, -1, 11, '8']) { assert.throws(() => api.parseFilm({...film, rating}), /metadata/); }
+  assert.throws(() => api.parseFilm({...film, tagline: 'x'.repeat(501)}), /metadata/);
+});

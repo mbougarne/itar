@@ -32,8 +32,7 @@ export default function Search({id, active, delay, failNext, highContrast, onOpe
       <Text style={s.footer}>{text.length === 36 ? 'Maximum query length reached (36 characters).' : 'Choose letters with your remote.'}</Text>
     </View>
     <View style={s.searchResults} onLayout={event => setResultsWidth(event.nativeEvent.layout.width)}>
-      {query.trim() ? <><Header>Results for “{query}”</Header><Browse onReady={onReady} viewportWidth={resultsWidth} mode={mode} id={id} kind="all" query={query} active={active} delay={delay} failNext={failNext} highContrast={highContrast} onOpen={onOpen} searchResults /></>
-        : <View style={s.message}><Text style={s.messageTitle}>Find a title or genre</Text><Text style={s.body}>Search the selected catalogue.</Text><Text style={s.footer}>{mode === 'proxy' ? 'LOCAL TMDB PROXY' : 'FIXTURE CATALOGUE'}</Text></View>}
+      <Header>{query.trim() ? `Results for “${query}”` : 'Suggested titles · Discover something new'}</Header><Browse onReady={onReady} viewportWidth={resultsWidth} mode={mode} id={id} kind="all" query={query} active={active} delay={delay} failNext={failNext} highContrast={highContrast} onOpen={onOpen} searchResults />
     </View>
   </View>;
 }

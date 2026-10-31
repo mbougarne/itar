@@ -71,3 +71,41 @@ test('bounded concurrency rejects a fifth in-flight upstream request', async () 
     release();for (const response of await Promise.all(first)) { assert.equal(response.status, 200); await response.arrayBuffer(); }
   });
 });
+
+test('details maps rating, runtime, language and territory-specific certification via appended resources', async () => {
+  await run({mock: false, apiKey: 'fake-test-key', fetcher: async url => {
+    const movie = url.pathname.includes('/movie/');
+    assert.ok(url.searchParams.get('append_to_response').includes(movie ? 'release_dates' : 'content_ratings'));
+    return new Response(JSON.stringify({id: 11, title: 'Film', name: 'Series', vote_average: 8.1, vote_count: 42, runtime: 110, episode_run_time: [45],
+      spoken_languages: [{english_name: 'English'}], release_dates: {results: [{iso_3166_1: 'US', release_dates: [{certification: 'PG'}]}]},
+      content_ratings: {results: [{iso_3166_1: 'US', rating: 'TV-PG'}]}}));
+  }}, async base => {
+    for (const kind of ['movie', 'series']) {
+      const {film} = await (await fetch(`${base}/v1/details?id=tmdb:${kind}:11`)).json();
+      assert.equal(film.rating, 8.1);assert.equal(film.certificationRegion, 'US');assert.equal(film.languages, 'English');
+      assert.equal(film.runtime, kind === 'movie' ? 110 : 45);assert.equal(film.certification, kind === 'movie' ? 'PG' : 'TV-PG');
+    }
+  });
+});
+
+test('genre filters use the matching discover endpoint and bind continuation to the category', async () => {
+  const calls = [];
+  await run({mock: false, apiKey: 'dummy-category-test', fetcher: async url => {
+    calls.push({route: url.pathname, genre: url.searchParams.get('with_genres'), sort: url.searchParams.get('sort_by')});
+    return new Response(JSON.stringify(mockTmdb(url.pathname.replace('/3', ''), {page: url.searchParams.get('page')})));
+  }}, async base => {
+    for (const kind of ['movie', 'series']) {
+      const route = `${base}/v1/catalogue?kind=${kind}&category=Action`;
+      const first = await (await fetch(route)).json();
+      assert.equal(first.rows.length, 4);
+      assert.equal((await fetch(`${route}&cursor=${first.nextCursor}`)).status, 200);
+      assert.equal((await fetch(`${base}/v1/catalogue?kind=${kind}&category=Comedy&cursor=${first.nextCursor}`)).status, 400);
+    }
+    for (const suffix of ['kind=all&category=Drama', 'kind=movie&category=unknown', 'kind=movie&category=Drama&query=test']) {
+      assert.equal((await fetch(`${base}/v1/catalogue?${suffix}`)).status, 400);
+    }
+    assert.deepEqual(calls.map(c => c.genre), ['28', '28', '10759', '10759']);
+    assert.deepEqual(calls.map(c => c.route), ['/3/discover/movie', '/3/discover/movie', '/3/discover/tv', '/3/discover/tv']);
+    assert.ok(calls.every(c => c.sort === 'popularity.desc'));
+  });
+});

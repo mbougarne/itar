@@ -22,6 +22,9 @@ public final class ItarTargetHost: UIButton {
             }
         }
     }
+    @objc public var cornerRadius: CGFloat = 6 { didSet { applyFocusStyle() } }
+    private let focusFill = CAShapeLayer()
+    @objc public var focusBackgroundColor: UIColor? { didSet { applyFocusStyle() } }
     private let cardOutline = CAShapeLayer()
     @objc public var displayLabel = "" { didSet { setTitle(displayLabel, for: .normal) } }
     @objc public var labelPlacement = "center" { didSet { contentVerticalAlignment = labelPlacement.hasPrefix("bottom") ? .bottom : .center; contentHorizontalAlignment = labelPlacement == "bottom" ? .leading : .center } }
@@ -38,16 +41,44 @@ public final class ItarTargetHost: UIButton {
     @objc public var targetEnabled = true {
         didSet {
             isEnabled = targetEnabled
-            accessibilityTraits = targetEnabled ? [.button] : [.button, .notEnabled]
+            updateTraits()
             if oldValue != targetEnabled { semanticsChanged() }
         }
     }
     @objc public var baseColor: UIColor? { didSet { applyFocusStyle() } }
     @objc public var focusColor: UIColor? { didSet { applyFocusStyle() } }
+    @objc public var adjustable = false { didSet { updateTraits() } }
+    private func updateTraits() {
+        accessibilityTraits = adjustable ? [.adjustable] : [.button]
+        if !targetEnabled { accessibilityTraits.insert(.notEnabled) }
+    }
+    @objc public var onAdjust: ((NSDictionary) -> Void)?
+    @discardableResult func adjust(_ delta: Int, source: String = "input") -> Bool {
+        guard adjustable, targetEnabled, let owner, owner.acceptsInput,
+              let registration, owner.live(registration) === self,
+              sequence < UInt64.max, delta == -1 || delta == 1 else { return false }
+        if source == "input" {
+            guard isFocused, !UIAccessibility.isVoiceOverRunning,
+                  (UIFocusSystem.focusSystem(for: self)?.focusedItem as? UIView) === self else { return false }
+        }
+        sequence += 1
+        onAdjust?(["lifetime": String(owner.lifetime), "provider": owner.providerId,
+                   "registration": registrationId, "occurrenceKey": registration.key,
+                   "mount": String(registration.mount), "sequence": String(sequence), "source": source, "delta": String(delta)])
+        return true
+    }
+    public override func accessibilityIncrement() { _ = adjust(1, source: "accessibility") }
+    public override func accessibilityDecrement() { _ = adjust(-1, source: "accessibility") }
+    public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        if presses.count == 1, let type = presses.first?.type,
+           (type == .leftArrow || type == .rightArrow), adjust(type == .leftArrow ? -1 : 1) { return }
+        super.pressesBegan(presses, with: event)
+    }
     @objc public var onActivate: ((NSDictionary) -> Void)?
 
     public override init(frame: CGRect) {
         super.init(frame: frame)
+        layer.insertSublayer(focusFill, at: 0)
         layer.addSublayer(cardOutline)
         cardOutline.fillColor = UIColor.clear.cgColor
         isAccessibilityElement = false
@@ -90,15 +121,22 @@ public final class ItarTargetHost: UIButton {
 
     func applyFocusStyle() {
         let focused = isFocused && window != nil && owner?.dispatcher?.closed == false && registration?.target === self
+        let radius = cornerRadius.isFinite ? max(0, cornerRadius) : 6
+        layer.cornerRadius = radius
+        clipsToBounds = true
+        focusFill.path = UIBezierPath(roundedRect: bounds, cornerRadius: radius).cgPath
+        focusFill.fillColor = (focusBackgroundColor ?? .clear).cgColor
+        focusFill.isHidden = !focused
         let card = outlineInsetBottom > 0
         cardOutline.isHidden = !card || !focused
-        cardOutline.path = UIBezierPath(roundedRect: CGRect(x: 2, y: 2, width: max(0, bounds.width - 4), height: max(0, bounds.height - outlineInsetBottom - 4)), cornerRadius: 6).cgPath
+        cardOutline.path = UIBezierPath(roundedRect: CGRect(x: 2, y: 2, width: max(0, bounds.width - 4), height: max(0, bounds.height - outlineInsetBottom - 4)), cornerRadius: radius).cgPath
         cardOutline.lineWidth = 4
         cardOutline.strokeColor = (focusColor ?? .cyan).cgColor
         layer.borderWidth = card ? 0 : focused ? 5 : 1
         layer.borderColor = (focused ? focusColor ?? .systemOrange : baseColor ?? .darkGray).cgColor
     }
     func restoreBaseStyle() {
+        focusFill.isHidden = true
         cardOutline.isHidden = true
         layer.borderWidth = 1
         layer.borderColor = (baseColor ?? .darkGray).cgColor
@@ -128,6 +166,7 @@ public final class ItarTargetHost: UIButton {
         clearLogicalIdentity()
         restoreBaseStyle()
         onActivate = nil
+        onAdjust = nil
     }
     func clearLogicalIdentity() {
         logicalOwner = nil

@@ -23,7 +23,14 @@ class TargetView(context: Context) : AppCompatButton(context) {
         set(value) { field = value; contentDescription = value; updateLabel() }
     var displayLabel = ""
         set(value) { field = value; updateLabel() }
-    private fun updateLabel() { text = displayLabel }
+    private fun updateLabel() {
+        // Fabric can update a measured, detached TextView before assigning parent
+        // layout params. Android checkForRelayout requires them when text changes.
+        if (layoutParams == null) {
+            layoutParams = android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        if (text.toString() != displayLabel) text = displayLabel
+    }
     fun placeLabel(value: String?) {
         gravity = if (value?.startsWith("bottom") == true) Gravity.BOTTOM or (if (value == "bottom") Gravity.START else Gravity.CENTER_HORIZONTAL) else Gravity.CENTER
         setPadding(8, 0, 8, if (value?.startsWith("bottom") == true) (4 * resources.displayMetrics.density).toInt() else 0)
@@ -44,6 +51,38 @@ class TargetView(context: Context) : AppCompatButton(context) {
     private var styling = true
     var focusColor: Int? = null
         set(value) { field = value; applyFocusStyle() }
+    var focusBackgroundColor: Int? = null
+        set(value) { field = value; invalidate() }
+    private val cornerPath = android.graphics.Path()
+    var cornerRadius = 6f
+        set(value) { field = if (value.isFinite()) value.coerceIn(0f, 10000f) else 6f; updateCorners() }
+    private fun updateCorners() {
+        val radius = cornerRadius * resources.displayMetrics.density
+        outline.cornerRadius = radius
+        cornerPath.reset()
+        cornerPath.addRoundRect(0f, 0f, width.toFloat(), height.toFloat(), radius, radius, android.graphics.Path.Direction.CW)
+        invalidate()
+    }
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        updateCorners()
+    }
+    override fun draw(canvas: android.graphics.Canvas) {
+        // Clip the RN base background as well as the native focus fill/outline.
+        val saved = canvas.save()
+        canvas.clipPath(cornerPath)
+        super.draw(canvas)
+        canvas.restoreToCount(saved)
+    }
+    private val focusFill = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    override fun onDraw(canvas: android.graphics.Canvas) {
+        if (styling && hasFocus()) { focusBackgroundColor?.let {
+            focusFill.color = it
+            val radius = cornerRadius * resources.displayMetrics.density
+            canvas.drawRoundRect(0f, 0f, width.toFloat(), height.toFloat(), radius, radius, focusFill)
+        } }
+        super.onDraw(canvas)
+    }
     internal var mount: Mount? = null
     internal var surface: SurfaceView? = null
     internal var logicalMount: Mount? = null
@@ -51,6 +90,27 @@ class TargetView(context: Context) : AppCompatButton(context) {
     internal var logicalLifetime = 0L
     internal var logicalScopeKey = ""
     internal var onActivation: ((Long, Mount, Long, String) -> Unit)? = null
+    var adjustable = false
+    internal var onAdjustment: ((Long, Mount, Long, String, Int) -> Unit)? = null
+    internal fun adjust(delta: Int, source: String = "input"): Boolean {
+        val owner = surface ?: return false
+        val identity = mount ?: return false
+        if (!adjustable || !isEnabled || owner.live(identity) !== this || !owner.hasWindowFocus() ||
+            (source == "input" && (!hasFocus() || owner.rootView.findFocus() !== this)) ||
+            activationSerial == Long.MAX_VALUE || (delta != -1 && delta != 1)) return false
+        onAdjustment?.invoke(owner.connection.lifetime, identity, ++activationSerial, source, delta)
+        return true
+    }
+    override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
+        super.onInitializeAccessibilityNodeInfo(info)
+        if (adjustable) {
+            info.className = "android.widget.SeekBar"
+            if (isEnabled) {
+                info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD)
+                info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD)
+            }
+        }
+    }
     private var activationSerial = 0L
     private var collectionAccessibility: Int? = null
     init {
@@ -71,6 +131,7 @@ class TargetView(context: Context) : AppCompatButton(context) {
         applyFocusStyle()
     }
     private fun applyFocusStyle() {
+        invalidate()
         val color = focusColor
         if (styling && hasFocus() && color != null) {
             setTextColor(color)
@@ -78,7 +139,7 @@ class TargetView(context: Context) : AppCompatButton(context) {
             foreground = outlineLayer
         } else { setTextColor(baseColors); foreground = null }
     }
-    internal fun resetStyle() { styling = false; setTextColor(baseColors); foreground = null }
+    internal fun resetStyle() { styling = false; setTextColor(baseColors); foreground = null; invalidate() }
     internal fun resumeStyle() { styling = true; applyFocusStyle() }
     internal fun maskCollectionAccessibility() {
         if (collectionAccessibility == null) collectionAccessibility = importantForAccessibility
@@ -112,7 +173,9 @@ class TargetView(context: Context) : AppCompatButton(context) {
     }
     override fun performClick() = activate("semantic")
     override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean =
-        if (action == AccessibilityNodeInfo.ACTION_CLICK) activate("accessibility")
+        if (adjustable && action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) adjust(1, "accessibility")
+        else if (adjustable && action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) adjust(-1, "accessibility")
+        else if (action == AccessibilityNodeInfo.ACTION_CLICK) activate("accessibility")
         else super.performAccessibilityAction(action, arguments)
     override fun sendAccessibilityEvent(eventType: Int) {
         if (eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED ||

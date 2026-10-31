@@ -1,5 +1,5 @@
 // Public loopback endpoint only. Provider credentials never enter this module.
-import type {CastMember, Film, Kind, Page, Rail} from './catalog';
+import type {CastMember, Category, Film, Kind, Page, Rail} from './catalog';
 export type ProviderMode = 'proxy' | 'fixture';
 const PROXY = 'http://127.0.0.1:8787';
 const record = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -15,7 +15,19 @@ export function parseFilm(v: unknown): Film {
     !string(v.title, 200) || !string(v.synopsis, 4000) || !string(v.category, 300) ||
     !Number.isInteger(v.year) || typeof v.year !== 'number' || !source(v.source) ||
     (v.kind !== 'movie' && v.kind !== 'series') || !v.id.startsWith(`tmdb:${v.kind}:`)) { throw new Error('Proxy returned invalid title metadata.'); }
-  return {id: v.id, title: v.title, synopsis: v.synopsis, category: v.category, year: v.year,
+  const metadata: Partial<Record<'rating' | 'votes' | 'runtime' | 'seasons' | 'episodes', number>> = {};
+  for (const key of ['rating', 'votes', 'runtime', 'seasons', 'episodes'] as const) {
+    if (v[key] === undefined) { continue; }
+    if (typeof v[key] !== 'number' || !Number.isFinite(v[key]) || v[key] < 0 || v[key] > (key === 'rating' ? 10 : 1000000000)) { throw new Error('Proxy returned invalid numeric metadata.'); }
+    metadata[key] = v[key];
+  }
+  const descriptions: Partial<Record<'certification' | 'certificationRegion' | 'tagline' | 'status' | 'languages' | 'countries' | 'studios', string>> = {};
+  for (const key of ['certification', 'certificationRegion', 'tagline', 'status', 'languages', 'countries', 'studios'] as const) {
+    if (v[key] === undefined) { continue; }
+    if (!string(v[key], 500)) { throw new Error('Proxy returned invalid descriptive metadata.'); }
+    descriptions[key] = v[key];
+  }
+  return {...metadata, ...descriptions, id: v.id, title: v.title, synopsis: v.synopsis, category: v.category, year: v.year,
     kind: v.kind, source: v.source, art: 0, posterUrl: artwork(v.posterUrl), backdropUrl: artwork(v.backdropUrl)};
 }
 async function request(route: string, params: Record<string, string>, signal: AbortSignal): Promise<unknown> {
@@ -37,7 +49,7 @@ async function request(route: string, params: Record<string, string>, signal: Ab
   } finally { clearTimeout(timer); signal.removeEventListener('abort', abort); }
 }
 export const fetchProxyPage = async (kind: Kind, query: string, cursor: string | null,
-  options: {signal: AbortSignal; delay?: number; fail?: boolean}): Promise<Page> => {
+  options: {signal: AbortSignal; delay?: number; fail?: boolean; category?: Category}): Promise<Page> => {
   if ((options.delay || 0) > 180) {
     await new Promise<void>((resolve, reject) => {
       const abort = () => { clearTimeout(timer); options.signal.removeEventListener('abort', abort); reject(new Error('Local request cancelled.')); };
@@ -46,7 +58,7 @@ export const fetchProxyPage = async (kind: Kind, query: string, cursor: string |
     });
   }
   if (options.fail) { throw new Error('Simulated local client failure. Retry to continue.'); }
-  const data = await request('/v1/catalogue', {kind, query, ...(cursor ? {cursor} : {})}, options.signal);
+  const data = await request('/v1/catalogue', {kind, query, category: options.category || 'All', ...(cursor ? {cursor} : {})}, options.signal);
   if (!record(data) || !source(data.source) || !Array.isArray(data.rows) || data.rows.length > 4 ||
     !(data.nextCursor === null || string(data.nextCursor, 1000))) { throw new Error('Proxy returned an invalid page.'); }
   const pageSource = data.source;

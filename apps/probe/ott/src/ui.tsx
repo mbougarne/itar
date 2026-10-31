@@ -18,14 +18,31 @@ export const icons = {
   Series: require('../assets/cinematic/icons/monitor.png'), Search: require('../assets/cinematic/icons/search.png'),
   Profile: require('../assets/cinematic/icons/user.png'), Settings: require('../assets/cinematic/icons/settings.png'),
   check: require('../assets/cinematic/icons/check.png'),
+  play: require('../assets/cinematic/icons/play.png'), pause: require('../assets/cinematic/icons/pause.png'),
+  restart: require('../assets/cinematic/icons/rotate-ccw.png'), rewind: require('../assets/cinematic/icons/rewind.png'),
+  forward: require('../assets/cinematic/icons/fast-forward.png'), volume: require('../assets/cinematic/icons/volume-2.png'),
+  muted: require('../assets/cinematic/icons/volume-x.png'), close: require('../assets/cinematic/icons/x.png'),
+  like: require('../assets/cinematic/icons/heart.png'),
 };
-const accents = {cyan: {accentColor: '#26D9F2'}, white: {accentColor: '#FFFFFF'}};
+const accents = {cyan: {accentColor: '#FFFFFF', backgroundColor: '#176B7B'}, white: {accentColor: '#FFFFFF', backgroundColor: '#334B60'}};
 export function Action({id, label, onPress, enabled = true, highContrast = false, contentId, style, order = 0, displayLabel}: {
   displayLabel?: string; order?: number; id: string; label: string; onPress: () => void; enabled?: boolean; highContrast?: boolean; contentId?: string; style?: StyleProp<ViewStyle>;
 }) {
   const {s, u} = useDesign();
   return <Focusable displayLabel={displayLabel ?? label} labelSize={24 * u} order={order} occurrenceKey={id} contentId={contentId} accessibilityLabel={label} enabled={enabled} onPress={onPress}
     baseAccentColor="#BDC8D3" focusStyle={highContrast ? accents.white : accents.cyan} style={[s.action, style]} />;
+}
+// The native Action owns focus/activation; the image is decorative and cannot intercept input.
+export function IconAction({icon, size = 72, enabled = true, ...props}: Omit<React.ComponentProps<typeof Action>, 'displayLabel' | 'style'> & {
+  icon: ImageSourcePropType; size?: number;
+}) {
+  const {s, u} = useDesign();
+  return <View style={{width: size * u, height: size * u}}>
+    <Action {...props} enabled={enabled} displayLabel="" style={[s.iconAction, {width: size * u, height: size * u, borderRadius: size * u / 2}]} />
+    <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={s.iconOverlay}>
+      <Image accessible={false} source={icon} resizeMode="contain" style={[s.controlIcon, !enabled && s.disabledIcon]} />
+    </View>
+  </View>;
 }
 export function Picture({source, style, fallback}: {source?: ImageSourcePropType; style: StyleProp<Pick<ViewStyle, 'width' | 'height' | 'borderRadius'>>; fallback: string}) {
   const {s} = useDesign();
