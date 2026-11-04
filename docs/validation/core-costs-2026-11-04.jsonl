@@ -1,0 +1,10 @@
+{"compiler":"Apple LLVM 21.0.0 (clang-2100.3.34.2)","cplusplus":202002,"note":"Release; instrumented process heap; not RSS or TV latency"}
+{"logical":64,"mounted":64,"cold_setup_ns":58791,"retained_core_requested_bytes":16384}
+{"operation":"spatial_query","iterations":250,"warmup":50,"p50_ns":1542,"p95_ns":1584,"p99_ns":1709,"allocations_total":0,"requested_bytes_total":0}
+{"operation":"batch_update_1","iterations":250,"warmup":50,"p50_ns":20375,"p95_ns":20792,"p99_ns":23208,"allocations_total":2000,"requested_bytes_total":4608000}
+{"logical":256,"mounted":64,"cold_setup_ns":458042,"retained_core_requested_bytes":65536}
+{"operation":"spatial_query","iterations":250,"warmup":50,"p50_ns":4958,"p95_ns":5000,"p99_ns":5084,"allocations_total":0,"requested_bytes_total":0}
+{"operation":"batch_update_1","iterations":250,"warmup":50,"p50_ns":216833,"p95_ns":230125,"p99_ns":242916,"allocations_total":2000,"requested_bytes_total":18432000}
+{"logical":1024,"mounted":64,"cold_setup_ns":8.89425e+06,"retained_core_requested_bytes":262144}
+{"operation":"spatial_query","iterations":250,"warmup":50,"p50_ns":18583,"p95_ns":18666,"p99_ns":18708,"allocations_total":0,"requested_bytes_total":0}
+{"operation":"batch_update_1","iterations":250,"warmup":50,"p50_ns":4.22129e+06,"p95_ns":4.50746e+06,"p99_ns":5.00038e+06,"allocations_total":2000,"requested_bytes_total":73728000}

@@ -20,6 +20,17 @@ fs.writeFileSync(path.join(consumer, 'package.json'), '{"name":"itar-local-consu
 run('npm', ['install', '--ignore-scripts', '--omit=peer', '--legacy-peer-deps', '--no-audit', '--no-fund', path.join(out, packed.filename)], consumer);
 const installed = path.join(consumer, 'node_modules/itar');
 assert(!fs.lstatSync(installed).isSymbolicLink());
+const manifest = JSON.parse(fs.readFileSync(path.join(installed, 'package.json'), 'utf8'));
+for (const [entry, conditions] of Object.entries(manifest.exports)) {
+  const targets = typeof conditions === 'string' ? [conditions] : Object.values(conditions);
+  for (const target of targets) {
+    assert(target.startsWith('./'), `nonlocal export ${entry}: ${target}`);
+    assert(fs.statSync(path.join(installed, target)).isFile(), `missing export ${entry}: ${target}`);
+  }
+  const specifier = entry === '.' ? 'itar' : `itar/${entry.slice(2)}`;
+  const resolved = run(process.execPath, ['-p', `require.resolve(${JSON.stringify(specifier)})`], consumer).trim();
+  assert(resolved.startsWith(installed + path.sep), `export escaped installed package: ${entry}`);
+}
 assert.deepEqual(require(path.join(installed, 'lib/index.js')), {packageStage: 'foundation-shell'});
 for (const entry of ['react', 'android', 'apple']) {
   assert(fs.existsSync(path.join(installed, `lib/${entry}.js`)));

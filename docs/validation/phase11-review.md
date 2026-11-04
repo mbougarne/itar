@@ -1,5 +1,9 @@
 # Phase 11 validation review
 
+Latest supplement: [4 November code-only review](phase11-code-review-2026-11-04.md).
+It records new replay, lifecycle and package checks plus the reported Chromecast
+TalkBack failures. Results below remain historical; no runtime was rerun for the supplement.
+
 This is release preparation. No tag, package publication, marketplace upload or
 deployment is part of this change. The release recommendation is **NOT READY**.
 Base: `478ca6d5c26953ec268f1961a47017b1df0a0883`. Candidate identity is the PR head;
