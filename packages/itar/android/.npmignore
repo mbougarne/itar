@@ -1,0 +1,4 @@
+# The package files allowlist includes android/; exclude local native build outputs.
+build/
+.cxx/
+.gradle/

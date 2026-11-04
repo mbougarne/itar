@@ -6,8 +6,10 @@
 namespace itar::diagnostics {
 // Internal fixture v1: owned protocol values; no stable public trace API.
 struct Commit { std::vector<Mutation> mutations; BatchStatus expected{BatchStatus::valid}; };
-struct Input { Direction direction; };
-struct FocusKey { OccurrenceKey key; };
+// Captures preserve the caller's ownership/authority/source. Legacy synthetic
+// fixtures may omit context to use engine ownership and current observed focus.
+struct Input { Direction direction; std::optional<InputContext> context{}; };
+struct FocusKey { OccurrenceKey key; std::optional<InputContext> context{}; };
 struct Cancel { RequestId request; };
 struct Issue { std::size_t effect; };
 struct Outcome { std::size_t effect; OutcomeKind kind; };
@@ -48,6 +50,7 @@ struct Replay {
   std::vector<Notification> notifications;
   std::vector<NodeRecord> records;
   FocusState focus;
+  FocusState accessibilityFocus;
   bool active{};
   bool operator==(const Replay&) const = default;
 };
@@ -97,9 +100,9 @@ std::optional<Replay> replay(const Fixture& fixture, Observer observe = {}) {
           }
         }
       } else if constexpr (std::is_same_v<T, Input>) {
-        decision = tx.directionalInput(event.direction, input, fixture.options);
+        decision = tx.directionalInput(event.direction, event.context.value_or(input), fixture.options);
       } else if constexpr (std::is_same_v<T, FocusKey>) {
-        decision = tx.requestFocus(event.key, input, fixture.options);
+        decision = tx.requestFocus(event.key, event.context.value_or(input), fixture.options);
       } else if constexpr (std::is_same_v<T, Cancel>) {
         decision = tx.cancel(event.request);
       } else if constexpr (std::is_same_v<T, Issue>) {
@@ -148,6 +151,7 @@ std::optional<Replay> replay(const Fixture& fixture, Observer observe = {}) {
     result.records.push_back(*state.snapshot().registry.lookup(node));
   }
   result.focus = state.snapshot().inputFocus;
+  result.accessibilityFocus = state.snapshot().accessibilityFocus;
   result.active = bool(tx.active());
   return result;
 }

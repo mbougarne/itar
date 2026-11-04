@@ -3,14 +3,17 @@
 Use the [short checklist and simulator/physical classification](manual-checklist.md)
 for an individual manual acceptance session.
 
-Physical rows below are **NOT RUN**, not passing support claims. Fill each independently
+Physical acceptance remains **INCOMPLETE**, not a passing support claim. Chromecast
+was exercised by the user on 1 November, including TalkBack, with known focus jumps;
+see the [dated feedback and code-only follow-up](phase11-code-review-2026-11-04.md).
+Fire OS and Apple TV physical acceptance remain unrun. Fill each independently
 with exact commit, tarball integrity, RN/React versions, device model, OS, input
 remote, reader version/settings, list configuration, build mode, diagnostic mode,
 recording paths, observed results and reproduction commands. Use synthetic data.
 
 | Target | Reader modes | Required result |
 | --- | --- | --- |
-| Physical Android TV | Off; TalkBack on | Pending hardware evidence |
+| Physical Android TV | Off; TalkBack on | Chromecast user feedback: responsive; TalkBack Down/loading focus jumps remain unresolved. Full protocol pending. |
 | Physical Fire OS | Off; VoiceView on | Pending hardware evidence |
 | Physical Apple TV | Off; VoiceOver navigation; VoiceOver exploration | Pending hardware evidence |
 | Fresh Android TV tarball consumer | Off; actual registration/focus/style smoke | Build and bounded Google TV emulator smoke pass; see review guide, no physical acceptance |

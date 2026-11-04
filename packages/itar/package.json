@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "prepack": "node scripts/prepare-package.cjs"
+    "prepack": "npm run build && node scripts/prepare-package.cjs"
   },
   "peerDependencies": {
     "react": "19.2.0",
