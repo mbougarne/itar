@@ -51,6 +51,12 @@ appends within a window. See
 [the current design and verification](ott-redesign-2026-10-31.md).
 
 The normal app/Metro configuration and server-side `.env` exclusion remain.
+For local browser testing, append `--allow-web` to the manually started backend
+command. This enables responses for exactly `http://127.0.0.1:8080` and
+`http://localhost:8080`, without credentials in browser code or wildcard CORS.
+Select TMDB proxy in the app's Content source settings. The same per-startup live
+credential approval above applies. Without this flag, browser Origin headers
+remain rejected; foreign Host headers are always rejected.
 Use `adb -s <authorized-serial> reverse tcp:8787 tcp:8787` for the selected emulator;
 do not modify unrelated devices, forwards, servers or running projects.
 

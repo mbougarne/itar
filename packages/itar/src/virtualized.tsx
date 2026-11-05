@@ -4,7 +4,8 @@ import type {FlatListProps, StyleProp, ViewStyle} from 'react-native';
 import {CollectionContext, CollectionDatasetContext, ScopeContext} from './api/contexts';
 import {nativeScopeKey, nativeTargetKey} from './api/types';
 import type {CollectionNode, CollectionStore} from './api/collections';
-import {Focusable, FocusScope} from './react';
+import {Focusable, FocusScope, useFocusState} from './react';
+import {headerScrollOffset} from './api/viewport';
 import type {FocusableProps} from './react';
 
 export type VirtualizedFocusItem = Omit<FocusableProps, 'order' | 'style'>;
@@ -130,30 +131,52 @@ const styles = StyleSheet.create({
 
 /** Two-level row-then-item realization with logical column entry. */
 export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewportExtent, viewportRows = 2,
-  style, itemStyle, testID, viewportHeight, headerExtent = 0, renderDecoration, renderRailHeader, active = true, onReady, onEndReached}: Common & {
+  style, itemStyle, testID, viewportHeight, headerExtent = 0, listHeader, listHeaderExtent = 0,
+  listHeaderItems, listHeaderScope, renderDecoration, renderRailHeader, active = true, onReady, onEndReached}: Common & {
     active?: boolean; onReady?: () => void; onEndReached?: () => void; rails: readonly VirtualizedFocusRail[]; rowExtent: number; viewportRows?: number; viewportHeight?: number; headerExtent?: number;
+    /** A real leading collection row. Render its matching scope and focusable items
+     * inside a horizontal ScrollView so offscreen return uses the normal reveal path. */
+    listHeader?: React.ReactNode; listHeaderExtent?: number;
+    listHeaderItems?: readonly VirtualizedFocusItem[]; listHeaderScope?: string;
     renderDecoration?: (item: VirtualizedFocusItem) => React.ReactNode;
     renderRailHeader?: (rail: VirtualizedFocusRail) => React.ReactNode;
   }) {
   const parent = useContext(ScopeContext);
   const store = useCollection();
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
+  const focus = useFocusState();
+  const viewport = useRef<FlatList<FocusRailRow>>(null);
+  const scrollOffset = useRef(0);
+  const alignedKey = useRef<string | null>(null);
   const model = useMemo(() => {
     extent(itemExtent); extent(rowExtent); extent(viewportExtent);
     if (viewportHeight !== undefined) { extent(viewportHeight); }
     if (!Number.isFinite(headerExtent) || headerExtent < 0 || headerExtent >= rowExtent) { throw new Error('Rail header must fit inside its fixed row extent'); }
+    const hasHeader = listHeader !== undefined && listHeader !== null;
+    if (hasHeader) {
+      extent(listHeaderExtent);
+      if (!listHeaderScope || !listHeaderItems?.length || rails.some(rail => rail.id === listHeaderScope)) {
+        throw new Error('A leading row requires a unique scope and declared focus items');
+      }
+    } else if (listHeaderExtent || listHeaderItems || listHeaderScope) {
+      throw new Error('Leading row metadata requires rendered content');
+    }
     if (!id || !Number.isInteger(viewportRows) || viewportRows < 1 || viewportRows > 10) { throw new Error('Rails require a stable id and 1–10 viewport rows'); }
     const path = [...parent.path, id];
     const key = nativeScopeKey(path);
-    const rows = rails.map(rail => {
+    const declaredRails = hasHeader && listHeaderScope && listHeaderItems
+      ? [{id: listHeaderScope, items: listHeaderItems}, ...rails] : rails;
+    const rows = declaredRails.map(rail => {
       if (!rail.id) { throw new Error('Rails require stable nonempty ids'); }
       if (rail.itemExtent !== undefined) { extent(rail.itemExtent); }
       return {...rail, key: nativeScopeKey([...path, rail.id])};
     });
-    const nodes = [list(key, parent.key, 0, false, rowExtent), ...rows.flatMap((row, index) =>
+    const nodes = [{...list(key, parent.key, 0, false, rowExtent), leadingExtent: listHeaderExtent}, ...rows.flatMap((row, index) =>
       [list(row.key, key, index, true, row.itemExtent ?? itemExtent), ...items(row.items, row.key)])];
-    return {id, key, rows, nodes, itemExtent, rowExtent, viewportExtent, viewportRows, viewportHeight, headerExtent, renderDecoration, renderRailHeader};
-  }, [id, rails, rowExtent, itemExtent, viewportExtent, viewportRows, viewportHeight, headerExtent, renderDecoration, renderRailHeader, parent.path, parent.key]);
+    return {id, key, rows, nodes, itemExtent, rowExtent, viewportExtent, viewportRows, viewportHeight, headerExtent,
+      listHeader, listHeaderExtent, listHeaderScope, renderDecoration, renderRailHeader};
+  }, [id, rails, rowExtent, itemExtent, viewportExtent, viewportRows, viewportHeight, headerExtent, listHeader,
+    listHeaderExtent, listHeaderItems, listHeaderScope, renderDecoration, renderRailHeader, parent.path, parent.key]);
   const published = usePublished(model, active);
   React.useEffect(() => {
     if (active && published && (!supported ||
@@ -161,16 +184,35 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
   }, [active, published, snapshot.dataset, snapshot.accepted, onReady]);
   const collection = published?.model.key ?? model.key;
   const Cell = useMemo(() => renderer<FocusRailRow>(store, collection, row => row.key), [store, collection]);
+  React.useEffect(() => {
+    const value = published?.model;
+    if (!active || !value || !value.listHeaderExtent || focus.kind !== 'managed') { return; }
+    const row = value.rows.find(candidate => candidate.items.some(item => item.occurrenceKey === focus.occurrenceKey));
+    if (!row) { alignedKey.current = null; return; }
+    if (snapshot.preparation || alignedKey.current === focus.occurrenceKey) { return; }
+    alignedKey.current = focus.occurrenceKey;
+    // Apply the application's Hero presentation only after actual host focus,
+    // without racing the collection's pending reveal or resetting deeper rows.
+    const offset = headerScrollOffset(value.listHeaderExtent, scrollOffset.current, row.id === value.listHeaderScope);
+    if (offset !== scrollOffset.current) {
+      scrollOffset.current = offset;
+      viewport.current?.scrollToOffset({offset, animated: false});
+    }
+  }, [active, published, focus, snapshot.preparation]);
   if (!published) { return <View style={style} testID={testID} />; }
   const value = published.model;
   return <CollectionDatasetContext.Provider value={published.dataset}>
     <FocusScope id={value.id} active={active} layout="column" boundary="parent" style={style}>
-      <FlatList onEndReached={active ? onEndReached : undefined} onEndReachedThreshold={0.5} showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} data={value.rows} keyExtractor={row => row.id} testID={testID}
+      <FlatList ref={viewport} onScroll={event => { scrollOffset.current = event.nativeEvent.contentOffset.y; }} scrollEventThrottle={16}
+        onEndReached={active ? onEndReached : undefined} onEndReachedThreshold={0.5} showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} data={value.rows} keyExtractor={row => row.id} testID={testID}
         style={{height: value.viewportHeight ?? value.rowExtent * value.viewportRows, width: value.viewportExtent}}
         CellRendererComponent={Cell} extraData={snapshot.preparation} additionalRenderRegions={store.regions(value.key)}
         initialNumToRender={1} maxToRenderPerBatch={1} windowSize={3}
-        getItemLayout={(_, index) => ({length: value.rowExtent, offset: value.rowExtent * index, index})}
-        renderItem={({item}) => <FocusScope id={item.id} layout="row" boundary="parent" style={{height: value.rowExtent}}>
+        getItemLayout={(_, index) => ({length: index === 0 && value.listHeaderExtent ? value.listHeaderExtent : value.rowExtent,
+          offset: value.listHeaderExtent && index > 0 ? value.listHeaderExtent + value.rowExtent * (index - 1) : value.rowExtent * index, index})}
+        renderItem={({item}) => item.id === value.listHeaderScope ?
+          <View style={{height: value.listHeaderExtent}}>{value.listHeader}</View> :
+          <FocusScope id={item.id} layout="row" boundary="parent" style={{height: value.rowExtent}}>
           {value.headerExtent > 0 && <View accessible={false} pointerEvents="none" style={{height: value.headerExtent}}>{value.renderRailHeader?.(item)}</View>}
           <ItemList data={item.items} collection={item.key} horizontal itemExtent={item.itemExtent ?? value.itemExtent}
             viewportExtent={value.viewportExtent} crossExtent={value.rowExtent - value.headerExtent}

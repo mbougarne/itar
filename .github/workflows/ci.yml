@@ -163,9 +163,42 @@ jobs:
         working-directory: apps/probe/android
         run: ./gradlew assembleDebug assembleAndroidTest lintDebug --build-cache --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a
 
+  web:
+    name: Web / Wasm and TV artifacts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: emscripten-core/emsdk
+          ref: 35659964bc2762fffec0d257997fb61475f765b7
+          path: build/emsdk
+          persist-credentials: false
+      - name: Install pinned Wasm compiler locally
+        working-directory: build/emsdk
+        run: |
+          python3 emsdk.py install 6.0.13
+          python3 emsdk.py activate 6.0.13
+      - run: npm ci --ignore-scripts --no-audit
+      - run: npm run build:web:engine
+      - run: npm run typecheck:web
+      - run: npm run test:web
+      - name: Build browser and unsigned TV artifacts
+        run: |
+          node apps/probe/web/build.cjs browser
+          node apps/probe/web/build.cjs tizen
+          node apps/probe/web/build.cjs webos
+
   required:
     name: Required checks
-    needs: [repository, core, javascript]
+    needs: [repository, core, javascript, web]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -174,6 +207,7 @@ jobs:
       CORE_ENABLED: ${{ needs.repository.outputs.core }}
       JAVASCRIPT_RESULT: ${{ needs.javascript.result }}
       CORE_RESULT: ${{ needs.core.result }}
+      WEB_RESULT: ${{ needs.web.result }}
     steps:
       - name: Require all applicable checks to pass
         run: |
@@ -187,5 +221,9 @@ jobs:
           fi
           if [[ "$JAVASCRIPT_RESULT" != success ]]; then
             echo '::error::RN workspace or Android probe checks did not succeed.'
+            exit 1
+          fi
+          if [[ "$WEB_RESULT" != success ]]; then
+            echo '::error::Web engine, host tests or TV artifact builds did not succeed.'
             exit 1
           fi
