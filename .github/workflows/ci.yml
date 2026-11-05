@@ -63,6 +63,7 @@ jobs:
           bundler: 2.6.9
           bundler-cache: true
       - run: gem install bundler-audit -v 0.9.3 --no-document
+      # Suppressed advisories and their justification live in .bundler-audit.yml.
       - run: bundler-audit check --update
 
   core:

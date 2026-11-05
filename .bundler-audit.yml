@@ -1,0 +1,16 @@
+# Advisories deliberately suppressed for `bundler-audit check`.
+#
+# GHSA-8474-xrp6-wh69 (activesupport, safe_constantize regex DoS)
+#   Patched only in activesupport 8.0.5.2 / 8.1.4.1. cocoapods-core (every
+#   release up to 1.17.0, and master) pins `activesupport >= 5.0, < 8`, so
+#   Bundler cannot resolve to a patched version. Rails 7.2 is out of security
+#   support, so no 7.2.x patch will ship.
+#
+#   activesupport is loaded only by the CocoaPods CLI during `pod install` on
+#   developer-authored Podfiles. No untrusted input reaches safe_constantize,
+#   so the vulnerable path is unreachable in this repository.
+#
+#   Remove this entry once cocoapods-core lifts the `< 8` cap and the lockfile
+#   resolves to activesupport >= 8.0.5.2.
+ignore:
+  - GHSA-8474-xrp6-wh69
