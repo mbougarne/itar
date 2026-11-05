@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { FocusScope, occurrenceKey } from 'itar/react';
 import type { Film } from './catalog';
 import { fetchDetails } from './tmdb';
@@ -81,29 +81,31 @@ export default function Hero({
         <Text numberOfLines={3} style={s.body}>
           {details.synopsis}
         </Text>
-        <FocusScope
-          id="hero-actions"
-          layout="row"
-          boundary="parent"
-          style={s.heroActions}
-        >
-          <Action
-            id={occurrenceKey(id, 'hero', film.id)}
-            label="Explore title"
-            onPress={() => onOpen(details)}
-            highContrast={highContrast}
-            style={s.primaryCta}
-          />
-          {onGuide && (
+        <FocusScope id="hero-actions" layout="row" boundary="parent">
+          <ScrollView
+            horizontal
+            style={s.heroActionsViewport}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.heroActions}
+          >
             <Action
-              order={1}
-              id={occurrenceKey(id, 'hero-guide')}
-              label="TV guide"
-              onPress={onGuide}
+              id={occurrenceKey(id, 'hero', film.id)}
+              label="Explore title"
+              onPress={() => onOpen(details)}
               highContrast={highContrast}
               style={s.primaryCta}
             />
-          )}
+            {onGuide && (
+              <Action
+                order={1}
+                id={occurrenceKey(id, 'hero-guide')}
+                label="TV guide"
+                onPress={onGuide}
+                highContrast={highContrast}
+                style={s.primaryCta}
+              />
+            )}
+          </ScrollView>
         </FocusScope>
       </View>
     </View>

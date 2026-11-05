@@ -170,7 +170,7 @@ final class AppleCollections {
                 return
             }
             settling?.cancel(); settling = nil
-            let offset = CGFloat(steps[step].order) * CGFloat(list.extent)
+            let offset = CGFloat(list.offset(steps[step].order))
             var point = scroll.contentOffset
             if list.layout == 1 {
                 point.x = min(max(0, offset), max(0, scroll.contentSize.width - scroll.bounds.width))

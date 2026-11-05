@@ -20,7 +20,7 @@ function mapFilm(item, kind, mock) {
     posterUrl: mock ? `http://127.0.0.1:8787/v1/mock-art/${item.id % 8}` : image(item.poster_path, 'w500'),
     backdropUrl: mock ? `http://127.0.0.1:8787/v1/mock-art/${item.id % 8}` : image(item.backdrop_path, 'w1280')};
 }
-function createProxy({apiKey = '', mock = true, fetcher = fetch} = {}) {
+function createProxy({apiKey = '', mock = true, fetcher = fetch, allowWeb = false} = {}) {
   let active = 0;
   const upstream = async (route, params, signal) => {
     if (mock) { return mockTmdb(route, params); }
@@ -48,7 +48,13 @@ function createProxy({apiKey = '', mock = true, fetcher = fetch} = {}) {
       res.writeHead(status, {'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'});
       res.end(body);
     };
-    if (req.headers.origin || !/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(req.headers.host || '')) { send(403, {error: 'Local native clients only'}); return; }
+    const origin = req.headers.origin;
+    const webOrigin = allowWeb && ['http://127.0.0.1:8080', 'http://localhost:8080'].includes(origin);
+    if ((origin && !webOrigin) || !/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(req.headers.host || '')) { send(403, {error: 'Local client origin not allowed'}); return; }
+    if (webOrigin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    }
     if (req.method !== 'GET') { send(405, {error: 'GET only'}); return; }
     const url = new URL(req.url, 'http://127.0.0.1');
     if (url.pathname === '/health') { send(200, {mode: mock ? 'mock' : 'live', provider: 'TMDB'}); return; }
@@ -147,7 +153,7 @@ async function start() {
     apiKey = line?.slice(line.indexOf('=') + 1).trim().replace(/^(['"])(.*)\1$/, '$2') || '';
     if (!apiKey || apiKey.startsWith('YOUR_') || apiKey.length > 512) { throw new Error('A valid server-side TMDB v3 key is required.'); }
   }
-  const server = createProxy({mock: !live, apiKey});
+  const server = createProxy({mock: !live, apiKey, allowWeb: process.argv.includes('--allow-web')});
   server.listen(8787, '127.0.0.1', () => console.info(`Itar TMDB proxy: ${live ? 'live' : 'mock responses (no credentials)'} on 127.0.0.1:8787`));
   server.on('error', () => { console.error('Local proxy could not bind 127.0.0.1:8787.'); process.exitCode = 1; });
 }

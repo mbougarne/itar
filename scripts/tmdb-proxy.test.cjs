@@ -9,6 +9,35 @@ async function run(options, check) {
   const base = `http://127.0.0.1:${server.address().port}`;
   try { await check(base); } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 }
+test('browser access is opt-in and restricted to the two local probe origins', async () => {
+  await run({}, async base => {
+    const response = await fetch(`${base}/health`, {headers: {Origin: 'http://127.0.0.1:8080'}});
+    assert.equal(response.status, 403);
+    assert.equal(response.headers.get('access-control-allow-origin'), null);
+  });
+  await run({allowWeb: true}, async base => {
+    for (const origin of ['http://127.0.0.1:8080', 'http://localhost:8080']) {
+      const response = await fetch(`${base}/v1/catalogue`, {headers: {Origin: origin}});
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('access-control-allow-origin'), origin);
+      assert.equal(response.headers.get('vary'), 'Origin');
+      assert.equal((await response.json()).source, 'tmdb-mock');
+      assert.equal((await fetch(`${base}/health`, {method: 'POST', headers: {Origin: origin}})).status, 405);
+    }
+    for (const origin of ['https://example.com', 'null', 'http://127.0.0.1:8081', 'http://localhost.evil:8080']) {
+      const response = await fetch(`${base}/health`, {headers: {Origin: origin}});
+      assert.equal(response.status, 403);
+      assert.equal(response.headers.get('access-control-allow-origin'), null);
+    }
+    const foreignHost = await new Promise((resolve, reject) => {
+      http.get(`${base}/health`, {headers: {Host: 'example.com', Origin: 'http://127.0.0.1:8080'}}, res => {
+        res.resume(); resolve(res.statusCode);
+      }).on('error', reject);
+    });
+    assert.equal(foreignHost, 403);
+    assert.equal((await fetch(`${base}/health`)).status, 200);
+  });
+});
 test('mock server returns paged metadata/cast without credentials or external fetches', async () => {
   await run({mock: true, fetcher: () => { throw new Error('External fetch forbidden'); }}, async base => {
     const first = await (await fetch(`${base}/v1/catalogue?kind=all`)).json();

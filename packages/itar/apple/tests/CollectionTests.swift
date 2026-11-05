@@ -11,6 +11,16 @@ struct CollectionTests {
           {"key":"item","parent":"list","order":0,"scope":false,"enabled":true,"layout":0,"extent":0}]}
         """
         guard let document = CollectionDocument.decode(text) else { preconditionFailure("Valid catalog rejected") }
+        precondition(document.nodes[0].offset(2) == 200)
+        let leading = text.replacingOccurrences(of: "\"extent\":100", with: "\"extent\":100,\"leadingExtent\":624")
+        guard let withHeader = CollectionDocument.decode(leading) else { preconditionFailure("Leading row rejected") }
+        precondition(withHeader.nodes[0].offset(0) == 0)
+        precondition(withHeader.nodes[0].offset(1) == 624)
+        precondition(withHeader.nodes[0].offset(2) == 724)
+        precondition(CollectionDocument.decode(leading.replacingOccurrences(of: "624", with: "-1")) == nil)
+        precondition(CollectionDocument.decode(leading.replacingOccurrences(of: "624", with: "1000001")) == nil)
+        let invalidTarget = text.replacingOccurrences(of: "\"extent\":0", with: "\"extent\":0,\"leadingExtent\":624")
+        precondition(CollectionDocument.decode(invalidTarget) == nil)
         precondition(document.path("item").map(\.key) == ["item"])
         check(try connection.collections(document).code == 0)
         check(try connection.snapshot().collection_dataset == 1)

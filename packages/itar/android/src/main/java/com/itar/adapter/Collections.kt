@@ -13,7 +13,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 internal data class CollectionEntry(val key: String, val parent: String, val order: Int,
-    val scope: Boolean, val enabled: Boolean, val layout: Int, val extent: Double)
+    val scope: Boolean, val enabled: Boolean, val layout: Int, val extent: Double,
+    val leadingExtent: Double = 0.0) {
+    fun offset(index: Int): Double = if (leadingExtent > 0 && index > 0)
+        leadingExtent + (index - 1) * extent else index * extent
+}
 internal data class CollectionDocument(val dataset: Long, val nodes: List<CollectionEntry>) {
     fun path(key: String): List<CollectionEntry> {
         val path = ArrayList<CollectionEntry>()
@@ -34,8 +38,11 @@ internal data class CollectionDocument(val dataset: Long, val nodes: List<Collec
             require(dataset > 0 && entries.length() <= 256)
             CollectionDocument(dataset, (0 until entries.length()).map { index ->
                 val node = entries.getJSONObject(index)
+                val leadingExtent = if (node.has("leadingExtent")) node.getDouble("leadingExtent") else 0.0
+                require(leadingExtent.isFinite() && leadingExtent >= 0 && leadingExtent <= 1000000 &&
+                    (node.getBoolean("scope") || leadingExtent == 0.0))
                 CollectionEntry(node.getString("key"), node.getString("parent"), node.getInt("order"),
-                    node.getBoolean("scope"), node.getBoolean("enabled"), node.getInt("layout"), node.getDouble("extent"))
+                    node.getBoolean("scope"), node.getBoolean("enabled"), node.getInt("layout"), node.getDouble("extent"), leadingExtent)
             })
         } catch (_: IllegalArgumentException) { null } catch (_: org.json.JSONException) { null }
     }
@@ -201,7 +208,7 @@ internal class Collections(private val root: SurfaceView) {
                 if (view is ViewGroup) for (index in 0 until view.childCount) queue.addLast(view.getChildAt(index))
             }
             val list = entry(scope.scopeKey) ?: return
-            val offset = (steps[step].order * list.extent * root.resources.displayMetrics.density).toInt()
+            val offset = (list.offset(steps[step].order) * root.resources.displayMetrics.density).toInt()
             if (scroll == null) { root.dispatcher.submit(12, effect.copyOfRange(2, 6) + 1L); release(); return }
             if (!root.dispatcher.hostCall {
                 scrolled = true

@@ -19,7 +19,16 @@
     "check:tv": "npm run check -w itar-probe",
     "test": "node --test scripts/*.test.cjs",
     "build": "npm run build -w itar",
-    "native:generate": "node scripts/generate-probe.cjs"
+    "native:generate": "node scripts/generate-probe.cjs",
+    "build:web:engine": "node apps/probe/web/engine/build.cjs",
+    "build:web": "npm run build:web:engine && node apps/probe/web/build.cjs browser",
+    "build:tizen": "npm run build:web:engine && node apps/probe/web/build.cjs tizen",
+    "build:webos": "npm run build:web:engine && node apps/probe/web/build.cjs webos",
+    "typecheck:web": "node scripts/prepare-tv-types.cjs && tsc --noEmit -p apps/probe/web/tsconfig.json",
+    "test:web:engine": "node --test apps/probe/web/engine/*.test.mjs",
+    "test:web": "node --test apps/probe/web/engine/*.test.mjs apps/probe/web/tests/*.test.cjs",
+    "web:serve": "python3 -m http.server 8080 --bind 127.0.0.1 --directory build/probe-web/browser",
+    "web": "npm run build:web && npm run web:serve"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",
@@ -32,6 +41,9 @@
     "@react-native/metro-config": "0.83.0",
     "@react-native/typescript-config": "0.83.0",
     "@types/react": "19.2.0",
+    "@types/react-dom": "19.2.0",
+    "@types/react-native-web": "0.19.2",
+    "esbuild": "0.28.2",
     "eslint": "8.57.1",
     "prettier": "2.8.8",
     "typescript": "5.8.3"

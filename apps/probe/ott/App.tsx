@@ -20,6 +20,7 @@ import { Action, art, icons, Picture } from './src/ui';
 import { DesignTheme, useDesign } from './src/theme';
 import type { ProviderMode } from './src/tmdb';
 import type { Film } from './src/catalog';
+import { readBrowserSession, saveBrowserSession } from './src/browser-session';
 
 const screens = [
   'Home',
@@ -43,13 +44,21 @@ const subtitles = {
 
 function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
   const { s, u } = useDesign();
-  const [authenticated, setAuthenticated] = useState(false);
+  const [savedSession] = useState(readBrowserSession);
+  const [authenticated, setAuthenticated] = useState(!!savedSession);
   const [guideOpen, setGuideOpen] = useState(false);
-  const [mode, setMode] = useState<ProviderMode>('proxy');
-  const [screen, setScreen] = useState<Screen>('Profile');
+
+  const [mode, setMode] = useState<ProviderMode>(
+    savedSession?.mode ?? (Platform.OS === 'web' ? 'fixture' : 'proxy'),
+  );
+
+  const [screen, setScreen] = useState<Screen>(
+    savedSession ? 'Home' : 'Profile',
+  );
+
   const [film, setFilm] = useState<Film | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [profile, setProfile] = useState('Explorer');
+  const [profile, setProfile] = useState(savedSession?.profile ?? 'Explorer');
   const [contrast, setContrast] = useState(false);
   const [slow, setSlow] = useState(false);
   const [notice, setNotice] = useState('');
@@ -59,6 +68,10 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
   const exitPrompt = useRef(false);
   const fail = useRef(false);
   const [failureArmed, setFailureArmed] = useState(false);
+
+  useEffect(() => {
+    saveBrowserSession(authenticated ? { mode, profile } : null);
+  }, [authenticated, mode, profile]);
 
   const takeFailure = useCallback(() => {
     const next = fail.current;
@@ -446,6 +459,7 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
                   label="Sign out"
                   displayLabel={expanded ? 'Sign out' : ''}
                   onPress={() => {
+                    saveBrowserSession(null);
                     returning.current = false;
                     bookmark.current = null;
                     entered.current = '';
@@ -567,7 +581,10 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
 function TVApp({ onOpenProbes }: { onOpenProbes?: () => void }) {
   const { s } = useDesign();
 
-  if (!Platform.isTV || !['ios', 'android'].includes(Platform.OS)) {
+  if (
+    Platform.OS !== 'web' &&
+    (!Platform.isTV || !['ios', 'android'].includes(Platform.OS))
+  ) {
     return (
       <View style={s.shell}>
         <Text style={s.body}>

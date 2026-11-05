@@ -11,6 +11,11 @@ struct CollectionEntry: Decodable {
     let enabled: Bool
     let layout: Int32
     let extent: Double
+    var leadingExtent: Double? = nil
+    func offset(_ index: Int32) -> Double {
+        let first = leadingExtent ?? 0
+        return first > 0 && index > 0 ? first + Double(index - 1) * extent : Double(index) * extent
+    }
 }
 struct CollectionDocument: Decodable {
     let dataset: String
@@ -19,7 +24,11 @@ struct CollectionDocument: Decodable {
         guard let data = text.data(using: .utf8), data.count <= 524_288,
               let document = try? JSONDecoder().decode(Self.self, from: data),
               let revision = UInt64(document.dataset), revision > 0,
-              document.nodes.count <= 256 else { return nil }
+              document.nodes.count <= 256,
+              document.nodes.allSatisfy({ node in
+                  let first = node.leadingExtent ?? 0
+                  return first.isFinite && first >= 0 && first <= 1_000_000 && (node.scope || first == 0)
+              }) else { return nil }
         return document
     }
     func path(_ key: String) -> [CollectionEntry] {

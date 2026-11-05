@@ -11,6 +11,9 @@ import com.itarprobe.MainActivity
 
 /** Uses the shipped React preview, native commands and real committed host views. */
 class VirtualizedTest : ActivityInstrumentationTestCase2<MainActivity>(MainActivity::class.java) {
+    fun testLeadingRowOffsets() {
+        CollectionChecks.leadingRowOffsets()
+    }
     private fun views(): List<View> {
         val result = ArrayList<View>()
         val queue = ArrayDeque<View>()

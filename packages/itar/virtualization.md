@@ -31,8 +31,8 @@ same surface capacity. Keys remain subject to the native 512-byte limit.
 
 `itemExtent` is the complete fixed width of a horizontal cell or height of a
 vertical cell, including any spacing. `viewportExtent` is the list's scrolling
-viewport size. Insets, headers, separators, transforms, variable cell sizes, and
-custom renderers are outside this first integration. `itemStyle` can decorate a
+viewport size. Arbitrary insets, separators, transforms, variable cell sizes, and
+custom renderers are outside this integration. `itemStyle` can decorate a
 button while preserving these dimensions. Keep data immutable between updates.
 
 For nested rails, pass `rails={[{id, items}]}` to `FocusVirtualizedRails`, along
@@ -40,6 +40,16 @@ with `itemExtent`, `rowExtent`, `viewportExtent`, and optional `viewportRows`
 (default 2). Row IDs and item occurrence keys must be stable and unique. Adjacent
 horizontal rails enter at the nearest available logical column; this declared
 fixed-column policy does not depend on which cells happen to be mounted.
+
+Rails optionally accept one leading row through `listHeader`, `listHeaderExtent`,
+`listHeaderScope`, and `listHeaderItems`. The header must render the declared scope
+directly under the catalogue scope, with its declared `Focusable` items inside a
+horizontal `ScrollView`. It participates in logical membership and source/target
+retention like every other row; it is not an unrelated decorative list header.
+`listHeaderExtent` includes all vertical spacing. The first row uses that height;
+the remaining rows use `rowExtent`. Host-only `leadingExtent` metadata keeps native
+reveal offsets aligned with `getItemLayout`; it never substitutes for measured
+focus geometry. Home uses this for its Hero so it scrolls with the catalogue.
 
 The provider atomically publishes a complete dataset revision before rendering
 its new cells. Until native acceptance, an existing list keeps its last accepted
