@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { FocusScope, FocusVirtualizedRails, occurrenceKey } from 'itar/react';
 import type { VirtualizedFocusItem, VirtualizedFocusRail } from 'itar/react';
 import { cast, films, type CastMember, type Film } from './catalog';
@@ -271,8 +271,8 @@ export default function Details({
             />
           </FocusScope>
           <Text style={s.footer}>
-            Big Buck Bunny demo playback · My list and Like are focus-only
-            controls
+            Big Buck Bunny{Platform.OS === 'web' ? ' 4K UHD' : ''} demo playback
+            · My list and Like are focus-only controls
           </Text>
         </View>
       </View>

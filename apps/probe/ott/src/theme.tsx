@@ -50,7 +50,6 @@ export function createStyles(u: number) {
       height: 600 * u,
       justifyContent: 'center',
       marginBottom: 24 * u,
-      paddingHorizontal: 40 * u,
     },
     filters: { flexDirection: 'row', gap: 16 * u, marginBottom: 28 * u },
     filter: { width: 206 * u, height: 56 * u, minWidth: 0 },
@@ -65,6 +64,7 @@ export function createStyles(u: number) {
       fontSize: 20 * u,
     },
     heroActions: { flexDirection: 'row', gap: 20 * u, marginTop: 16 * u },
+    heroActionsViewport: { height: 88 * u, flexGrow: 0 },
     primaryCta: {
       width: 250 * u,
       height: 72 * u,
@@ -241,8 +241,10 @@ export function createStyles(u: number) {
     navAction: {
       height: 64 * u,
       width: 64 * u,
+      minWidth: 0,
       paddingLeft: 0,
       backgroundColor: 'transparent',
+      borderWidth: 0,
       borderRadius: 8 * u,
     },
     sidebarBottom: { marginTop: 'auto', gap: 18 * u },

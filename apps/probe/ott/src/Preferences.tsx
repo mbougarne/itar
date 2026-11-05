@@ -254,8 +254,8 @@ export function Settings({
         )}
       </View>
       <Text style={s.footer}>
-        Settings last for this session. This product uses the TMDB API but is
-        not endorsed or certified by TMDB.
+        Focus and request settings last for this session. This product uses the
+        TMDB API but is not endorsed or certified by TMDB.
       </Text>
     </View>
   );

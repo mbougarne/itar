@@ -430,15 +430,6 @@ export default function Browse({
   return (
     <View style={s.fill}>
       {featured && featuredFilm && <Backdrop film={featuredFilm} />}
-      {featured && featuredFilm && (
-        <Hero
-          onGuide={onGuide}
-          film={featuredFilm}
-          id={id}
-          onOpen={onOpen}
-          highContrast={highContrast}
-        />
-      )}
       <View
         style={featured ? s.homeRails : s.fill}
         onLayout={event => {
@@ -468,6 +459,39 @@ export default function Browse({
             viewportExtent={viewport}
             viewportRows={1}
             viewportHeight={height}
+            listHeader={
+              featured && featuredFilm ? (
+                <Hero
+                  onGuide={onGuide}
+                  film={featuredFilm}
+                  id={id}
+                  onOpen={onOpen}
+                  highContrast={highContrast}
+                />
+              ) : undefined
+            }
+            listHeaderExtent={featured && featuredFilm ? 624 * u : 0}
+            listHeaderScope={
+              featured && featuredFilm ? 'hero-actions' : undefined
+            }
+            listHeaderItems={
+              featured && featuredFilm
+                ? [
+                    {
+                      occurrenceKey: occurrenceKey(id, 'hero', featuredFilm.id),
+                      accessibilityLabel: 'Explore title',
+                    },
+                    ...(onGuide
+                      ? [
+                          {
+                            occurrenceKey: occurrenceKey(id, 'hero-guide'),
+                            accessibilityLabel: 'TV guide',
+                          },
+                        ]
+                      : []),
+                  ]
+                : undefined
+            }
             headerExtent={headerExtent}
             renderRailHeader={grid ? undefined : railHeader}
             renderDecoration={decoration}

@@ -1,0 +1,200 @@
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+#root {
+  display: flex;
+  flex-direction: column;
+}
+body {
+  background: #0f1e2c;
+  color: #f2f8fc;
+  overflow: hidden;
+}
+button,
+input,
+video {
+  font: inherit;
+}
+button:focus,
+input:focus,
+video:focus {
+  outline: 3px solid #5fffe0;
+  outline-offset: 3px;
+}
+.itar-web-player {
+  position: fixed;
+  z-index: 11000;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: #000;
+  color: #fff;
+  font: 18px system-ui, sans-serif;
+  box-sizing: border-box;
+}
+.itar-web-player video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: black;
+}
+.itar-web-player button {
+  min-height: 48px;
+  min-width: 64px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid #79939c;
+  background: #122631;
+  color: white;
+  cursor: pointer;
+}
+.itar-web-player button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.itar-web-player button:focus-visible {
+  background: #176b7b;
+}
+.itar-web-player h1,
+.itar-web-player p {
+  margin: 0;
+}
+.itar-player-header {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 32px 48px;
+  background: linear-gradient(#000c, transparent);
+}
+.itar-player-header h1 {
+  font-size: clamp(20px, 2.5vw, 36px);
+}
+.itar-web-player .itar-player-close {
+  min-width: 48px;
+  width: 48px;
+  padding: 0;
+  flex-shrink: 0;
+  font-size: 36px;
+  line-height: 1;
+  border-radius: 50%;
+}
+.itar-player-controls {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 48px 32px 20px;
+  background: linear-gradient(transparent, #000e);
+}
+.itar-player-controls > input {
+  display: block;
+  width: 100%;
+  margin: 0 0 16px;
+}
+.itar-player-controls input {
+  height: 24px;
+  accent-color: #26d9f2;
+  cursor: pointer;
+}
+.itar-player-buttons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.itar-player-buttons input {
+  width: 120px;
+}
+.itar-player-buttons button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.itar-player-buttons svg {
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.itar-player-buttons button span {
+  font-size: 12px;
+}
+.itar-player-time {
+  font-variant-numeric: tabular-nums;
+  margin-right: auto;
+}
+.itar-web-player .itar-player-credit {
+  font-size: 12px;
+  color: #bdc8d3;
+  margin-top: 16px;
+}
+.itar-web-player .itar-player-status {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 80%;
+  padding: 16px 24px;
+  background: #0f1e2cee;
+  border-radius: 8px;
+  text-align: center;
+}
+@media (max-width: 600px) {
+  .itar-player-header {
+    padding: 16px 16px 40px;
+  }
+  .itar-player-controls {
+    padding: 40px 16px 16px;
+  }
+  .itar-player-buttons {
+    gap: 8px;
+  }
+  .itar-web-player button {
+    padding: 8px;
+    min-width: 48px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+  }
+}
+.itar-web-target:focus {
+  outline: 3px solid var(--itar-accent, #26d9f2);
+  outline-offset: -3px;
+}
+.itar-web-target-background:focus {
+  background-color: var(--itar-focus-background) !important;
+}
+
+.itar-web-scrollport {
+  scrollbar-width: none;
+}
+.itar-web-scrollport::-webkit-scrollbar {
+  display: none;
+}
+
+.itar-navigation-option {
+  position: absolute;
+  right: 12px;
+  top: 8px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  gap: 3px;
+  background: #0f1e2c;
+  border: 1px solid #4c7583;
+  border-radius: 6px;
+  font: 12px sans-serif;
+  color: #f2f8fc;
+}
+.itar-navigation-option small {
+  font-size: 10px;
+}
