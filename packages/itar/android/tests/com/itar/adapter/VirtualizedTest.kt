@@ -12,13 +12,7 @@ import com.itarprobe.MainActivity
 /** Uses the shipped React preview, native commands and real committed host views. */
 class VirtualizedTest : ActivityInstrumentationTestCase2<MainActivity>(MainActivity::class.java) {
     fun testLeadingRowOffsets() {
-        val list = CollectionEntry("catalogue", "", 0, true, true, 2, 420.0, 624.0)
-        assertEquals(0.0, list.offset(0), 0.0)
-        assertEquals(624.0, list.offset(1), 0.0)
-        assertEquals(1044.0, list.offset(2), 0.0)
-        assertEquals(840.0, list.copy(leadingExtent = 0.0).offset(2), 0.0)
-        val invalid = """{"dataset":"1","nodes":[{"key":"list","parent":"","order":0,"scope":true,"enabled":true,"layout":2,"extent":420,"leadingExtent":-1}]}"""
-        assertNull(CollectionDocument.decode(invalid))
+        CollectionChecks.leadingRowOffsets()
     }
     private fun views(): List<View> {
         val result = ArrayList<View>()
