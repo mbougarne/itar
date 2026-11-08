@@ -95,3 +95,5 @@ packages/itar/LICENSE
 
 # External-storage dependency-directory symlink used by isolated worktrees
 /node_modules
+
+docs/validation
