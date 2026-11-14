@@ -62,7 +62,7 @@ export default function Browse({
 }: {
   grid?: boolean;
   category?: Category;
-  onGuide?: () => void;
+  onGuide?: (openerKey: string) => void;
   onReady?: (initialKey?: string) => void;
   viewportWidth?: number;
   mode: ProviderMode;
@@ -72,7 +72,7 @@ export default function Browse({
   active: boolean;
   delay: number;
   failNext: () => boolean;
-  onOpen: (film: Film) => void;
+  onOpen: (film: Film, openerKey: string) => void;
   highContrast: boolean;
   featured?: boolean;
   searchResults?: boolean;
@@ -205,7 +205,7 @@ export default function Browse({
             ...make(
               key,
               `${film.title}, ${film.kind === 'movie' ? 'Movie' : 'Series'}`,
-              () => onOpen(film),
+              () => onOpen(film, key),
               film.id,
             ),
             displayLabel: '',
@@ -234,7 +234,7 @@ export default function Browse({
             ),
           });
 
-          return make(key, 'Open TV guide', onGuide);
+          return make(key, 'Open TV guide', () => onGuide(key));
         }),
       });
     }

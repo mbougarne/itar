@@ -39,10 +39,10 @@ export default function Hero({
   highContrast,
   onGuide,
 }: {
-  onGuide?: () => void;
+  onGuide?: (openerKey: string) => void;
   film: Film;
   id: string;
-  onOpen: (film: Film) => void;
+  onOpen: (film: Film, openerKey: string) => void;
   highContrast: boolean;
 }) {
   const { s } = useDesign();
@@ -91,7 +91,9 @@ export default function Hero({
             <Action
               id={occurrenceKey(id, 'hero', film.id)}
               label="Explore title"
-              onPress={() => onOpen(details)}
+              onPress={() =>
+                onOpen(details, occurrenceKey(id, 'hero', film.id))
+              }
               highContrast={highContrast}
               style={s.primaryCta}
             />
@@ -100,7 +102,7 @@ export default function Hero({
                 order={1}
                 id={occurrenceKey(id, 'hero-guide')}
                 label="TV guide"
-                onPress={onGuide}
+                onPress={() => onGuide(occurrenceKey(id, 'hero-guide'))}
                 highContrast={highContrast}
                 style={s.primaryCta}
               />

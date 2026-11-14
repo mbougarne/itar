@@ -26,7 +26,7 @@ export default function Search({
   delay: number;
   failNext: () => boolean;
   highContrast: boolean;
-  onOpen: (film: Film) => void;
+  onOpen: (film: Film, openerKey: string) => void;
 }) {
   const { s } = useDesign();
   const [resultsWidth, setResultsWidth] = useState(0);

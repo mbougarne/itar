@@ -20,6 +20,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     internal val scopes = LinkedHashMap<String, WeakReference<ScopeView>>()
     private var scopesDirty = true
     internal val collections = Collections(this)
+    private val collectionAccessibility = CollectionAccessibility(this)
     private val orderedFocus = OrderedFocus(this)
     internal var dispatcher = Dispatcher(this)
     var collectionData = ""
@@ -63,6 +64,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             refreshGeometry()
             pending.filter { it.isAttachedToWindow && it.surface === this }.forEach { it.commitProps() }
             rebuildOrderedFocus()
+            collectionAccessibility.rebuild()
             post { if (!closed) collections.advance() }
         }
     }
@@ -122,6 +124,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         val activityChanged = appliedActivity != acceptsInput
         appliedActivity = acceptsInput
         if (!acceptsInput) {
+            collectionAccessibility.clear()
             if (!hiddenForActivity) { savedImportance = importantForAccessibility; savedDescendants = descendantFocusability }
             hiddenForActivity = true
             importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
@@ -316,10 +319,11 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         orderedFocus.clear()
         if (!closed) scheduleRefresh()
     }
+    internal fun collectionAccessibilityChanged() { collectionAccessibility.clear(); if (!closed) scheduleRefresh() }
     private fun rebuildOrderedFocus() {
         if (!closed && !geometryDirty && !scopesDirty) orderedFocus.rebuild()
     }
-    internal fun scopeChanged() { scopesDirty = true; geometryChanged() }
+    internal fun scopeChanged() { collectionAccessibility.clear(); scopesDirty = true; geometryChanged() }
     internal fun scopeActive(key: String): Boolean {
         var current = key
         repeat(257) {
@@ -371,7 +375,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
                 published.add(scope.scopeKey)
                 remaining.remove(scope)
             }
-            if (remaining.isEmpty()) { scopesDirty = false; return true }
+            if (remaining.isEmpty()) { scopesDirty = false; collectionAccessibility.rebuild(); return true }
         }
         // Parent and child props can arrive in separate virtualizer commits.
         // Keep geometry unavailable until the accepted catalog's parent mounts.
@@ -380,6 +384,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         return false
     }
     internal fun dropScope(scope: ScopeView) {
+        collectionAccessibility.clear()
         orderedFocusChanged()
         val retiredKey = scope.committedKey
         if (retiredKey.isEmpty() || scopes[retiredKey]?.get() !== scope) return
@@ -414,6 +419,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         try { dispatcher.batch { targets.values.mapNotNull { it.get() }.forEach { register(it) } } }
         finally { refreshingGeometry = false }
         rebuildOrderedFocus()
+        collectionAccessibility.rebuild()
     }
     private fun record(target: View?, channel: Long): LongArray {
         val mount = (target as? TargetView)?.takeIf { it.surface === this }?.mount
@@ -444,6 +450,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     fun close() {
         if (closed) return
         closed = true
+        collectionAccessibility.close()
         orderedFocus.clear()
         mountCommands.clear()
         collections.close()

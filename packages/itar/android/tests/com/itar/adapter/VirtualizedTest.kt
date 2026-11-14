@@ -2,15 +2,23 @@
 package com.itar.adapter
 
 import android.os.SystemClock
+import android.graphics.Rect
 import android.test.ActivityInstrumentationTestCase2
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.HorizontalScrollView
+import android.widget.ScrollView
 import android.widget.TextView
 import com.itarprobe.MainActivity
+import org.json.JSONArray
 
 /** Uses the shipped React preview, native commands and real committed host views. */
 class VirtualizedTest : ActivityInstrumentationTestCase2<MainActivity>(MainActivity::class.java) {
+    private var lastControl = ""
+    private var lastControlAt = 0L
+    private val requestRecords = ArrayList<CollectionChecks.Request>()
+    private var lastCatalog: CollectionChecks.Catalog? = null
     fun testLeadingRowOffsets() {
         CollectionChecks.leadingRowOffsets()
     }
@@ -34,9 +42,41 @@ class VirtualizedTest : ActivityInstrumentationTestCase2<MainActivity>(MainActiv
             if (ready) return
             SystemClock.sleep(30)
         }
-        fail(message)
+        var details = ""
+        instrumentation.runOnMainSync {
+            val nodes = views()
+            val status = nodes.filterIsInstance<TextView>().map { it.text.toString() }
+                .filter { it.startsWith("Observed:") || it.startsWith("Request:") }
+                .take(2).joinToString("; ") { it.take(512) }
+            val actual = activity.window.decorView.findFocus()
+            val label = message.removePrefix("No actual focus: ")
+            val targets = nodes.filterIsInstance<TargetView>()
+                .filter { it.contentDescription?.toString() == label }.take(4).map { target ->
+                    val visible = Rect()
+                    val shown = target.getGlobalVisibleRect(visible)
+                    val position = IntArray(2)
+                    target.getLocationOnScreen(position)
+                    val bounds = Rect(position[0], position[1], position[0] + target.width, position[1] + target.height)
+                    val scrolls = generateSequence(target.parent) { it.parent }.filterIsInstance<View>()
+                        .filter { it is HorizontalScrollView || it is ScrollView }.take(8).map { scroll ->
+                            val viewport = Rect()
+                            scroll.getGlobalVisibleRect(viewport)
+                            "${scroll.javaClass.simpleName}: scroll=${scroll.scrollX},${scroll.scrollY}, " +
+                                "size=${scroll.width}x${scroll.height}, visible=$viewport"
+                        }.toList()
+                    "${target.contentDescription}: attached=${target.isAttachedToWindow}, focused=${target.hasFocus()}, " +
+                        "focusable=${target.isFocusable}, bounds=$bounds, visible=$shown $visible, scrolls=$scrolls"
+                }
+            details = "lastControl=$lastControl elapsed=${SystemClock.uptimeMillis() - lastControlAt}ms; " +
+                "$status; actual=${actual?.javaClass?.simpleName}#${actual?.id} " +
+                "description=${actual?.contentDescription?.toString()?.take(160)}; matchingTargets=$targets; " +
+                "catalog=$lastCatalog; requestTail=${requestRecords.takeLast(8)}"
+        }
+        fail("$message\n$details")
     }
     private fun press(title: String) {
+        lastControl = title
+        lastControlAt = SystemClock.uptimeMillis()
         await("Missing control: $title") { nodes -> nodes.filterIsInstance<TextView>().any { it.text.toString().equals(title, true) } }
         instrumentation.runOnMainSync {
             val text = views().filterIsInstance<TextView>().first { it.text.toString().equals(title, true) }
@@ -53,6 +93,24 @@ class VirtualizedTest : ActivityInstrumentationTestCase2<MainActivity>(MainActiv
     private fun text(value: String) {
         await("Missing status: $value") { nodes -> nodes.filterIsInstance<TextView>().any { it.text.toString().contains(value) } }
     }
+    private fun key(row: Int, item: Int): String = JSONArray().put("target")
+        .put(JSONArray(listOf("virtualized", "row-$row", "entry-$item")).toString()).toString()
+    private fun changeCatalog(title: String, vararg expected: Pair<String, Int?>) {
+        lateinit var root: SurfaceView
+        var previous = 0L
+        val keys = expected.map { it.first }
+        instrumentation.runOnMainSync {
+            root = views().filterIsInstance<SurfaceView>().first { !it.closed }
+            previous = CollectionChecks.catalog(root, keys).dataset
+        }
+        press(title)
+        // Wait for logical publication, never for realization or native target focus.
+        await("Catalog not ready after $title: dataset > $previous, expected=${expected.toList()}") {
+            val snapshot = CollectionChecks.catalog(root, keys)
+            lastCatalog = snapshot
+            !root.closed && snapshot.dataset > previous && snapshot.orders == expected.map { it.second }
+        }
+    }
     fun testPublicSingleAndNestedCollection() {
         instrumentation.setInTouchMode(false)
         activity
@@ -61,7 +119,9 @@ class VirtualizedTest : ActivityInstrumentationTestCase2<MainActivity>(MainActiv
         focused("Rail 1, item 1")
         val records = ArrayList<CollectionChecks.Focus>()
         var stop: (() -> Unit)? = null
-        instrumentation.runOnMainSync { stop = CollectionChecks.observe(views().filterIsInstance<SurfaceView>().first { !it.closed }, records) }
+        instrumentation.runOnMainSync {
+            stop = CollectionChecks.observe(views().filterIsInstance<SurfaceView>().first { !it.closed }, records, requestRecords)
+        }
         try {
             repeat(4) { instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT) }
             focused("Rail 1, item 5")
@@ -75,7 +135,7 @@ class VirtualizedTest : ActivityInstrumentationTestCase2<MainActivity>(MainActiv
             focused("Rail 1, item 31")
             instrumentation.runOnMainSync { check(views().filterIsInstance<TargetView>().first { it.hasFocus() }.performClick()) }
             text("activation: [\"virtualized\",\"row-0\",\"entry-30\"]")
-            press("Nested rails")
+            changeCatalog("Nested rails", key(7, 10) to 10)
             press("Reveal distant item")
             focused("Rail 8, item 11")
             press("Focus start")
@@ -90,11 +150,11 @@ class VirtualizedTest : ActivityInstrumentationTestCase2<MainActivity>(MainActiv
             focused("Rail 1, item 1")
             press("Cancel delayed reveal")
             text("cancelled")
-            press("Reorder dataset")
+            changeCatalog("Reorder dataset", key(0, 0) to 39)
             press("Focus start")
             focused("Rail 1, item 1")
-            press("Remove item 2")
-            press("Restore item 2")
+            changeCatalog("Remove item 2", key(0, 0) to 38, key(0, 1) to null)
+            changeCatalog("Restore item 2", key(0, 0) to 39, key(0, 1) to 38)
             press("Focus start")
             focused("Rail 1, item 1")
         } finally { instrumentation.runOnMainSync { stop?.invoke() } }

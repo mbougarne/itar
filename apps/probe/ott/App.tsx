@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, BackHandler, Image, Platform, Text, View } from 'react-native';
+import type { FocusGuideProps } from 'react-native';
 import {
   FocusProvider,
   FocusScope,
@@ -92,12 +93,9 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
       name => focus.occurrenceKey === occurrenceKey('nav', name),
     );
 
-  const focusRef = useRef(focus);
   const filmRef = useRef(film);
 
   useEffect(() => {
-    focusRef.current = focus;
-
     if (focus.kind === 'managed') {
       setNotice('');
     }
@@ -147,9 +145,9 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
   }, [beginEntry]);
 
   const openFilm = useCallback(
-    (value: Film) => {
+    (value: Film, openerKey: string) => {
       if (!filmRef.current) {
-        bookmark.current = focusRef.current.occurrenceKey;
+        bookmark.current = openerKey;
       }
 
       beginEntry(() => setFilm(value));
@@ -287,9 +285,11 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
         return;
       }
 
+      const restoring = !film && returning.current;
+
       const key = film
         ? occurrenceKey('details', 'play')
-        : returning.current
+        : restoring
         ? bookmark.current
         : initialKey;
 
@@ -300,7 +300,10 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
       entered.current = route;
       returning.current = !!film;
 
-      const request = commands.focusByKey(key);
+      const request =
+        Platform.OS === 'android' && restoring
+          ? commands.restoreFocusByKey(key)
+          : commands.focusByKey(key);
 
       entryRequest.current = request;
 
@@ -336,8 +339,8 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
     beginEntry(() => setGuideOpen(false));
   }, [beginEntry]);
 
-  const openGuide = () => {
-    bookmark.current = focusRef.current.occurrenceKey;
+  const openGuide = (openerKey: string) => {
+    bookmark.current = openerKey;
     returning.current = true;
     beginEntry(() => setGuideOpen(true));
   };
@@ -485,7 +488,20 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
             </View>
           </FocusScope>
         </View>
-        <View style={[s.content, screen === 'Home' && !film && s.homeContent]}>
+        <View
+          // Use the TV fork's native View flags without adding a focus owner.
+          {...(Platform.OS === 'android'
+            ? ({
+                collapsable: false,
+                trapFocusUp: true,
+                trapFocusDown: true,
+              } satisfies Pick<
+                FocusGuideProps,
+                'collapsable' | 'trapFocusUp' | 'trapFocusDown'
+              >)
+            : {})}
+          style={[s.content, screen === 'Home' && !film && s.homeContent]}
+        >
           <FocusScope
             id="page"
             active={!film && !playing && !guideOpen}

@@ -50,10 +50,10 @@ class ScopeView(context: Context) : ReactViewGroup(context) {
     }
     override fun onAttachedToWindow() { super.onAttachedToWindow(); commit() }
     override fun onViewAdded(child: View) {
-        super.onViewAdded(child); (owner ?: root())?.orderedFocusChanged()
+        super.onViewAdded(child); (owner ?: root())?.let { it.orderedFocusChanged(); it.collectionAccessibilityChanged() }
     }
     override fun onViewRemoved(child: View) {
-        super.onViewRemoved(child); (owner ?: root())?.orderedFocusChanged()
+        super.onViewRemoved(child); (owner ?: root())?.let { it.orderedFocusChanged(); it.collectionAccessibilityChanged() }
     }
     internal fun recycle() { owner?.dropScope(this); owner = null; node = longArrayOf(0, 0); committed = null; declared = null; committedKey = "" }
 }
