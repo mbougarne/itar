@@ -1,9 +1,12 @@
-// Public loopback endpoint only. Provider credentials never enter this module.
+// Public build-time endpoint only. Provider credentials never enter this module.
 import type { CastMember, Category, Film, Kind, Page, Rail } from './catalog';
+
+// Replaced by the bundler; no Node runtime or server environment is loaded.
+declare const process: { env: { ITAR_TMDB_PROXY_URL?: string } };
 
 export type ProviderMode = 'proxy' | 'fixture';
 
-const PROXY = 'http://127.0.0.1:8787';
+const PROXY = process.env.ITAR_TMDB_PROXY_URL || 'http://127.0.0.1:8787';
 
 const record = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);

@@ -4,6 +4,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const zlib = require('node:zlib');
 const esbuild = require('esbuild');
+const { defaultProxyURL } = require('../../../scripts/tmdb-endpoint.cjs');
 const root = path.resolve(__dirname, '../../..');
 const targets = ['browser', 'tizen', 'webos'];
 
@@ -188,6 +189,7 @@ async function buildSite(target = 'browser') {
     define: {
       __DEV__: 'false',
       'process.env.NODE_ENV': '"production"',
+      'process.env.ITAR_TMDB_PROXY_URL': JSON.stringify(defaultProxyURL),
       'import.meta.url': '__itarModuleUrl',
     },
     banner: {
