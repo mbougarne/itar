@@ -1,6 +1,8 @@
 package com.itar.adapter
 
 import android.view.KeyEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import androidx.core.view.ViewCompat
 
 /** Compiled with the library debug variant so internal adapter checks stay local. */
 object ReaderRestorationChecks {
@@ -16,13 +18,27 @@ object ReaderRestorationChecks {
             if (it[1] == 8L) confirmations++
             root.emitRequest(it, root.commandRequests[it[2]] ?: "")
         }
-        fun restore(command: String, expected: TargetView, confirmed: Boolean) {
+        fun restore(command: String, expected: TargetView, confirmed: Boolean, key: String = "sidebar") {
             val before = confirmations; val speech = announcements()
-            root.restoreScopeRequest("sidebar", command)
+            root.restoreScopeRequest(key, command)
             check(expected.hasFocus() && root.commandRequests.isEmpty()) { "Unsettled $command" }
             check(confirmations == before + if (confirmed) 1 else 0) { "Unexpected confirmation for $command" }
             check(root.readerOwnsInput && announcements() == speech)
         }
+        sidebar.paneTitle = "Catalogue"; sidebar.entryReady = false; sidebar.commit(); root.refreshGeometry()
+        check(ViewCompat.getAccessibilityPaneTitle(sidebar) == null) { "Preparing pane exposed a premature route change" }
+        check(!first.requestFocus() && content.hasFocus()) { "Reader mode admitted automatic fallback into an unready scope" }
+        check(preferred.requestFocus()) { "Exact preferred entry was blocked" }
+        check(!first.requestFocus() && preferred.hasFocus()) { "A competing default replaced preferred entry" }
+        check(content.requestFocus())
+        check(first.performAccessibilityAction(AccessibilityNodeInfo.ACTION_FOCUS, null) && first.hasFocus()) {
+            "Entry guard blocked an explicit reader focus action"
+        }
+        check(content.requestFocus())
+        restore("unready-exact-target", preferred, true, "preferred")
+        sidebar.entryReady = true; sidebar.commit(); root.refreshGeometry()
+        check(ViewCompat.getAccessibilityPaneTitle(sidebar)?.toString() == "Catalogue")
+        check(content.requestFocus())
         restore("preference", preferred, true)
         check(first.requestFocus() && content.requestFocus())
         restore("history", first, true)
@@ -35,11 +51,14 @@ object ReaderRestorationChecks {
         }
         check(content.requestFocus())
         sidebar.active = false; sidebar.commit(); root.refreshGeometry()
+        check(ViewCompat.getAccessibilityPaneTitle(sidebar) == null) { "Inactive pane retained its route title" }
         restore("inactive", content, false)
         sidebar.active = true; sidebar.commit()
         val offscreen = root.rootView.width + 1000
         sidebar.layout(offscreen, 0, offscreen + 300, 600); root.geometryChanged(); root.refreshGeometry()
         restore("offscreen", content, false)
         check(root.connection.exchange(5)[6] == 0L && !root.closed)
+        root.close()
+        check(ViewCompat.getAccessibilityPaneTitle(sidebar) == null) { "Disposed pane retained its route title" }
     }
 }

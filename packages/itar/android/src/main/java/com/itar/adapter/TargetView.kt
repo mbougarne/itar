@@ -88,16 +88,18 @@ class TargetView(context: Context) : AppCompatButton(context) {
     internal var committedOrder = 0
     internal var committedEnabled = false
     private var engineFocusRequest = false
+    private var accessibilityFocusRequest = false
     internal fun requestEngineFocus(): Boolean {
         engineFocusRequest = true
         return try { requestFocus() } finally { engineFocusRequest = false }
     }
     override fun requestFocus(direction: Int, previouslyFocusedRect: Rect?): Boolean {
         // Keep logical/mount eligibility available to explicit engine requests.
-        // Only unsolicited host entry waits for the application's readiness.
-        if (!engineFocusRequest && !isFocused && surface?.readerOwnsInput != true &&
+        // Gate fallback during route preparation, except the application's exact
+        // preferred entry target. Explicit reader actions keep their authority.
+        if (!engineFocusRequest && !accessibilityFocusRequest && !isFocused &&
             generateSequence(parent) { it.parent }.takeWhile { it !is SurfaceView }
-                .filterIsInstance<ScopeView>().any { !it.entryReady }) return false
+                .filterIsInstance<ScopeView>().any { !it.entryReady && it.preferredKey != occurrenceKey }) return false
         return super.requestFocus(direction, previouslyFocusedRect)
     }
     internal var surface: SurfaceView? = null
@@ -200,11 +202,17 @@ class TargetView(context: Context) : AppCompatButton(context) {
         return true
     }
     override fun performClick() = activate("semantic")
-    override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean =
-        if (adjustable && action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) adjust(1, "accessibility")
+    override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean {
+        if (action == AccessibilityNodeInfo.ACTION_FOCUS) {
+            accessibilityFocusRequest = true
+            return try { super.performAccessibilityAction(action, arguments) }
+                finally { accessibilityFocusRequest = false }
+        }
+        return if (adjustable && action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) adjust(1, "accessibility")
         else if (adjustable && action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) adjust(-1, "accessibility")
         else if (action == AccessibilityNodeInfo.ACTION_CLICK) activate("accessibility")
         else super.performAccessibilityAction(action, arguments)
+    }
     override fun sendAccessibilityEvent(eventType: Int) {
         if (eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED ||
             eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED) surface?.accessibilityObserved(this)

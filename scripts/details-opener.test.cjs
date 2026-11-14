@@ -180,6 +180,32 @@ test('category cards pass their scoped key and recommendation chains preserve th
   assert.equal(f.requests.at(-1), opener.occurrenceKey);
 });
 
+test('Android holds automatic page entry until its exact return request settles', async () => {
+  const f = fixture(occurrenceKey('nav', 'Movies'));
+  const pageScope = () => nodes(f.app.tree()).find(node => node.type === 'FocusScope' && node.props.id === 'page');
+  f.navigate('Movies');
+  assert.equal(pageScope().props.entryReady, true, 'initial native reader entry remains available');
+  const props = f.app.find('Catalogue').props;
+  const initial = occurrenceKey(props.id, 'category', 'All');
+  const opener = occurrenceKey(`${props.id}:All`, 'grid-0', film.id);
+  props.onReady(initial); await Promise.resolve(); f.app.render();
+  props.onOpen(film, opener); f.app.render();
+  assert.equal(nodes(f.app.tree()).find(node => node.type === 'FocusScope' && node.props.id === 'details').props.entryReady, true);
+  // The native reader can activate details before its collection is ready.
+  f.close();
+  assert.equal(pageScope().props.entryReady, false, 'fallback must wait before restoration dispatch');
+  assert.equal(pageScope().props.preferredKey, opener, 'only the exact opener may receive native fallback');
+  assert.equal(pageScope().props.accessibilityPaneTitle, undefined, 'reader route change must wait for restoration');
+  f.app.find('Catalogue').props.onReady(initial); f.app.render();
+  assert.equal(f.requests.at(-1), opener);
+  assert.equal(f.requestKinds.at(-1), 'restore');
+  assert.equal(pageScope().props.entryReady, false, 'dispatch alone must not reopen automatic entry');
+  await Promise.resolve(); f.app.render();
+  assert.equal(pageScope().props.entryReady, true, 'reopen after the request settles');
+  assert.equal(pageScope().props.preferredKey, undefined, 'return preference must not change later navigation');
+  assert.equal(pageScope().props.accessibilityPaneTitle, 'Movies', 'publish the completed reader route');
+});
+
 test('Hero opens enriched details but returns to its original rendered occurrence', async () => {
   const f = fixture(occurrenceKey('nav', 'Home'));
   const props = f.app.find('Browse').props;

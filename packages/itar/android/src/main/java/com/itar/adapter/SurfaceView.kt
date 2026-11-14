@@ -464,7 +464,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         targets.values.mapNotNull { it.get() }.forEach { it.mount = null; it.isFocusable = false; it.resetStyle() }
         targets.clear()
         logicalTargets.clear()
-        scopes.values.mapNotNull { it.get() }.forEach { it.owner = null; it.node = longArrayOf(0, 0) }
+        scopes.values.mapNotNull { it.get() }.forEach { it.clearPaneTitle(); it.owner = null; it.node = longArrayOf(0, 0) }
         scopes.clear()
         scopesDirty = true
         deferred.clear()

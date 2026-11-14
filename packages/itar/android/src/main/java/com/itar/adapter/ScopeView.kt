@@ -2,6 +2,7 @@ package com.itar.adapter
 
 import android.content.Context
 import android.view.View
+import androidx.core.view.ViewCompat
 import com.facebook.react.views.view.ReactViewGroup
 
 class ScopeView(context: Context) : ReactViewGroup(context) {
@@ -15,6 +16,8 @@ class ScopeView(context: Context) : ReactViewGroup(context) {
     var entryReady = true
     var restoreOnEntry = false
     var preferredKey = ""
+    var paneTitle = ""
+    internal fun clearPaneTitle() { ViewCompat.setAccessibilityPaneTitle(this, null) }
     internal var node = longArrayOf(0, 0)
     internal var owner: SurfaceView? = null
     internal var committedKey = ""
@@ -30,6 +33,8 @@ class ScopeView(context: Context) : ReactViewGroup(context) {
         if (next != declared) { declared = next; root?.scopeChanged() }
         descendantFocusability = if (active) FOCUS_BEFORE_DESCENDANTS else FOCUS_BLOCK_DESCENDANTS
         importantForAccessibility = if (active) IMPORTANT_FOR_ACCESSIBILITY_AUTO else IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        val title = paneTitle.takeIf { active && entryReady && root?.closed == false && it.isNotEmpty() }
+        if (ViewCompat.getAccessibilityPaneTitle(this)?.toString() != title) ViewCompat.setAccessibilityPaneTitle(this, title)
     }
     internal fun publish(parentNode: LongArray): Boolean {
         val root = owner ?: return false
@@ -55,5 +60,5 @@ class ScopeView(context: Context) : ReactViewGroup(context) {
     override fun onViewRemoved(child: View) {
         super.onViewRemoved(child); (owner ?: root())?.let { it.orderedFocusChanged(); it.collectionAccessibilityChanged() }
     }
-    internal fun recycle() { owner?.dropScope(this); owner = null; node = longArrayOf(0, 0); committed = null; declared = null; committedKey = "" }
+    internal fun recycle() { clearPaneTitle(); paneTitle = ""; owner?.dropScope(this); owner = null; node = longArrayOf(0, 0); committed = null; declared = null; committedKey = "" }
 }
