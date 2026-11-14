@@ -135,6 +135,7 @@ export function createStyles(u: number) {
     profileSwitcher: {
       height: 64 * u,
       width: 64 * u,
+      minWidth: 0,
       backgroundColor: 'transparent',
     },
     chooserTitle: {

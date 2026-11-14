@@ -1,5 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { BackHandler, Keyboard, Text, TextInput, View } from 'react-native';
+import {
+  BackHandler,
+  Keyboard,
+  Platform,
+  Text,
+  TextInput,
+  TouchableNativeFeedback,
+  View,
+} from 'react-native';
 import {
   FocusScope,
   occurrenceKey,
@@ -22,7 +30,7 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
   const ready = useFocusReady();
 
   useEffect(() => {
-    if (!ready || editing) {
+    if (!ready || editing || (Platform.OS === 'android' && form)) {
       return;
     }
 
@@ -34,6 +42,10 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
   }, [commands, ready, form, editing]);
 
   useEffect(() => {
+    if (Platform.OS === 'android') {
+      return;
+    }
+
     const listener = Keyboard.addListener('keyboardDidHide', () =>
       setEditing(null),
     );
@@ -85,7 +97,7 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
               <Text style={s.muted}>
                 {field === 'email' ? 'Email' : 'Password'}
               </Text>
-              {editing === field ? (
+              {Platform.OS === 'android' || editing === field ? (
                 <TextInput
                   ref={field === 'email' ? emailInput : passwordInput}
                   style={s.authInput}
@@ -99,8 +111,16 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
                   returnKeyType="done"
                   submitBehavior="blurAndSubmit"
                   maxLength={120}
-                  onBlur={() => setEditing(null)}
-                  onSubmitEditing={() => setEditing(null)}
+                  onBlur={
+                    Platform.OS === 'android'
+                      ? undefined
+                      : () => setEditing(null)
+                  }
+                  onSubmitEditing={
+                    Platform.OS === 'android'
+                      ? undefined
+                      : () => setEditing(null)
+                  }
                 />
               ) : (
                 <Action
@@ -122,25 +142,58 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
               )}
             </View>
           ))}
-          <FocusScope
-            id="auth-actions"
-            layout="row"
-            boundary="parent"
-            style={s.row}
-          >
-            <Action
-              id={occurrenceKey('auth', 'submit')}
-              label={form}
-              onPress={onSignIn}
-              style={[s.primaryCta, { width: 640 * u }]}
-            />
-            <Action
-              order={1}
-              id={occurrenceKey('auth', 'back')}
-              label="Back"
-              onPress={() => setForm(null)}
-            />
-          </FocusScope>
+          {Platform.OS === 'android' ? (
+            // Keep the whole form native so directional input can return from
+            // its buttons to the unmanaged editors without an engine handoff.
+            <View style={s.row}>
+              {[
+                { label: form, width: 640, onPress: onSignIn },
+                { label: 'Back', width: 250, onPress: () => setForm(null) },
+              ].map(action => (
+                <TouchableNativeFeedback
+                  key={action.label}
+                  useForeground
+                  background={TouchableNativeFeedback.Ripple(
+                    'rgba(255,255,255,0.5)',
+                    false,
+                  )}
+                  accessibilityRole="button"
+                  accessibilityLabel={action.label}
+                  onPress={action.onPress}
+                >
+                  <View
+                    style={[
+                      s.primaryCta,
+                      s.feedback,
+                      { width: action.width * u },
+                    ]}
+                  >
+                    <Text style={[s.body, s.centered]}>{action.label}</Text>
+                  </View>
+                </TouchableNativeFeedback>
+              ))}
+            </View>
+          ) : (
+            <FocusScope
+              id="auth-actions"
+              layout="row"
+              boundary="parent"
+              style={s.row}
+            >
+              <Action
+                id={occurrenceKey('auth', 'submit')}
+                label={form}
+                onPress={onSignIn}
+                style={[s.primaryCta, { width: 640 * u }]}
+              />
+              <Action
+                order={1}
+                id={occurrenceKey('auth', 'back')}
+                label="Back"
+                onPress={() => setForm(null)}
+              />
+            </FocusScope>
+          )}
           <Text style={s.footer}>
             No account is created. These values stay in memory and are never
             sent or saved.
