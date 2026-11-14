@@ -33,4 +33,12 @@ RequestResult Transactions::requestFocus(const OccurrenceKey& key, const InputCo
   return startKey(key, input, options);
 }
 
+RequestResult Transactions::restoreFocus(const OccurrenceKey& key, const InputContext& input,
+                                         RequestOptions options) {
+  if (active_) { cancel(active_->id); }
+  held_.reset();
+  options.direction.reset();
+  return startKey(key, input, options, true);
+}
+
 }  // namespace itar

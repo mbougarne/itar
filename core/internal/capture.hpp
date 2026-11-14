@@ -28,7 +28,9 @@ class Capture {
     const auto extra = std::visit([](const auto& event) -> std::size_t {
       using T = std::decay_t<decltype(event)>;
       if constexpr (std::is_same_v<T, Commit>) { return bytes(event.mutations); }
-      else if constexpr (std::is_same_v<T, FocusKey>) { return event.key.value().size(); }
+      else if constexpr (std::is_same_v<T, FocusKey> || std::is_same_v<T, RestoreKey>) {
+        return event.key.value().size();
+      }
       else { return 0; }
     }, step.event);
     if (fixture_->steps.size() == capacity_ || extra > payloadLimit_ - used_) {

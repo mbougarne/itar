@@ -4,15 +4,18 @@
 
 namespace itar {
 
-Proposal gateNavigation(const State& state, const InputContext& input) noexcept {
+namespace {
+Proposal gateInput(const State& state, const InputContext& input, bool restoration) noexcept {
   Proposal result;
   result.surface = state.surface();
   result.revision = state.snapshot().revision;
   result.authority = input.authority;
   result.source = input.source;
+  result.owner = input.owner;
   if (!state.surface() || input.surface != state.surface()) {
     result.reason = ProposalReason::stale_surface;
-  } else if (input.owner != InputOwner::engine ||
+  } else if ((input.owner != InputOwner::engine &&
+              !(restoration && input.owner == InputOwner::accessibility)) ||
              state.snapshot().inputFocus.kind == FocusKind::unmanaged) {
     result.kind = ProposalKind::host_owned;
     result.reason = ProposalReason::host_input;
@@ -36,6 +39,15 @@ Proposal gateNavigation(const State& state, const InputContext& input) noexcept 
     result.reason = ProposalReason::selected;
   }
   return result;
+}
+}  // namespace
+
+Proposal gateNavigation(const State& state, const InputContext& input) noexcept {
+  return gateInput(state, input, false);
+}
+
+Proposal gateRestoration(const State& state, const InputContext& input) noexcept {
+  return gateInput(state, input, true);
 }
 
 bool logicalTarget(const State& state, NodeHandle node) noexcept {

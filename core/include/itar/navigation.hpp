@@ -35,11 +35,14 @@ struct Proposal {
   NodeHandle target;
   MountGeneration mount;  // Only supplied for an immediately ready target.
   std::string_view policy{navigationPolicy};
+  InputOwner owner{InputOwner::engine};
   bool operator==(const Proposal&) const = default;
 };
 
 // Serialized read-only owner. No host callbacks, measurements or effects.
 Proposal gateNavigation(const State& state, const InputContext& input) noexcept;
+// Explicit application restoration may cooperate with accessibility-owned input.
+Proposal gateRestoration(const State& state, const InputContext& input) noexcept;
 bool logicalTarget(const State& state, NodeHandle node) noexcept;
 bool withinBoundary(const State& state, NodeHandle target,
                     const InputContext& input) noexcept;
@@ -62,10 +65,12 @@ NodeHandle geometricDestination(const State& state, NodeHandle source,
                                 Direction direction, const InputContext& input,
                                 bool wrap = false) noexcept;
 enum class EntryReason { first, returning, adjacent };
+enum class EntryIntent { navigation, restoration };
 struct EntryContext {
   EntryReason reason{EntryReason::first};
   Direction direction{Direction::down};
   std::optional<double> anchor{};  // Surface x for up/down, y for left/right.
+  EntryIntent intent{EntryIntent::navigation};
 };
 Proposal resolveEntry(const State& state, NodeHandle scope,
                       const InputContext& input, EntryContext entry = {}) noexcept;

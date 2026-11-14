@@ -1,6 +1,7 @@
 #pragma once
 #include <itar/transaction.hpp>
 #include "../tests/check.hpp"
+#include <utility>
 #include <variant>
 
 namespace itar::diagnostics {
@@ -10,6 +11,11 @@ struct Commit { std::vector<Mutation> mutations; BatchStatus expected{BatchStatu
 // fixtures may omit context to use engine ownership and current observed focus.
 struct Input { Direction direction; std::optional<InputContext> context{}; };
 struct FocusKey { OccurrenceKey key; std::optional<InputContext> context{}; };
+struct RestoreKey {
+  OccurrenceKey key;
+  InputContext context;
+  RestoreKey(OccurrenceKey target, InputContext input) : key(std::move(target)), context(input) {}
+};
 struct Cancel { RequestId request; };
 struct Issue { std::size_t effect; };
 struct Outcome { std::size_t effect; OutcomeKind kind; };
@@ -20,7 +26,7 @@ struct Time { TimePoint now; };
 struct Release {};
 struct Dispose {};
 using Event = std::variant<Commit, Input, FocusKey, Cancel, Issue, Outcome, Observe,
-                           Realize, Availability, Time, Release, Dispose>;
+                           Realize, Availability, Time, Release, Dispose, RestoreKey>;
 struct Step { Event event; std::optional<RequestStatus> expected; };
 struct Fixture {
   unsigned version{1};
@@ -103,6 +109,8 @@ std::optional<Replay> replay(const Fixture& fixture, Observer observe = {}) {
         decision = tx.directionalInput(event.direction, event.context.value_or(input), fixture.options);
       } else if constexpr (std::is_same_v<T, FocusKey>) {
         decision = tx.requestFocus(event.key, event.context.value_or(input), fixture.options);
+      } else if constexpr (std::is_same_v<T, RestoreKey>) {
+        decision = tx.restoreFocus(event.key, event.context, fixture.options);
       } else if constexpr (std::is_same_v<T, Cancel>) {
         decision = tx.cancel(event.request);
       } else if constexpr (std::is_same_v<T, Issue>) {

@@ -36,7 +36,8 @@ bool selectableDestination(const State& state, NodeHandle node,
 
 Proposal resolveEntry(const State& state, NodeHandle scope,
                       const InputContext& input, EntryContext entry) noexcept {
-  auto result = gateNavigation(state, input);
+  const bool restoring = entry.intent == EntryIntent::restoration && entry.reason == EntryReason::returning;
+  auto result = restoring ? gateRestoration(state, input) : gateNavigation(state, input);
   const auto& registry = state.snapshot().registry;
   const auto* region = registry.lookup(scope);
   const auto focus = state.snapshot().inputFocus;
@@ -69,7 +70,9 @@ Proposal resolveEntry(const State& state, NodeHandle scope,
     return result;
   }
   const auto eligible = [&](NodeHandle node) {
-    return entryCandidate(state, node, scope, input);
+    return entryCandidate(state, node, scope, input) &&
+           (!(restoring && input.owner == InputOwner::accessibility) ||
+            usableGeometry(state.snapshot(), state.surface(), node).has_value());
   };
   if (focus.kind == FocusKind::managed &&
       (entry.reason == EntryReason::first || eligible(focus.node))) {
