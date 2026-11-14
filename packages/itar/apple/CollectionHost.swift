@@ -63,17 +63,20 @@ final class AppleCollections {
             guard let node = try? root.dispatcher?.connection.find(entry.key) else { return nil }
             return (entry.key, node)
         })
+        var losses: [(ItarNode, UInt64, Int32, UInt64)] = []
         for registration in Array(root.registrations.values) {
             guard let owned = previousHandles[registration.key],
                   registration.node.slot == owned.slot, registration.node.generation == owned.generation else { continue }
-            if entry(registration.key) == nil {
-                if let target = registration.target { target.isAccessibilityElement = false; root.detach(target) }
-                root.registrations.removeValue(forKey: registration.key)
-            } else if let target = registration.target, target.collectionDataset != next.dataset {
+            let removed = entry(registration.key) == nil
+            if let target = registration.target, removed || target.collectionDataset != next.dataset {
                 target.isAccessibilityElement = false
-                root.detach(target)
+                if let loss = root.detachMount(target) { losses.append((loss.node, loss.mount, 0, 0)) }
             }
+            if removed { root.registrations.removeValue(forKey: registration.key) }
         }
+        // The catalogue callback runs inside the dispatcher. One event per cell
+        // would exhaust its 32-entry inbox; the catalogue bounds this batch to 256.
+        if !losses.isEmpty { root.dispatcher?.enqueue(.invalidations(losses)) }
         for entry in previous?.nodes ?? [] where entry.scope && self.entry(entry.key) == nil {
             guard let owned = previousHandles[entry.key], let current = root.scopes[entry.key],
                   current.node.slot == owned.slot, current.node.generation == owned.generation else { continue }
