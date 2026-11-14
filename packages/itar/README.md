@@ -86,7 +86,7 @@ acceptance require device testing.
 ```tsx
 import {useFocusCommands, useFocusReady, useIsFocused, useFocusState} from 'itar/react';
 
-const {focusByKey, restoreScope, showDialog} = useFocusCommands();
+const {focusByKey, restoreFocusByKey, restoreScope, showDialog} = useFocusCommands();
 const ready = useFocusReady();
 const focused = useIsFocused(first); // Only this occurrence's transitions notify it.
 const observed = useFocusState('input'); // Accessibility is a separate channel.
@@ -98,6 +98,8 @@ const outcome = await request.result;
 
 // After committing a returning route's active scope:
 await restoreScope(['home', 'favorites']).result;
+// Android: restore the exact saved activation occurrence after its route is ready.
+await restoreFocusByKey(first).result;
 ```
 
 Wait for `ready` before issuing initial commands. Requests expose a client command
@@ -110,7 +112,7 @@ predecessor without cancelling the replacement.
 Unknown, disabled and inactive targets return unavailable; requests never activate
 another route. Known-unmounted targets remain subject to native realization
 capability. This mounted API rejects unsupported reveal work as unavailable.
-Native requests currently have a 500ms deadline. Before native readiness, after
+Deadlines are native and platform-specific; Android commands retain a 3s deadline. Before native readiness, after
 disposal, or when the 32-caller pending limit is reached, results are explicit
 unavailable outcomes. Unselected runtimes return unsupported. Delayed events must
 match provider, surface lifetime and monotonic sequence; stale records cannot
@@ -122,11 +124,29 @@ or implicitly activate an inactive scope. `showDialog`/`dismissDialog` exercise 
 owned native dialog coordinator and opener restoration. They currently use the
 native fixture contents; arbitrary React Native Modal content is separate work.
 
+`restoreFocusByKey` expresses application restoration separately from generic
+focus intent. Save the activated occurrence key rather than sampling input focus.
+The Android adapter permits reader-owned restoration only to mounted, visible,
+eligible targets; it does not reveal or scroll for the reader. `restoreScope`
+retains input-history/preference semantics. Both confirm **input focus only**;
+TalkBack owns accessibility focus and speech. Generic reader-owned focus and
+directional requests remain rejected. Apple and web currently return unavailable
+for keyed restoration; the reference app uses this path only on Android.
+
 Activation includes the live occurrence, mount, lifetime, source and sequence.
 Input Select targets confirmed input focus; accessibility activation addresses its
 semantic target without transferring input focus. Duplicate transport reports and
 retired React registrations are rejected. `contentId` is application metadata and
 does not participate in focus identity.
+
+Android and the web probe accept `accessibilityRole="switch"` with
+`accessibilityState={{checked: boolean}}` for Boolean controls. Ordinary buttons
+can omit both props; changing back to a button clears checked semantics. Explicit
+button/switch roles cannot also be adjustable. Android preserves the Switch class
+after AppCompatButton initializes its node. Keep accessible labels free of decorative symbols;
+`displayLabel` retains the visual text. Apple checked semantics are not implemented
+by this contract and remain unverified. Native/DOM properties do not establish
+spoken output or physical-device accessibility acceptance.
 
 `useScreenReaderEnabled()` returns `boolean | null` using RN AccessibilityInfo.
 Applications may use it to control autoplay. Native input ownership never waits

@@ -15,6 +15,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import java.lang.ref.WeakReference
 import androidx.appcompat.widget.AppCompatButton
 import androidx.core.view.ViewCompat
+import com.facebook.react.uimanager.ReactAccessibilityDelegate.AccessibilityRole
 
 class TargetView(context: Context) : AppCompatButton(context) {
     private val outline = GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius = 6 * resources.displayMetrics.density }
@@ -126,6 +127,10 @@ class TargetView(context: Context) : AppCompatButton(context) {
     }
     override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
         super.onInitializeAccessibilityNodeInfo(info)
+        // AppCompatButton overwrites the class after RN's delegate applies it.
+        if (AccessibilityRole.fromViewTag(this) == AccessibilityRole.SWITCH) {
+            info.className = "android.widget.Switch"
+        }
         if (adjustable) {
             info.className = "android.widget.SeekBar"
             if (isEnabled) {

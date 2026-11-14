@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Image, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Platform, Text, View, useWindowDimensions } from 'react-native';
 import {
   Focusable,
   FocusScope,
@@ -10,6 +10,8 @@ import { art, icons, Picture } from './ui';
 import type { ProviderMode } from './tmdb';
 import type { VirtualizedFocusItem, VirtualizedFocusRail } from 'itar/react';
 import { useDesign } from './theme';
+
+const supportsCheckedState = Platform.OS === 'android' || Platform.OS === 'web';
 
 export function Profiles({
   id,
@@ -129,6 +131,7 @@ export function Settings({
         title: 'Appearance',
         label: 'White focus accent',
         value: contrast ? 'On' : 'Off',
+        checked: contrast,
         press: onContrast,
       },
       {
@@ -136,6 +139,7 @@ export function Settings({
         title: 'Request scenarios',
         label: 'Slow requests',
         value: slow ? 'On / 650 ms' : 'Off',
+        checked: slow,
         press: onSlow,
       },
       {
@@ -143,6 +147,7 @@ export function Settings({
         title: '',
         label: 'Fail next local fetch',
         value: armed ? 'Armed' : 'Not armed',
+        checked: armed,
         press: onArm,
       },
       ...(__DEV__ && onOpenProbes
@@ -181,7 +186,18 @@ export function Settings({
       items: [
         {
           occurrenceKey: occurrenceKey(id, value.key),
-          accessibilityLabel: `${value.label}: ${value.value}`,
+          accessibilityLabel:
+            supportsCheckedState && 'checked' in value
+              ? value.label
+              : `${value.label}: ${value.value}`,
+          accessibilityRole:
+            supportsCheckedState && 'checked' in value
+              ? ('switch' as const)
+              : undefined,
+          accessibilityState:
+            supportsCheckedState && 'checked' in value
+              ? { checked: value.checked }
+              : undefined,
           displayLabel: '',
           labelSize: 24 * u,
           baseAccentColor: '#BDC8D3',
