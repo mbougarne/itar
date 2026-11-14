@@ -43,6 +43,19 @@ const subtitles = {
   Settings: 'Make the demo yours.',
 };
 
+// Native vertical containment preserves horizontal exits and reader ownership.
+const androidVerticalBoundary =
+  Platform.OS === 'android'
+    ? ({
+        collapsable: false,
+        trapFocusUp: true,
+        trapFocusDown: true,
+      } satisfies Pick<
+        FocusGuideProps,
+        'collapsable' | 'trapFocusUp' | 'trapFocusDown'
+      >)
+    : {};
+
 function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
   const { s, u } = useDesign();
   const [savedSession] = useState(readBrowserSession);
@@ -137,6 +150,8 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
   );
 
   const closeFilm = useCallback(() => {
+    if (Platform.OS === 'android') returning.current = true;
+
     beginEntry(() => setFilm(null));
   }, [beginEntry]);
 
@@ -298,7 +313,8 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
       }
 
       entered.current = route;
-      returning.current = !!film;
+
+      if (Platform.OS !== 'android') returning.current = !!film;
 
       const request =
         Platform.OS === 'android' && restoring
@@ -311,6 +327,8 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
         if (entryRequest.current !== request) {
           return;
         }
+
+        if (Platform.OS === 'android') returning.current = !!film;
 
         entryRequest.current = null;
         setEntering(false);
@@ -390,7 +408,17 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
   return (
     <View style={s.fill}>
       <View style={[s.shell, (playing || guideOpen) && s.hidden]}>
-        <View style={s.sidebarSlot}>
+        <View
+          {...androidVerticalBoundary}
+          style={[
+            s.sidebarSlot,
+            // Android clips accessibility bounds to this parent even when its
+            // child draws outside it. Keep the overlay's full semantic width
+            // without shifting the content when the sidebar expands.
+            Platform.OS === 'android' &&
+              expanded && { width: 360 * u, marginRight: -248 * u },
+          ]}
+        >
           <FocusScope
             id={screen === 'Settings' ? 'account-navigation' : 'navigation'}
             active={!playing && !guideOpen && !entering}
@@ -490,22 +518,25 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
         </View>
         <View
           // Use the TV fork's native View flags without adding a focus owner.
-          {...(Platform.OS === 'android'
-            ? ({
-                collapsable: false,
-                trapFocusUp: true,
-                trapFocusDown: true,
-              } satisfies Pick<
-                FocusGuideProps,
-                'collapsable' | 'trapFocusUp' | 'trapFocusDown'
-              >)
-            : {})}
+          {...androidVerticalBoundary}
           style={[s.content, screen === 'Home' && !film && s.homeContent]}
         >
           <FocusScope
             id="page"
+            accessibilityPaneTitle={
+              Platform.OS === 'android' && !entering ? screen : undefined
+            }
             active={!film && !playing && !guideOpen}
-            entryReady={!entering}
+            // Native reader entry stays available initially. Hold automatic
+            // fallback only during the explicit return, through confirmation.
+            entryReady={
+              !entering || (Platform.OS === 'android' && !returning.current)
+            }
+            preferredKey={
+              Platform.OS === 'android' && entering && returning.current
+                ? bookmark.current ?? undefined
+                : undefined
+            }
             boundary="parent"
             style={[s.fill, film && s.hidden]}
           >
@@ -560,9 +591,12 @@ function Cinema({ onOpenProbes }: { onOpenProbes?: () => void }) {
           </FocusScope>
           <FocusScope
             id="details"
+            accessibilityPaneTitle={
+              Platform.OS === 'android' && !entering ? film?.title : undefined
+            }
             boundary="parent"
             active={!!film && !playing}
-            entryReady={!entering}
+            entryReady={Platform.OS === 'android' || !entering}
             style={[s.fill, !film && s.hidden]}
           >
             {film && (

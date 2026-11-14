@@ -19,6 +19,7 @@ class ScopeManager : ViewGroupManager<ScopeView>(), ItarScopeManagerInterface<Sc
     override fun setEntryReady(view: ScopeView, value: Boolean) { view.entryReady = value }
     override fun setRestoreOnEntry(view: ScopeView, value: Boolean) { view.restoreOnEntry = value }
     override fun setPreferredKey(view: ScopeView, value: String?) { view.preferredKey = value ?: "" }
+    override fun setPaneTitle(view: ScopeView, value: String?) { view.paneTitle = value ?: "" }
     override fun onAfterUpdateTransaction(view: ScopeView) { super.onAfterUpdateTransaction(view); view.commit() }
     override fun onDropViewInstance(view: ScopeView) { view.recycle(); super.onDropViewInstance(view) }
 }
