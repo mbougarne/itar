@@ -5,7 +5,7 @@ import type {Activation, ActivationRecord, FocusChannel, FocusKind, FocusOutcome
 type Listener = () => void;
 type Transport = {
   focus(key: string, command: string): void;
-  restore(scope: string, command: string): void;
+  restore(key: string, command: string): void;
   cancel(command: string): void;
   showDialog(): void;
   dismissDialog(): void;
@@ -112,10 +112,11 @@ export class FocusStore {
     }
   }
   request(key: string): FocusRequest {
-    return this.start(key, false);
+    return this.start(key, 'focus');
   }
-  restore(path: readonly string[]): FocusRequest { return this.start(nativeScopeKey(path), true); }
-  private start(key: string, scope: boolean): FocusRequest {
+  restore(path: readonly string[]): FocusRequest { return this.start(nativeScopeKey(path), 'restore-scope'); }
+  restoreTarget(key: string): FocusRequest { return this.start(key, 'restore-target'); }
+  private start(key: string, kind: 'focus' | 'restore-scope' | 'restore-target'): FocusRequest {
     const command = String(++this.commandSequence);
     let resolve: (value: FocusOutcome) => void = () => {};
     const result = new Promise<FocusOutcome>(done => { resolve = done; });
@@ -124,7 +125,7 @@ export class FocusStore {
         try { this.transport.cancel(command); } catch { this.finish(command, 'unsupported', 'native_unavailable'); }
       }
     }};
-    const target = scope ? undefined : this.targets.get(key);
+    const target = kind === 'restore-scope' ? undefined : this.targets.get(key);
     const reason = !this.supported ? 'runtime' : !this.active || !this.connected ? 'not_ready' :
       !this.enabled || target?.active === false ? 'inactive' : target?.enabled === false ? 'disabled' :
       this.pending.size >= 32 || !Number.isSafeInteger(this.commandSequence) ? 'capacity' : null;
@@ -134,8 +135,9 @@ export class FocusStore {
     }
     this.pending.set(command, {resolve, request: null});
     try {
-      if (scope) { this.transport.restore(key, command); }
-      else { this.transport.focus(nativeTargetKey(key), command); }
+      const nativeKey = kind === 'restore-scope' ? key : nativeTargetKey(key);
+      if (kind === 'focus') { this.transport.focus(nativeKey, command); }
+      else { this.transport.restore(nativeKey, command); }
     }
     catch { this.finish(command, 'unsupported', 'native_unavailable'); }
     return request;

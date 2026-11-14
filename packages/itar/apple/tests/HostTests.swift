@@ -383,4 +383,47 @@ extension AdapterHostTests {
         XCTAssertEqual(try root.dispatcher?.connection.find("list").slot, 0)
         XCTAssertFalse(root.dispatcher?.closed ?? true)
     }
+
+    func testCatalogRevisionInvalidatesMoreThanInboxCapacityWithoutClosingSurface() async throws {
+        let entries = (0..<40).map { index in
+            "{\"key\":\"cell-\(index)\",\"parent\":\"rail\",\"order\":\(index),\"scope\":false,\"enabled\":true,\"layout\":0,\"extent\":0}"
+        }.joined(separator: ",")
+        func document(_ revision: Int) -> String {
+            "{\"dataset\":\"\(revision)\",\"nodes\":[{\"key\":\"rail\",\"parent\":\"\",\"order\":0,\"scope\":true,\"enabled\":true,\"layout\":1,\"extent\":12},\(entries)]}"
+        }
+        root.collectionData = document(1)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            self.root.collections.dataset == "1"
+        }, object: nil)], timeout: 3)
+        let rail = ItarScopeHost(frame: root.bounds)
+        rail.collectionDataset = "1"
+        rail.configure("rail", parent: "", active: true, layout: 1, boundary: 2, trap: false, entryReady: true, preferred: "")
+        root.addSubview(rail)
+        let cells = (0..<40).map { index -> ItarTargetHost in
+            let cell = target("cell-\(index)", x: CGFloat(index * 12))
+            cell.frame = CGRect(x: index * 12, y: 0, width: 10, height: 10)
+            cell.scopeKey = "rail"; cell.collectionDataset = "1"
+            rail.addSubview(cell)
+            return cell
+        }
+        root.commitGeometry()
+        XCTAssertTrue(cells.allSatisfy { $0.canBecomeFocused })
+        root.collectionData = document(2)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            self.root.collections.dataset == "2" || self.root.dispatcher?.closed == true
+        }, object: nil)], timeout: 3)
+        XCTAssertFalse(root.dispatcher?.closed ?? true, "A valid catalogue revision must not overflow the callback inbox")
+        guard root.dispatcher?.closed == false else { return }
+        XCTAssertTrue(cells.allSatisfy { $0.registration == nil && !$0.canBecomeFocused })
+        rail.collectionDataset = "2"
+        cells.forEach { $0.collectionDataset = "2" }
+        root.commitGeometry()
+        XCTAssertTrue(cells.allSatisfy { $0.canBecomeFocused })
+        root.collectionData = "{\"dataset\":\"3\",\"nodes\":[]}"
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            self.root.collections.dataset == "3" || self.root.dispatcher?.closed == true
+        }, object: nil)], timeout: 3)
+        XCTAssertFalse(root.dispatcher?.closed ?? true)
+        XCTAssertTrue(cells.allSatisfy { !$0.canBecomeFocused })
+    }
 }

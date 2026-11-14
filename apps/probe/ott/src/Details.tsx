@@ -29,7 +29,7 @@ export default function Details({
   film: Film;
   active: boolean;
   onPlay: () => void;
-  onOpen: (film: Film) => void;
+  onOpen: (film: Film, openerKey: string) => void;
   highContrast: boolean;
   onReady?: () => void;
 }) {
@@ -165,7 +165,7 @@ export default function Details({
 
           visuals.set(key, { film: value });
 
-          return make(key, value.title, () => onOpen(value));
+          return make(key, value.title, () => onOpen(value, key));
         });
 
     const rails: VirtualizedFocusRail[] = [
@@ -248,7 +248,8 @@ export default function Details({
           >
             <Action
               id={occurrenceKey('details', 'play')}
-              label="▶  Play demo"
+              label="Play demo"
+              displayLabel="▶  Play demo"
               onPress={onPlay}
               highContrast={highContrast}
               style={s.primaryCta}
@@ -256,7 +257,8 @@ export default function Details({
             <Action
               order={1}
               id={occurrenceKey('details', 'list')}
-              label="＋  My list"
+              label="My list"
+              displayLabel="＋  My list"
               onPress={() => {}}
               highContrast={highContrast}
               style={s.primaryCta}

@@ -15,6 +15,7 @@ export type {Activation, FocusKind, FocusChannel, FocusState, FocusOutcome, Focu
 
 const StoreContext = createContext<FocusStore | null>(null);
 const supported = Platform.isTV && (Platform.OS === 'ios' || Platform.OS === 'android');
+const clearedAccessibilityState = {};
 const useStore = (): FocusStore => {
   const store = useContext(StoreContext);
   if (!store) { throw new Error('Itar components and hooks require FocusProvider'); }
@@ -94,6 +95,9 @@ export type FocusableProps = {
   labelSize?: number;
   outlineInsetBottom?: number;
   accessibilityLabel: string;
+  /** Android/web only. A switch requires a Boolean checked state; Apple keeps its current semantics. */
+  accessibilityRole?: 'button' | 'switch';
+  accessibilityState?: Readonly<{checked?: boolean}>;
   enabled?: boolean;
   order?: number;
   style?: StyleProp<ViewStyle>;
@@ -105,6 +109,7 @@ export type FocusableProps = {
 };
 // Render allocates only an identity. Registration is published at host/effect commit.
 export const Focusable = memo(function FocusableButton({occurrenceKey: key, contentId, accessibilityLabel,
+  accessibilityRole, accessibilityState,
   enabled = true, order = 0, style, focusStyle, baseAccentColor, onPress, onAdjust, testID, displayLabel, labelPlacement = 'center', labelSize = 14, outlineInsetBottom = 0}: FocusableProps) {
   const store = useStore();
   const scope = useContext(ScopeContext);
@@ -119,11 +124,20 @@ export const Focusable = memo(function FocusableButton({occurrenceKey: key, cont
     committed.current = {key, contentId, onPress, onAdjust};
     store.updateTarget(key, lease.token, enabled, scope.active);
   }, [store, key, lease, contentId, onPress, onAdjust, enabled, scope.active]);
+  if (accessibilityRole !== undefined && onAdjust) {
+    throw new Error('Adjustable targets retain their native role');
+  }
+  if (accessibilityRole === 'switch' && typeof accessibilityState?.checked !== 'boolean') {
+    throw new Error('Switch targets require a Boolean checked state');
+  }
   const radius = StyleSheet.flatten(style)?.borderRadius;
   if (!supported) { return <View style={style} testID={testID} accessibilityLabel={accessibilityLabel} />; }
   return <NativeTarget occurrenceKey={nativeTargetKey(key)} scopeKey={scope.key} registrationId={lease.registration}
     collectionDataset={collectionDataset}
     label={accessibilityLabel} displayLabel={displayLabel ?? accessibilityLabel} labelPlacement={labelPlacement}
+    accessibilityRole={Platform.OS === 'android' ? accessibilityRole : undefined}
+    accessibilityState={Platform.OS === 'android' ?
+      (accessibilityRole === 'switch' ? accessibilityState : clearedAccessibilityState) : undefined}
     labelSize={labelSize} outlineInsetBottom={outlineInsetBottom} enabled={enabled} order={order} style={style} testID={testID}
     cornerRadius={typeof radius === 'number' && Number.isFinite(radius) ? Math.max(0, radius) : 6}
     baseColor={baseAccentColor} focusColor={focusStyle?.accentColor} focusBackgroundColor={focusStyle?.backgroundColor}
@@ -143,6 +157,7 @@ export function useFocusCommands() {
   const store = useStore();
   const scope = useContext(ScopeContext);
   return useMemo(() => ({focusByKey: (key: string) => store.request(key),
+    restoreFocusByKey: (key: string) => store.restoreTarget(key),
     restoreScope: (path: readonly string[] = scope.path) => store.restore(path),
     showDialog: () => store.showDialog(), dismissDialog: () => store.dismissDialog()}), [store, scope.path]);
 }

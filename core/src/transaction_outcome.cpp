@@ -40,8 +40,16 @@ RequestResult Transactions::observeHost(HostFocus host) {
     active_.reset();
     return {RequestStatus::confirmed, id};
   }
-  if (active_ && host.observation.channel == FocusChannel::input &&
-      state_.snapshot().inputFocus != active_->source) {
+  if (active_ && active_->accessibilitySource && host.observation.channel == FocusChannel::accessibility &&
+      focus.kind == FocusKind::managed && focus.node == active_->target &&
+      active_->mount && focus.mount == *active_->mount) {
+    // Once the reader reaches the destination, returning to the old source is a competing move.
+    active_->accessibilitySource = focus;
+  }
+  if (active_ && ((host.observation.channel == FocusChannel::input &&
+                  state_.snapshot().inputFocus != active_->source) ||
+                 (host.observation.channel == FocusChannel::accessibility &&
+                  active_->accessibilitySource && !authorized()))) {
     cancel(id);
     return {RequestStatus::reconciled, id};
   }

@@ -179,9 +179,12 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
     listHeaderExtent, listHeaderItems, listHeaderScope, renderDecoration, renderRailHeader, parent.path, parent.key]);
   const published = usePublished(model, active);
   React.useEffect(() => {
+    // A layout effect may publish a replacement after this render's snapshot.
+    // Only the live accepted revision can authorize entry into the new content.
+    const current = store.snapshot();
     if (active && published && (!supported ||
-        (published.dataset === snapshot.dataset && published.dataset === snapshot.accepted))) { onReady?.(); }
-  }, [active, published, snapshot.dataset, snapshot.accepted, onReady]);
+        (published.dataset === current.dataset && published.dataset === current.accepted))) { onReady?.(); }
+  }, [store, active, published, snapshot.dataset, snapshot.accepted, onReady]);
   const collection = published?.model.key ?? model.key;
   const Cell = useMemo(() => renderer<FocusRailRow>(store, collection, row => row.key), [store, collection]);
   React.useEffect(() => {
@@ -201,6 +204,7 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
   }, [active, published, focus, snapshot.preparation]);
   if (!published) { return <View style={style} testID={testID} />; }
   const value = published.model;
+  const preparation = snapshot.preparation;
   return <CollectionDatasetContext.Provider value={published.dataset}>
     <FocusScope id={value.id} active={active} layout="column" boundary="parent" style={style}>
       <FlatList ref={viewport} onScroll={event => { scrollOffset.current = event.nativeEvent.contentOffset.y; }} scrollEventThrottle={16}
@@ -211,7 +215,14 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
         getItemLayout={(_, index) => ({length: index === 0 && value.listHeaderExtent ? value.listHeaderExtent : value.rowExtent,
           offset: value.listHeaderExtent && index > 0 ? value.listHeaderExtent + value.rowExtent * (index - 1) : value.rowExtent * index, index})}
         renderItem={({item}) => item.id === value.listHeaderScope ?
-          <View style={{height: value.listHeaderExtent}}>{value.listHeader}</View> :
+          <View style={{height: value.listHeaderExtent}}>
+            {value.listHeader}
+            {preparation && preparation.path[preparation.step]?.collection === item.key &&
+              item.items.some(target => nativeTargetKey(target.occurrenceKey) === preparation.key) ?
+              <View key={`${preparation.request}/${preparation.effect}/${preparation.step}`} collapsable={false}
+                accessible={false} pointerEvents="none" style={styles.commitMarker}
+                onLayout={() => store.committed(preparation, preparation.key)} /> : null}
+          </View> :
           <FocusScope id={item.id} layout="row" boundary="parent" style={{height: value.rowExtent}}>
           {value.headerExtent > 0 && <View accessible={false} pointerEvents="none" style={{height: value.headerExtent}}>{value.renderRailHeader?.(item)}</View>}
           <ItemList data={item.items} collection={item.key} horizontal itemExtent={item.itemExtent ?? value.itemExtent}

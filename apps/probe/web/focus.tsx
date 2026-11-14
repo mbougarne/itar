@@ -284,6 +284,8 @@ export function Focusable({
   occurrenceKey: publicKey,
   contentId,
   accessibilityLabel,
+  accessibilityRole,
+  accessibilityState,
   enabled = true,
   order = 0,
   style,
@@ -351,12 +353,26 @@ export function Focusable({
     });
   }, [store, record, key, scope.active, enabled, order, onAdjust, focusStyle]);
 
+  if (accessibilityRole !== undefined && onAdjust) {
+    throw new Error('Adjustable targets retain their native role');
+  }
+
+  if (
+    accessibilityRole === 'switch' &&
+    typeof accessibilityState?.checked !== 'boolean'
+  ) {
+    throw new Error('Switch targets require a Boolean checked state');
+  }
+
   return (
     <Pressable
       ref={value => {
         ref.current = value instanceof HTMLElement ? value : null;
       }}
-      accessibilityRole="button"
+      accessibilityRole={accessibilityRole ?? 'button'}
+      aria-checked={
+        accessibilityRole === 'switch' ? accessibilityState?.checked : undefined
+      }
       accessibilityLabel={accessibilityLabel}
       disabled={!enabled || !scope.active}
       tabIndex={enabled && scope.active ? 0 : -1}
@@ -401,6 +417,8 @@ export function useFocusCommands() {
   return useMemo(
     () => ({
       focusByKey: (key: string) => store.request(nativeTargetKey(key)),
+      restoreFocusByKey: (key: string) =>
+        store.request(nativeTargetKey(key), true),
       restoreScope: (path: readonly string[] = scope.path) =>
         store.request(nativeScopeKey(path), true),
       showDialog: () => {

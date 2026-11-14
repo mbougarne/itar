@@ -50,4 +50,40 @@ int main() {
     capture.dispose();
     CHECK(!capture.complete());
   }
+  // Restoration has its own event: replay must not turn it into a generic focus
+  // command or manufacture engine ownership. Observations rebuild its reader guard.
+  for (const bool competing : {false, true}) {
+    Capture capture;
+    CHECK(capture.enable(initial) == CaptureStatus::complete);
+    const auto initialBytes = capture.payloadBytes();
+    auto session = initial;
+    const InputContext reader{initial.surface, {}, InputOwner::accessibility, source};
+    session.steps = {
+      {Observe{{initial.surface, FocusChannel::input, source}, {}}, {}},
+      {Observe{{initial.surface, FocusChannel::accessibility, source}, {}}, {}},
+      {RestoreKey{OccurrenceKey{"next"}, reader}, RequestStatus::started},
+      {Issue{0}, RequestStatus::issued},
+      {Observe{{initial.surface, FocusChannel::accessibility, next}, {}}, RequestStatus::unchanged}
+    };
+    if (competing) session.steps.push_back({Observe{{initial.surface, FocusChannel::accessibility, source}, {}},
+                                           RequestStatus::reconciled});
+    session.steps.push_back({Observe{{initial.surface, FocusChannel::input, next}, 0},
+                            competing ? RequestStatus::unchanged : RequestStatus::confirmed});
+    const auto result = replay(session, [&](const Step& step, std::optional<RequestStatus> decision) {
+      CHECK(capture.record(step, decision) == CaptureStatus::complete);
+    });
+    CHECK(result && result == replay(*capture.complete()));
+    CHECK(capture.payloadBytes() == initialBytes + 4); // The restoration key is bounded payload.
+    CHECK(std::get<RestoreKey>(capture.complete()->steps[2].event).context.owner == InputOwner::accessibility);
+    CHECK(result->focus == next && result->accessibilityFocus == (competing ? source : next));
+    CHECK(!result->active && result->effects.size() == (competing ? 2U : 1U));
+    CHECK(result->notifications[2].channel == FocusChannel::accessibility && !result->notifications[2].request);
+    CHECK(bool(result->notifications.back().request) == !competing);
+  }
+  Capture bounded{8, 3};
+  Fixture empty;
+  CHECK(bounded.enable(empty) == CaptureStatus::complete);
+  CHECK(bounded.record({RestoreKey{OccurrenceKey{"next"},
+      InputContext{empty.surface, {}, InputOwner::accessibility, source}}, {}}) == CaptureStatus::overflow);
+  CHECK(!bounded.complete());
 }

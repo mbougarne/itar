@@ -24,7 +24,7 @@ bool Transactions::authorized() const noexcept {
   const auto& registry = state_.snapshot().registry;
   const auto* target = registry.lookup(request.target);
   const InputContext input{request.surface, request.authority,
-                           InputOwner::engine, request.source};
+                           request.owner, request.source};
   if (!target || registry.find(request.targetKey) != request.target ||
       !logicalTarget(state_, request.target) ||
       target->parent != targetContext_.parent || target->order != targetContext_.order ||
@@ -39,10 +39,15 @@ bool Transactions::authorized() const noexcept {
       !usableGeometry(state_.snapshot(), state_.surface(), request.target)) {
     return false;
   }
-  return state_.snapshot().inputFocus == request.source;
+  const auto accessibility = state_.snapshot().accessibilityFocus;
+  const bool readerSourceValid = !request.accessibilitySource ||
+      accessibility == *request.accessibilitySource ||
+      (accessibility.kind == FocusKind::managed && accessibility.node == request.target &&
+       request.mount && accessibility.mount == *request.mount);
+  return state_.snapshot().inputFocus == request.source && readerSourceValid;
 }
 
-RequestResult Transactions::start(const Proposal& proposal, RequestOptions options) {
+RequestResult Transactions::start(const Proposal& proposal, RequestOptions options, InputOwner owner) {
   if (!lifetime_ || !state_.surface()) { return {RequestStatus::disposed, {}}; }
   if (resync_) { return {RequestStatus::resync, {}}; }
   if (active_) { return {RequestStatus::busy, active_->id}; }
@@ -60,6 +65,8 @@ RequestResult Transactions::start(const Proposal& proposal, RequestOptions optio
                         proposal.target, {}, proposal.authority, proposal.revision,
                         options.dataset, options.deadline, options.resource, options.direction};
   if (record->mounted) { request.mount = record->mount; }
+  request.owner = owner;
+  if (owner == InputOwner::accessibility) { request.accessibilitySource = state_.snapshot().accessibilityFocus; }
   if (const auto* origin = state_.snapshot().registry.key(proposal.source.node)) {
     request.originKey = *origin;
   }
@@ -76,7 +83,9 @@ RequestResult Transactions::begin(const Proposal& proposal, RequestOptions optio
   if (proposal.surface != state_.surface() ||
       proposal.revision != state_.snapshot().revision ||
       proposal.policy != navigationPolicy) { return {RequestStatus::stale, {}}; }
-  if (proposal.kind != ProposalKind::ready && proposal.kind != ProposalKind::reveal) {
+  // Reader restoration must enter through restoreFocus to retain its channel guard.
+  if (proposal.owner != InputOwner::engine ||
+      (proposal.kind != ProposalKind::ready && proposal.kind != ProposalKind::reveal)) {
     return {RequestStatus::unavailable, {}};
   }
   const auto* target = state_.snapshot().registry.lookup(proposal.target);
@@ -87,7 +96,7 @@ RequestResult Transactions::begin(const Proposal& proposal, RequestOptions optio
     return {RequestStatus::stale, {}};
   }
   const InputContext input{proposal.surface, proposal.authority,
-                           InputOwner::engine, proposal.source};
+                           proposal.owner, proposal.source};
   // Entry/recovery proposals may originate from confirmed absence.
   if (input.source != state_.snapshot().inputFocus ||
       (input.source.kind == FocusKind::managed &&
@@ -101,13 +110,21 @@ RequestResult Transactions::begin(const Proposal& proposal, RequestOptions optio
 }
 
 RequestResult Transactions::startKey(const OccurrenceKey& key, const InputContext& input,
-                                     RequestOptions options) {
+                                     RequestOptions options, bool restoring) {
   if (input.surface != state_.surface() || input.source != state_.snapshot().inputFocus) {
     return {RequestStatus::stale, {}};
   }
   const auto& registry = state_.snapshot().registry;
   const auto target = registry.find(key);
-  if (input.owner != InputOwner::engine || !logicalTarget(state_, target) ||
+  const bool readerRestoration = restoring && input.owner == InputOwner::accessibility;
+  if (readerRestoration) {
+    const auto gate = gateRestoration(state_, input);
+    if ((gate.kind != ProposalKind::ready && gate.reason != ProposalReason::absent_source) ||
+        !usableGeometry(state_.snapshot(), state_.surface(), target)) {
+      return {RequestStatus::unavailable, {}};
+    }
+  }
+  if ((input.owner != InputOwner::engine && !readerRestoration) || !logicalTarget(state_, target) ||
       (input.authority && (!registry.lookup(input.authority) ||
                             !registry.lookup(input.authority)->scope ||
                             !effectivelyActive(registry, input.authority))) ||
@@ -120,7 +137,7 @@ RequestResult Transactions::startKey(const OccurrenceKey& key, const InputContex
   proposal.target = target;
   proposal.kind = usableGeometry(state_.snapshot(), state_.surface(), target)
                       ? ProposalKind::ready : ProposalKind::reveal;
-  return start(proposal, options);
+  return start(proposal, options, input.owner);
 }
 
 }  // namespace itar

@@ -59,6 +59,9 @@ struct RequestRecord {
   TimePoint deadline;
   ResourceId resource;
   std::optional<Direction> direction;
+  InputOwner owner{InputOwner::engine};
+  // Reader restoration guard; advances to an observed destination, never input history.
+  std::optional<FocusState> accessibilitySource{};
 };
 
 struct Effect {
@@ -124,6 +127,9 @@ class Transactions {
   RequestResult begin(const Proposal& proposal, RequestOptions options);
   RequestResult requestFocus(const OccurrenceKey& key, const InputContext& input,
                              RequestOptions options);
+  // Explicit input restoration; accessibility ownership permits mounted targets only.
+  RequestResult restoreFocus(const OccurrenceKey& key, const InputContext& input,
+                             RequestOptions options);
   RequestResult issue(EffectToken token);  // Call immediately before host invocation.
   RequestResult realize(Realization realization);
   RequestResult refresh();  // After committing matching host geometry.
@@ -162,9 +168,10 @@ class Transactions {
     bool issued{};
     bool accepted{}, observed{};
   };
-  RequestResult start(const Proposal& proposal, RequestOptions options);
+  RequestResult start(const Proposal& proposal, RequestOptions options,
+                      InputOwner owner = InputOwner::engine);
   RequestResult startKey(const OccurrenceKey& key, const InputContext& input,
-                         RequestOptions options);
+                         RequestOptions options, bool restoring = false);
   bool authorized() const noexcept;
   EffectToken emit(EffectKind kind, std::optional<EffectToken> cancels = {});
   RequestResult completeCancellation(EffectOutcome outcome);

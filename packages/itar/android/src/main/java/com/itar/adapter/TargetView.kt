@@ -15,6 +15,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import java.lang.ref.WeakReference
 import androidx.appcompat.widget.AppCompatButton
 import androidx.core.view.ViewCompat
+import com.facebook.react.uimanager.ReactAccessibilityDelegate.AccessibilityRole
 
 class TargetView(context: Context) : AppCompatButton(context) {
     private val outline = GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius = 6 * resources.displayMetrics.density }
@@ -84,6 +85,8 @@ class TargetView(context: Context) : AppCompatButton(context) {
         super.onDraw(canvas)
     }
     internal var mount: Mount? = null
+    internal var committedOrder = 0
+    internal var committedEnabled = false
     private var engineFocusRequest = false
     internal fun requestEngineFocus(): Boolean {
         engineFocusRequest = true
@@ -98,6 +101,14 @@ class TargetView(context: Context) : AppCompatButton(context) {
         return super.requestFocus(direction, previouslyFocusedRect)
     }
     internal var surface: SurfaceView? = null
+    override fun setEnabled(enabled: Boolean) {
+        if (isEnabled != enabled) surface?.orderedFocusChanged()
+        super.setEnabled(enabled)
+    }
+    override fun setId(id: Int) {
+        if (this.id != id) surface?.orderedFocusChanged()
+        super.setId(id)
+    }
     internal var logicalMount: Mount? = null
     internal var logicalOwner: WeakReference<SurfaceView>? = null
     internal var logicalLifetime = 0L
@@ -116,6 +127,10 @@ class TargetView(context: Context) : AppCompatButton(context) {
     }
     override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
         super.onInitializeAccessibilityNodeInfo(info)
+        // AppCompatButton overwrites the class after RN's delegate applies it.
+        if (AccessibilityRole.fromViewTag(this) == AccessibilityRole.SWITCH) {
+            info.className = "android.widget.Switch"
+        }
         if (adjustable) {
             info.className = "android.widget.SeekBar"
             if (isEnabled) {

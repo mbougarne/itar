@@ -11,7 +11,20 @@ inline std::int64_t scope(Session &s, int operation, std::span<const std::int64_
     const auto node = registry.find(OccurrenceKey{std::string(key)});
     const auto *record = registry.lookup(node);
     RequestResult result{RequestStatus::unavailable, {}};
-    if (record && record->scope && record->active && record->navigation.entryReady && v[0] == 0) {
+    // The legacy restoreScopeRequest wire command accepts a registered scope or exact target.
+    if (record && !record->scope) {
+      const auto& target = *registry.key(node);
+      const InputContext input{s.state.surface(), {}, static_cast<InputOwner>(v[0]), s.state.snapshot().inputFocus};
+      result = s.transactions.restoreFocus(target, input, s.collections.options(target, static_cast<TimePoint>(v[2])));
+    } else if (record && record->scope && record->active && record->navigation.entryReady && v[0] == 3) {
+      const InputContext input{s.state.surface(), {}, InputOwner::accessibility, s.state.snapshot().inputFocus};
+      const auto proposal = resolveEntry(s.state, node, input,
+          {EntryReason::returning, Direction::down, {}, EntryIntent::restoration});
+      if (proposal.kind == ProposalKind::ready || proposal.reason == ProposalReason::existing_focus) {
+        const auto& target = *registry.key(proposal.kind == ProposalKind::ready ? proposal.target : input.source.node);
+        result = s.transactions.restoreFocus(target, input, s.collections.options(target, static_cast<TimePoint>(v[2])));
+      }
+    } else if (record && record->scope && record->active && record->navigation.entryReady && v[0] == 0) {
       // The destination can differ from the source scope; authority is the surface.
       const InputContext input{s.state.surface(), {}, InputOwner::engine, s.state.snapshot().inputFocus};
       if (const auto *remembered = s.state.history(node); remembered && logicalTarget(s.state, registry.find(*remembered)))

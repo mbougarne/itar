@@ -371,15 +371,22 @@ public final class ItarSurfaceHost: UIView {
     }
 
     func detach(_ target: ItarTargetHost) {
+        guard let loss = detachMount(target) else { return }
+        dispatcher?.enqueue(.invalidate(loss.node, loss.mount, 0, 0))
+    }
+
+    // Invalidate the native mapping immediately; callers may report several
+    // losses in one bounded inbox event while a catalogue callback is active.
+    func detachMount(_ target: ItarTargetHost) -> (node: ItarNode, mount: UInt64)? {
         guard let registration = target.registration, registration.target === target,
-              registrations[registration.key] === registration, target.owner === self else { return }
+              registrations[registration.key] === registration, target.owner === self else { return nil }
         registration.available = false
         registration.target = nil
         if preferred === target { preferred = nil; preferredToken = nil }
-        dispatcher?.enqueue(.invalidate(registration.node, registration.mount, 0, 0))
         target.restoreBaseStyle()
         target.registration = nil
         target.owner = nil
+        return (registration.node, registration.mount)
     }
 
     func drop(_ target: ItarTargetHost) {
