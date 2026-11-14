@@ -84,6 +84,8 @@ class TargetView(context: Context) : AppCompatButton(context) {
         super.onDraw(canvas)
     }
     internal var mount: Mount? = null
+    internal var committedOrder = 0
+    internal var committedEnabled = false
     private var engineFocusRequest = false
     internal fun requestEngineFocus(): Boolean {
         engineFocusRequest = true
@@ -98,6 +100,14 @@ class TargetView(context: Context) : AppCompatButton(context) {
         return super.requestFocus(direction, previouslyFocusedRect)
     }
     internal var surface: SurfaceView? = null
+    override fun setEnabled(enabled: Boolean) {
+        if (isEnabled != enabled) surface?.orderedFocusChanged()
+        super.setEnabled(enabled)
+    }
+    override fun setId(id: Int) {
+        if (this.id != id) surface?.orderedFocusChanged()
+        super.setId(id)
+    }
     internal var logicalMount: Mount? = null
     internal var logicalOwner: WeakReference<SurfaceView>? = null
     internal var logicalLifetime = 0L

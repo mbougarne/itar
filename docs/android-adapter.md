@@ -126,6 +126,26 @@ observation is still required to establish unmanaged focus or confirmed absence.
 still requires resynchronization; no notification is labelled request success.
 The focused effect fixture covers this case and passes in strict Release.
 
+### Bounded reader restoration and native columns (ITAR-0111–0113)
+
+Explicit restoration preserves the real accessibility input owner. The existing
+restoration wire accepts a registered scope (input history then entry preference)
+or exact target key. Reader-owned requests require mounted, measured, active
+targets and use one native input-focus request through the guarded dispatcher.
+Independent reader movement cancels pending authority. Accessibility observations
+never confirm input requests, update input history, force reader focus or post
+speech; an already-input-focused target is not proof of reader-focus restoration.
+
+Static columns with unique declared orders project eligible siblings onto native
+Up/Down IDs. Stale owned links are cleared on lifecycle changes; external native
+preferences are preserved. Collections, mixed/nested scopes and duplicate orders
+fall back to native lookup. Left/Right and outward edges remain native. This does
+not intercept TalkBack keys or extend the engine's directional ownership.
+
+These bounded paths are covered by focused core/bridge and Google TV emulator
+fixtures. Full spoken TalkBack, VoiceView and physical-device acceptance remains
+open; the production-adapter tickets above are not completed by these repairs.
+
 ## Consumer wiring (ITAR-0052)
 
 The provisional `itar/android` entry exports typed `AndroidSurface`,

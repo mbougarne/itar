@@ -26,10 +26,10 @@ class ScopeView(context: Context) : ReactViewGroup(context) {
         val root = root()
         if (owner !== root || scopeKey != committedKey) { owner?.dropScope(this); node = longArrayOf(0, 0) }
         owner = root
-        descendantFocusability = if (active) FOCUS_BEFORE_DESCENDANTS else FOCUS_BLOCK_DESCENDANTS
-        importantForAccessibility = if (active) IMPORTANT_FOR_ACCESSIBILITY_AUTO else IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         val next = listOf(root, root?.connection?.lifetime, scopeKey, parentScopeKey, active, layout, boundary, trap, entryReady, preferredKey, restoreOnEntry, collectionDataset)
         if (next != declared) { declared = next; root?.scopeChanged() }
+        descendantFocusability = if (active) FOCUS_BEFORE_DESCENDANTS else FOCUS_BLOCK_DESCENDANTS
+        importantForAccessibility = if (active) IMPORTANT_FOR_ACCESSIBILITY_AUTO else IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
     }
     internal fun publish(parentNode: LongArray): Boolean {
         val root = owner ?: return false
@@ -49,5 +49,11 @@ class ScopeView(context: Context) : ReactViewGroup(context) {
         return true
     }
     override fun onAttachedToWindow() { super.onAttachedToWindow(); commit() }
+    override fun onViewAdded(child: View) {
+        super.onViewAdded(child); (owner ?: root())?.orderedFocusChanged()
+    }
+    override fun onViewRemoved(child: View) {
+        super.onViewRemoved(child); (owner ?: root())?.orderedFocusChanged()
+    }
     internal fun recycle() { owner?.dropScope(this); owner = null; node = longArrayOf(0, 0); committed = null; declared = null; committedKey = "" }
 }

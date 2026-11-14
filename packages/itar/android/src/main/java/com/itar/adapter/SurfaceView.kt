@@ -20,6 +20,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     internal val scopes = LinkedHashMap<String, WeakReference<ScopeView>>()
     private var scopesDirty = true
     internal val collections = Collections(this)
+    private val orderedFocus = OrderedFocus(this)
     internal var dispatcher = Dispatcher(this)
     var collectionData = ""
         set(value) { if (field != value) { field = value; collections.configure(value) } }
@@ -37,6 +38,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     private var hiddenForActivity = false
     private var appliedActivity: Boolean? = null
     private var geometryDirty = true
+    private var refreshingGeometry = false
     private var savedImportance = IMPORTANT_FOR_ACCESSIBILITY_AUTO
     private var savedDescendants = FOCUS_BEFORE_DESCENDANTS
     private var restoration: Restoration? = null
@@ -52,6 +54,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         private set
     private val focusObserver = ViewTreeObserver.OnGlobalFocusChangeListener { _, target -> observe(target) }
     private val scrollObserver = ViewTreeObserver.OnScrollChangedListener { geometryChanged() }
+    private val layoutObserver = ViewTreeObserver.OnGlobalLayoutListener { orderedFocusChanged() }
     private val refreshTask = Runnable {
         refreshPosted = false
         if (!closed) dispatcher.batch {
@@ -59,6 +62,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             deferred.clear()
             refreshGeometry()
             pending.filter { it.isAttachedToWindow && it.surface === this }.forEach { it.commitProps() }
+            rebuildOrderedFocus()
             post { if (!closed) collections.advance() }
         }
     }
@@ -78,7 +82,11 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     fun restoreScopeRequest(key: String, command: String, receivedAt: Long = SystemClock.uptimeMillis()) {
         if (!acceptsInput || command.isEmpty() || command.length > 64) { emitRequest(longArrayOf(0, 3, 0), command); return }
         val now = receivedAt
-        dispatcher.batch { refreshGeometry(); observe(); dispatcher.submit(23, longArrayOf(input.owner, now, now + 3000), key, command) }
+        dispatcher.batch {
+            refreshGeometry(); observe()
+            if (readerOwnsInput) observe(channel = 1)
+            dispatcher.submit(23, longArrayOf(input.owner, now, now + 3000), key, command)
+        }
     }
     fun configureProvider(value: String) {
         if (providerId == value) return
@@ -160,6 +168,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         input.start()
         viewTreeObserver.addOnGlobalFocusChangeListener(focusObserver)
         viewTreeObserver.addOnScrollChangedListener(scrollObserver)
+        viewTreeObserver.addOnGlobalLayoutListener(layoutObserver)
         onSurfaceRecord?.invoke("ready")
     }
     private fun reopen() {
@@ -177,6 +186,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     override fun onDetachedFromWindow() {
         viewTreeObserver.removeOnGlobalFocusChangeListener(focusObserver)
         viewTreeObserver.removeOnScrollChangedListener(scrollObserver)
+        viewTreeObserver.removeOnGlobalLayoutListener(layoutObserver)
         close()
         super.onDetachedFromWindow()
     }
@@ -186,6 +196,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     }
     internal fun register(target: TargetView) {
         if (closed) return
+        orderedFocus.clear()
         if (dispatcher.busy) {
             if (deferred.none { it.get() === target }) {
                 if (deferred.size == 32) { close(); return }
@@ -233,6 +244,8 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             target.logicalOwner = WeakReference(this)
             target.logicalLifetime = connection.lifetime
             target.logicalScopeKey = target.scopeKey
+            target.committedOrder = target.order
+            target.committedEnabled = target.isEnabled
             logical?.key?.takeIf { it != target.occurrenceKey && logicalTargets[it]?.get() === target }?.let { logicalTargets.remove(it) }
             logicalTargets[target.occurrenceKey] = WeakReference(target)
             targets[mount] = WeakReference(target)
@@ -248,8 +261,10 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             old?.let { connection.exchange(3, it.values(epoch)) }
         }
         dispatcher.kick()
+        if (!refreshingGeometry) scheduleRefresh()
     }
     internal fun detach(target: TargetView) {
+        orderedFocusChanged()
         target.resetStyle()
         val old = target.mount ?: return
         target.mount = null // Host authority is revoked before any engine/configuration work.
@@ -284,6 +299,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     }
     internal fun geometryChanged() {
         if (closed) return
+        orderedFocus.clear()
         geometryDirty = true
         // One bounded inbox record even when a nested window has many cells.
         val values = targets.keys.flatMap { it.values(epoch).toList() }.toLongArray()
@@ -295,6 +311,13 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             refreshPosted = true
             post(refreshTask)
         }
+    }
+    internal fun orderedFocusChanged() {
+        orderedFocus.clear()
+        if (!closed) scheduleRefresh()
+    }
+    private fun rebuildOrderedFocus() {
+        if (!closed && !geometryDirty && !scopesDirty) orderedFocus.rebuild()
     }
     internal fun scopeChanged() { scopesDirty = true; geometryChanged() }
     internal fun scopeActive(key: String): Boolean {
@@ -357,6 +380,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         return false
     }
     internal fun dropScope(scope: ScopeView) {
+        orderedFocusChanged()
         val retiredKey = scope.committedKey
         if (retiredKey.isEmpty() || scopes[retiredKey]?.get() !== scope) return
         fun inside(key: String): Boolean {
@@ -386,7 +410,10 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         geometryDirty = false
         check(epoch < Long.MAX_VALUE) { "Layout epoch exhausted" }
         epoch++
-        dispatcher.batch { targets.values.mapNotNull { it.get() }.forEach { register(it) } }
+        refreshingGeometry = true
+        try { dispatcher.batch { targets.values.mapNotNull { it.get() }.forEach { register(it) } } }
+        finally { refreshingGeometry = false }
+        rebuildOrderedFocus()
     }
     private fun record(target: View?, channel: Long): LongArray {
         val mount = (target as? TargetView)?.takeIf { it.surface === this }?.mount
@@ -410,12 +437,14 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     }
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
         super.onWindowFocusChanged(hasWindowFocus)
+        orderedFocusChanged()
         observe()
         if (hasWindowFocus) reconcileRestoration()
     }
     fun close() {
         if (closed) return
         closed = true
+        orderedFocus.clear()
         mountCommands.clear()
         collections.close()
         onSurfaceRecord?.invoke("disposed")
