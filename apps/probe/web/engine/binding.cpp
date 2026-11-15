@@ -60,6 +60,7 @@ class WebEngine {
       const auto& registry = state_.snapshot().registry;
       std::vector<Mutation> mutations;
       std::vector<CollectionNode> catalog;
+      std::vector<std::pair<std::string, int>> alignments;
       std::set<std::string, std::less<>> keys;
       mutations.reserve(count + registry.size());
       for (unsigned i = 0; i < count; ++i) {
@@ -88,6 +89,12 @@ class WebEngine {
         }
         const auto entry = integer(field(value, "rowEntry", 0.0), 1);
         if (field(value, "collection", false)) {
+          const auto visual = value["horizontalAlignment"];
+          if (!visual.isUndefined() && (visual.typeOf().as<std::string>() != "number" ||
+              !record.scope || record.navigation.layout != Layout::row)) { return static_cast<int>(BatchStatus::invalid); }
+          const auto alignment = integer(field(value, "horizontalAlignment", 0.0), 1);
+          if (alignment && (!record.scope || record.navigation.layout != Layout::row)) { return static_cast<int>(BatchStatus::invalid); }
+          alignments.emplace_back(key, alignment);
           catalog.push_back({OccurrenceKey{key}, OccurrenceKey{field(value, "parent", std::string{})},
             record.order, record.scope, record.enabled, record.navigation.layout,
             field(value, "extent", 0.0), static_cast<CollectionRowEntry>(entry)});
@@ -112,7 +119,8 @@ class WebEngine {
       if (!validCollectionNodes(catalog, registry.limits())) { return static_cast<int>(BatchStatus::invalid); }
       // DOM registration/transport order is not a logical dataset change.
       std::sort(catalog.begin(), catalog.end(), [](const auto& a, const auto& b) { return a.key.value() < b.key.value(); });
-      const auto changed = catalog != catalog_;
+      std::sort(alignments.begin(), alignments.end());
+      const auto changed = catalog != catalog_ || alignments != alignments_;
       if (changed && dataset_ == ceiling) { return static_cast<int>(BatchStatus::revision_exhausted); }
       std::vector<NodeHandle> handles(catalog.size());
       for (const auto node : registry.handles()) {
@@ -140,7 +148,7 @@ class WebEngine {
           ++dataset_;
         }
         for (std::size_t i = 0; i < catalog.size(); ++i) { handles[i] = registry.find(catalog[i].key); }
-        catalog_.swap(catalog); handles_.swap(handles);
+        catalog_.swap(catalog); handles_.swap(handles); alignments_.swap(alignments);
       }
       tx_.drainNotifications();
       return static_cast<int>(applied.status);
@@ -285,6 +293,7 @@ class WebEngine {
   Transactions tx_;
   std::vector<CollectionNode> catalog_;
   std::vector<NodeHandle> handles_;
+  std::vector<std::pair<std::string, int>> alignments_;
   std::map<unsigned, Effect> effects_;
   std::set<unsigned> issued_;
   unsigned epoch_{};

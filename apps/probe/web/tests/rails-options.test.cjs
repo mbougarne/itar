@@ -88,3 +88,24 @@ test('web rails accept both entry policies and reject invalid values', () => {
     assert.throws(() => render(value), /rowEntry.*nearest/);
   }
 });
+
+test('web rails validate horizontal alignment', () => {
+  const render = horizontalAlignment =>
+    renderToStaticMarkup(
+      React.createElement(record.exports.FocusVirtualizedRails, {
+        id: 'rows',
+        rails: [],
+        rowExtent: 100,
+        itemExtent: 80,
+        viewportExtent: 320,
+        horizontalAlignment,
+      }),
+    );
+
+  assert.equal(render(), render('nearest'));
+  assert.doesNotThrow(() => render('leading'));
+
+  for (const value of ['center', 1, null]) {
+    assert.throws(() => render(value), /horizontalAlignment/);
+  }
+});

@@ -247,3 +247,17 @@ test('cycles, overlong keys and fractional protocol integers reject without chan
   assert.equal(engine.direction(1, 0).status, 0);
   confirm(engine, 'b');
 }));
+
+test('visual alignment publication cancels old reveal without changing the selected key', () => withRows(1, engine => {
+  engine.direction(3, 0); const [reveal] = engine.drain();
+  assert.equal(engine.issue(reveal.id).status, 15);
+  for (const horizontalAlignment of [-1,2,0.5,null,'leading']) {
+    assert.notEqual(engine.sync(rows(1).map(node => node.key === 'rail' ? {...node, horizontalAlignment} : node)),0);
+    assert.equal(engine.snapshot().activeRequest,reveal.request);
+  }
+  const aligned = rows(1).map(node => node.key === 'rail' ? {...node, horizontalAlignment: 1} : node);
+  assert.equal(engine.sync(aligned), 0);
+  assert.equal(engine.snapshot().activeRequest, 0);
+  assert.equal(engine.realize(reveal.id, 'rail-1', 2).status, 4);
+  assert.equal(engine.snapshot().inputKey, 'header-2');
+}));

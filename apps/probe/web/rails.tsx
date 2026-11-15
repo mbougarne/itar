@@ -24,9 +24,12 @@ import {
   useWebStore,
   WebScopeContext,
 } from './focus';
-import { createNode } from './focus-store';
+import { createNode, directionalNavigationEnabled } from './focus-store';
 import type { Registration } from './focus-store';
-import { headerScrollOffset } from '../../../packages/itar/src/api/viewport';
+import {
+  headerScrollOffset,
+  horizontalScrollOffset,
+} from '../../../packages/itar/src/api/viewport';
 
 import { visibleIndices } from './window';
 
@@ -39,6 +42,8 @@ type RowProps = {
   renderHeader?: (rail: VirtualizedFocusRail) => React.ReactNode;
   decoration?: (item: VirtualizedFocusItem) => React.ReactNode;
   forced?: string;
+  alignment: 'nearest' | 'leading';
+  active: boolean;
 };
 
 function Rail({
@@ -50,10 +55,14 @@ function Rail({
   renderHeader,
   decoration,
   forced,
+  alignment,
+  active,
 }: RowProps) {
   const [start, setStart] = useState(0);
   const scroll = useRef<HTMLDivElement>(null);
   const focus = useFocusState();
+  const store = useWebStore();
+  const previousAlignment = useRef(alignment);
 
   const focused = rail.items.findIndex(
     item => item.occurrenceKey === focus.occurrenceKey,
@@ -72,11 +81,60 @@ function Rail({
   );
 
   useLayoutEffect(() => {
-    if (requested >= 0 && scroll.current) {
-      scroll.current.scrollLeft = requested * extent;
-      setStart(requested);
+    const changed = previousAlignment.current !== alignment;
+
+    previousAlignment.current = alignment;
+
+    const view = scroll.current;
+
+    if (!view) {
+      return;
     }
-  }, [requested, extent]);
+
+    const reversed = getComputedStyle(view).direction === 'rtl';
+
+    const index = requested >= 0 ? requested : focused;
+
+    const content = rail.items.length * extent;
+    const maximum = Math.max(0, content - width);
+    const current = reversed ? maximum + view.scrollLeft : view.scrollLeft;
+
+    setStart(Math.floor(current / extent));
+
+    if (
+      !active ||
+      !directionalNavigationEnabled ||
+      index < 0 ||
+      (requested >= 0 ? changed : !store.canAlign()) ||
+      (requested < 0 && alignment !== 'leading')
+    ) {
+      return;
+    }
+
+    const itemStart = index * extent;
+
+    const offset = horizontalScrollOffset(
+      itemStart,
+      itemStart + extent,
+      current,
+      width,
+      content,
+      alignment,
+      reversed,
+    );
+
+    view.scrollLeft = reversed ? offset - maximum : offset;
+    setStart(Math.floor(offset / extent));
+  }, [
+    requested,
+    focused,
+    extent,
+    width,
+    rail.items.length,
+    alignment,
+    active,
+    store,
+  ]);
 
   return (
     <FocusScope id={rail.id} layout="row" boundary="parent" style={{ height }}>
@@ -89,9 +147,17 @@ function Rail({
           ...htmlStyles.horizontal,
           width,
         }}
-        onScroll={event =>
-          setStart(Math.floor(event.currentTarget.scrollLeft / extent))
-        }
+        onScroll={event => {
+          const view = event.currentTarget;
+
+          const offset =
+            getComputedStyle(view).direction === 'rtl'
+              ? Math.max(0, view.scrollWidth - view.clientWidth) +
+                view.scrollLeft
+              : view.scrollLeft;
+
+          setStart(Math.floor(offset / extent));
+        }}
       >
         <div
           style={{
@@ -170,6 +236,7 @@ export function FocusVirtualizedRails({
   listHeaderItems = noHeaderItems,
   listHeaderScope = 'hero-actions',
   rowEntry = 'nearest',
+  horizontalAlignment = 'nearest',
 }: RailsProps) {
   const store = useWebStore();
   const parent = useContext(WebScopeContext);
@@ -182,6 +249,13 @@ export function FocusVirtualizedRails({
   const height = viewportHeight ?? viewportRows * rowExtent;
 
   const model = useMemo(() => {
+    if (
+      horizontalAlignment !== 'nearest' &&
+      horizontalAlignment !== 'leading'
+    ) {
+      throw new Error('horizontalAlignment must be nearest or leading');
+    }
+
     if (rowEntry !== 'nearest' && rowEntry !== 'first') {
       throw new Error('rowEntry must be nearest or first');
     }
@@ -214,6 +288,7 @@ export function FocusVirtualizedRails({
         layout: 1,
         collection: true,
         extent: rail.itemExtent ?? itemExtent,
+        horizontalAlignment: horizontalAlignment === 'leading' ? 1 : 0,
         order,
         active: parent.active && active,
       });
@@ -245,6 +320,7 @@ export function FocusVirtualizedRails({
     listHeaderScope,
     listHeaderItems,
     rowEntry,
+    horizontalAlignment,
     rowExtent,
     itemExtent,
   ]);
@@ -301,6 +377,66 @@ export function FocusVirtualizedRails({
   const focusedRow = focus.occurrenceKey
     ? model.positions.get(nativeTargetKey(focus.occurrenceKey)) ?? -1
     : -1;
+
+  useLayoutEffect(() => {
+    if (
+      !active ||
+      !hasHeader ||
+      focusedRow !== 0 ||
+      horizontalAlignment !== 'leading' ||
+      !store.canAlign()
+    ) {
+      return;
+    }
+
+    const target = document.activeElement;
+
+    if (!(target instanceof HTMLElement) || !outer.current?.contains(target)) {
+      return;
+    }
+
+    for (
+      let port = target.parentElement;
+      port && port !== outer.current;
+      port = port.parentElement
+    ) {
+      if (
+        port.scrollWidth <= port.clientWidth ||
+        !['auto', 'scroll'].includes(getComputedStyle(port).overflowX)
+      ) {
+        continue;
+      }
+
+      const rtl = getComputedStyle(port).direction === 'rtl';
+      const maximum = port.scrollWidth - port.clientWidth;
+      const current = rtl ? maximum + port.scrollLeft : port.scrollLeft;
+
+      const rect = target.getBoundingClientRect(),
+        viewport = port.getBoundingClientRect();
+
+      const headerOffset = horizontalScrollOffset(
+        current + rect.left - viewport.left,
+        current + rect.right - viewport.left,
+        current,
+        port.clientWidth,
+        port.scrollWidth,
+        'leading',
+        rtl,
+      );
+
+      port.scrollLeft = rtl ? headerOffset - maximum : headerOffset;
+
+      break;
+    }
+  }, [
+    active,
+    hasHeader,
+    focusedRow,
+    focus.occurrenceKey,
+    horizontalAlignment,
+    forced,
+    store,
+  ]);
 
   const lastAligned = useRef<string | null>(null);
 
@@ -398,6 +534,8 @@ export function FocusVirtualizedRails({
                   renderHeader={renderRailHeader}
                   decoration={renderDecoration}
                   forced={forced}
+                  alignment={horizontalAlignment}
+                  active={parent.active && active}
                 />
               )}
             </div>
@@ -417,6 +555,7 @@ export function FocusVirtualizedList({
   itemStyle,
   style,
   testID,
+  horizontalAlignment = 'nearest',
 }: React.ComponentProps<typeof NativeList>) {
   const rails = useMemo(
     () =>
@@ -435,6 +574,7 @@ export function FocusVirtualizedList({
     <FocusVirtualizedRails
       id={id}
       rails={rails}
+      horizontalAlignment={horizontalAlignment}
       itemExtent={horizontal ? itemExtent : 240}
       rowExtent={horizontal ? 100 : itemExtent}
       viewportHeight={horizontal ? 100 : viewportExtent}

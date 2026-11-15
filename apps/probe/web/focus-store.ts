@@ -139,6 +139,14 @@ export class WebFocusStore {
     this.schedule();
   }
 
+  canAlign() {
+    return (
+      this.available() &&
+      directionalNavigationEnabled &&
+      !this.engine.snapshot().activeRequest
+    );
+  }
+
   collection(token: object, collection: Collection) {
     const element = this.activeElement();
 
@@ -247,6 +255,7 @@ export class WebFocusStore {
         collection: nodes.get(record.key)?.collection,
         extent: nodes.get(record.key)?.extent,
         rowEntry: nodes.get(record.key)?.rowEntry,
+        horizontalAlignment: nodes.get(record.key)?.horizontalAlignment,
         mounted,
         active: this.enabled && record.active,
         x: rect?.x ?? 0,
