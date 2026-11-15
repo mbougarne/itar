@@ -59,20 +59,22 @@ function platform() {
   const source = fs.readFileSync(path.join(__dirname, '../apps/probe/web/platform.ts'), 'utf8');
   const {code} = esbuild.transformSync(source, {loader: 'ts', format: 'cjs'});
   const handlers = new Set();
+  const captureModes = [];
   const context = {module: {exports: {}}, require: () => ({}),
-    document: {addEventListener: (_, listener) => handlers.add(listener),
-      removeEventListener: (_, listener) => handlers.delete(listener)},
+    document: {addEventListener: (_, listener, capture) => { captureModes.push(capture); handlers.add(listener); },
+      removeEventListener: (_, listener, capture) => { captureModes.push(capture); handlers.delete(listener); }},
     window: {alert() {}, confirm: () => false, close() {}},
   };
   vm.runInNewContext(code, context);
-  return {...context.module.exports, handlers};
+  return {...context.module.exports, handlers, captureModes};
 }
 
 test('browser and TV Back dispatch newest listener first, consume once and clean up', () => {
-  const {BackHandler, handlers} = platform();
+  const {BackHandler, handlers, captureModes} = platform();
   let calls = '';
   const outer = BackHandler.addEventListener('hardwareBackPress', () => { calls += 'outer'; return true; });
   const inner = BackHandler.addEventListener('hardwareBackPress', () => { calls += 'inner'; return true; });
+  assert.deepEqual(captureModes, [true], 'Back must precede RNW editor bubbling suppression');
   const event = (key, keyCode = 0) => ({key, keyCode, defaultPrevented: false, repeat: false,
     preventDefault() { this.defaultPrevented = true; }, stopPropagation() {}});
   const dispatch = value => [...handlers].forEach(handler => handler(value));
@@ -88,6 +90,7 @@ test('browser and TV Back dispatch newest listener first, consume once and clean
   assert.equal(calls, 'innerouter');
   outer.remove();
   assert.equal(handlers.size, 0);
+  assert.deepEqual(captureModes, [true, true], 'capture listener is removed in the same phase');
 });
 
 test('an Alert action does not also dispatch onDismiss', () => {

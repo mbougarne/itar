@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
-import { FocusScope, occurrenceKey } from 'itar/react';
+import { Platform, Text, View } from 'react-native';
+import {
+  FocusScope,
+  occurrenceKey,
+  useFocusCommands,
+  useFocusState,
+} from 'itar/react';
 import Browse from './Browse';
 import { Action, Header } from './ui';
 import { useDesign } from './theme';
@@ -32,6 +37,23 @@ export default function Search({
   const [resultsWidth, setResultsWidth] = useState(0);
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
+  const commands = useFocusCommands();
+  const focus = useFocusState();
+
+  const edit = (source: string, next: string) => {
+    setText(next);
+
+    if (
+      Platform.OS === 'web' &&
+      active &&
+      !next &&
+      focus.kind === 'managed' &&
+      focus.occurrenceKey === source
+    ) {
+      // The web command waits for the edit commit before resolving its target.
+      commands.focusByKey(occurrenceKey(id, 'key', 'A'));
+    }
+  };
 
   const reportReady = useCallback(
     () => onReady?.(occurrenceKey(id, 'key', 'A')),
@@ -102,7 +124,10 @@ export default function Search({
               style={s.editAction}
               enabled={!!text}
               onPress={() =>
-                setText(value => Array.from(value).slice(0, -1).join(''))
+                edit(
+                  occurrenceKey(id, 'delete'),
+                  Array.from(text).slice(0, -1).join(''),
+                )
               }
               highContrast={highContrast}
             />
@@ -112,7 +137,7 @@ export default function Search({
               label="Clear"
               style={s.editAction}
               enabled={!!text}
-              onPress={() => setText('')}
+              onPress={() => edit(occurrenceKey(id, 'clear'), '')}
               highContrast={highContrast}
             />
           </FocusScope>

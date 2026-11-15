@@ -210,3 +210,57 @@ test('virtual window retains source and distant destination with bounded oversca
   assert.equal(range.length, 9);
   assert.deepEqual(visibleIndices(0, 0, 4, -1), []);
 });
+
+test('collection commits reveal retained focus without issuing a new focus move', async t => {
+  const f = fixture(t);
+  const a = f.target('a', 0);
+  const token = {};
+
+  let y = 0,
+    reveals = 0;
+
+  a.element.getBoundingClientRect = () => ({ x: 0, y, width: 80, height: 50 });
+
+  a.element.scrollIntoView = () => {
+    reveals++;
+  };
+
+  const dataset = () => ({
+    nodes: [createNode('a', 'row')],
+    reveal: () => false,
+  });
+
+  f.store.collection(token, dataset());
+  await f.store.request('a').result;
+  reveals = 0;
+  y = 1200;
+  // React replaces the collection effect with cleanup followed by setup.
+  f.store.removeCollection(token);
+  f.store.collection(token, dataset());
+  await Promise.resolve();
+  assert.equal(reveals, 1);
+  assert.equal(f.active(), a.element);
+  assert.equal(f.store.engine.snapshot().activeRequest, 0);
+
+  for (const interrupt of [
+    () => f.store.removeCollection(token),
+    () => f.store.update(a, { active: false }),
+    () => setDirectionalNavigationEnabled(false),
+    () => f.store.request('missing').cancel(),
+  ]) {
+    f.store.update(a, { active: true });
+    setDirectionalNavigationEnabled(true);
+    f.store.collection(token, dataset());
+
+    const count = reveals;
+
+    interrupt();
+    await Promise.resolve();
+
+    assert.equal(
+      reveals,
+      count,
+      'retired/inactive or superseded commits must not scroll',
+    );
+  }
+});

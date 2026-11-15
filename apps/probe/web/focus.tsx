@@ -269,8 +269,9 @@ export function FocusScope({
   return (
     <WebScopeContext.Provider value={context}>
       <View
-        accessibilityElementsHidden={!enabled}
-        importantForAccessibility={enabled ? 'auto' : 'no-hide-descendants'}
+        {...{ inert: !enabled }}
+        aria-hidden={!enabled}
+        pointerEvents={enabled ? 'auto' : 'none'}
         style={style}
         testID={testID}
       >
