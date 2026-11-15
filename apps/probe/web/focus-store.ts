@@ -46,6 +46,7 @@ export class WebFocusStore {
   readonly lifetime = String(++nextLifetime);
   private records = new Map<string, Registration>();
   private collections = new Map<object, Collection>();
+  private visibilityChecks = new Map<object, () => void>();
   private listeners = new Set<() => void>();
   private pending = new Map<number, Pending>();
   private reveals = new Map<number, EngineEffect>();
@@ -57,6 +58,7 @@ export class WebFocusStore {
   private live = true;
   private enabled = true;
   private serial = 0;
+  private intentRevision = 0;
   private directionalTimer?: ReturnType<typeof setTimeout>;
   private timedRequest = 0;
   private relinquish = () => {
@@ -134,11 +136,50 @@ export class WebFocusStore {
   }
 
   collection(token: object, collection: Collection) {
+    const element = this.activeElement();
+
+    const target = [...this.records.values()].find(
+      node => node.element === element,
+    );
+
+    const intent = this.intentRevision;
+
     this.collections.set(token, collection);
     this.schedule();
+
+    // A retained pagination target can move without another focus effect.
+    if (target && this.engine.snapshot().inputKey === target.key) {
+      this.visibilityChecks.set(token, () => {
+        if (
+          !this.available() ||
+          !directionalNavigationEnabled ||
+          intent !== this.intentRevision ||
+          this.collections.get(token) !== collection ||
+          this.activeElement() !== element ||
+          target.element !== element ||
+          this.records.get(target.key) !== target ||
+          !target.active ||
+          !target.enabled ||
+          !target.element?.isConnected ||
+          this.engine.snapshot().activeRequest ||
+          !collection.nodes.some(
+            node => node.key === target.key && node.active && node.enabled,
+          )
+        ) {
+          return;
+        }
+
+        target.element.scrollIntoView({
+          block: 'nearest',
+          inline: 'nearest',
+          behavior: 'auto',
+        });
+      });
+    }
   }
 
   removeCollection(token: object) {
+    this.visibilityChecks.delete(token);
     this.collections.delete(token);
     this.schedule();
   }
@@ -156,6 +197,11 @@ export class WebFocusStore {
       if (this.live) {
         this.flush();
         this.pump();
+
+        const checks = [...this.visibilityChecks.values()];
+
+        this.visibilityChecks.clear();
+        checks.forEach(check => check());
       }
     });
   }
@@ -282,6 +328,8 @@ export class WebFocusStore {
       return;
     }
 
+    this.intentRevision++;
+
     if (source.adjust && direction < 2) {
       source.adjust(direction === 0 ? -1 : 1);
 
@@ -306,6 +354,8 @@ export class WebFocusStore {
   }
 
   request(key: string, restore = false): FocusRequest {
+    this.intentRevision++;
+
     const command = String(++this.serial);
     let request = 0;
     let cancelled = false;
@@ -535,6 +585,7 @@ export class WebFocusStore {
     }
 
     this.reveals.clear();
+    this.visibilityChecks.clear();
     this.engine.delete();
     this.listeners.clear();
   }
