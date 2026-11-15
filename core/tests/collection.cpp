@@ -164,6 +164,73 @@ void foreignReplacementSurvivesRetirement() {
   CHECK(f.node("b") == replacement);
 }
 
+void configurableRowEntry() {
+  Fixture f;
+  std::vector<CollectionNode> nodes{{OccurrenceKey{"outer"}, {}, 0, true, true, Layout::column, 120}};
+  nodes[0].rowEntry = CollectionRowEntry::first;
+  for (int row = 0; row < 3; ++row) {
+    const auto key = OccurrenceKey{"row-" + std::to_string(row)};
+    nodes.push_back({key, OccurrenceKey{"outer"}, row, true, true, Layout::row, 100});
+    for (int item = 0; item < 2; ++item) {
+      nodes.push_back({OccurrenceKey{"item-" + std::to_string(row) + "-" + std::to_string(item)}, key, item});
+    }
+  }
+  CHECK(f.collections.apply(DatasetRevision{2}, nodes).status == CollectionStatus::applied);
+  f.mount("item-1-1", 1);
+  f.mount("item-2-1", 2); // Mounting the later card must not change logical first entry.
+  CHECK(f.tx.observeHost({SurfaceLifetime{7}, {f.state.surface(), FocusChannel::input,
+      {FocusKind::managed, f.node("item-1-1"), MountGeneration{1}}}, {}}).status == RequestStatus::unchanged);
+  CHECK(f.collections.propose(Direction::down, f.input()).target == f.node("item-2-0"));
+  CHECK(f.collections.propose(Direction::down, f.input()).kind == ProposalKind::reveal);
+  CHECK(f.collections.propose(Direction::up, f.input()).target == f.node("item-0-0"));
+  CHECK(f.collections.propose(Direction::left, f.input()).target == f.node("item-1-0"));
+  auto reader = f.input(); reader.owner = InputOwner::accessibility;
+  CHECK(f.collections.propose(Direction::down, reader).kind == ProposalKind::host_owned);
+
+  nodes[8].enabled = false;
+  CHECK(f.collections.apply(DatasetRevision{3}, nodes).status == CollectionStatus::applied);
+  CHECK(f.collections.propose(Direction::down, f.input()).target == f.node("item-2-1"));
+  nodes[9].enabled = false;
+  CHECK(f.collections.apply(DatasetRevision{4}, nodes).status == CollectionStatus::applied);
+  const auto empty = f.collections.propose(Direction::down, f.input());
+  CHECK(empty.kind != ProposalKind::ready && empty.kind != ProposalKind::reveal);
+
+  nodes[8].enabled = nodes[9].enabled = true;
+  CHECK(f.collections.apply(DatasetRevision{5}, nodes).status == CollectionStatus::applied);
+  Mutation override;
+  override.kind = MutationKind::update; override.key = OccurrenceKey{"item-1-1"};
+  override.expected = f.node("item-1-1"); override.parent = OccurrenceKey{"row-1"};
+  override.record = *f.state.snapshot().registry.lookup(override.expected);
+  override.record.navigation.overrides[3] = f.node("item-0-1");
+  CHECK(f.tx.apply({f.state.surface(), f.state.snapshot().revision, std::span{&override, 1}}).status == BatchStatus::valid);
+  CHECK(f.collections.propose(Direction::down, f.input()).target == f.node("item-0-1"));
+  override.record.navigation.overrides = {};
+  CHECK(f.tx.apply({f.state.surface(), f.state.snapshot().revision, std::span{&override, 1}}).status == BatchStatus::valid);
+
+  const auto restored = f.tx.restoreFocus(OccurrenceKey{"item-2-1"}, f.input(),
+      f.collections.options(OccurrenceKey{"item-2-1"}, 400));
+  CHECK(restored.status == RequestStatus::started && f.tx.active()->targetKey == OccurrenceKey{"item-2-1"});
+  CHECK(f.tx.cancel(restored.request).status == RequestStatus::cancelled);
+
+  const auto request = f.collections.input(Direction::down, f.input(), 500);
+  CHECK(request.status == RequestStatus::started && f.tx.active()->targetKey == OccurrenceKey{"item-2-0"});
+  nodes[0].rowEntry = CollectionRowEntry::nearest;
+  CHECK(f.collections.apply(DatasetRevision{5}, nodes).status == CollectionStatus::stale);
+  CHECK(f.tx.active() && f.tx.active()->id == request.request);
+  CHECK(f.collections.apply(DatasetRevision{6}, nodes).status == CollectionStatus::applied);
+  CHECK(!f.tx.active() && f.state.snapshot().inputFocus.node == f.node("item-1-1"));
+  CHECK(f.collections.propose(Direction::down, f.input()).target == f.node("item-2-1"));
+
+  const auto revision = f.state.snapshot().revision;
+  for (const auto index : {0, 1, 2}) {
+    auto invalid = nodes;
+    invalid[index].rowEntry = index == 0 ? static_cast<CollectionRowEntry>(99) : CollectionRowEntry::first;
+    CHECK(f.collections.apply(DatasetRevision{7}, invalid).status == CollectionStatus::invalid);
+    CHECK(f.collections.dataset() == DatasetRevision{6} && f.state.snapshot().revision == revision);
+    CHECK(f.tx.drainEffects().empty());
+  }
+}
+
 int main() {
   membershipAndAtomicity();
   realizationAndRevision();
@@ -171,4 +238,5 @@ int main() {
   hostFactsAndConflicts();
   nestedColumnAndSupersession();
   foreignReplacementSurvivesRetirement();
+  configurableRowEntry();
 }
