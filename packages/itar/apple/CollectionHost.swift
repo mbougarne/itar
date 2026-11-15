@@ -16,18 +16,58 @@ final class AppleCollections {
     private var source = ItarFocus()
     private var handles: [String: ItarNode] = [:]
     private var settling: DispatchWorkItem?
+    private struct Publication {
+        let source: AppleRegistration, focus: ItarFocus, dataset: String
+        let scopes: [(AppleScopeRegistration, ItarNode)]
+    }
+    private var publication: Publication?
     init(_ root: ItarSurfaceHost) { self.root = root }
     func entry(_ key: String) -> CollectionEntry? { document?.nodes.first { $0.key == key } }
+    func entry(_ node: ItarNode) -> CollectionEntry? {
+        document?.nodes.first { handles[$0.key].map { $0.slot == node.slot && $0.generation == node.generation } == true }
+    }
     func accepts(_ key: String, dataset: String, scope: Bool) -> Bool {
         guard let entry = entry(key) else { return dataset.isEmpty }
-        return entry.scope == scope && dataset == self.dataset
+        return entry.scope == scope && (dataset == self.dataset || acceptsPublication(key, dataset: dataset, scope: scope))
+    }
+    private func acceptsPublication(_ key: String, dataset: String, scope: Bool) -> Bool {
+        guard let lease = publication, dataset == lease.dataset, let root, root.acceptsInput, let target = lease.source.target,
+              root.registrations[lease.source.key] === lease.source, target.registration === lease.source,
+              target.owner === root, target.nearestSurface() === root, target.window === root.window,
+              target.occurrenceKey == lease.source.key, target.scopeKey == lease.source.scopeKey,
+              lease.source.node.slot == lease.focus.node.slot, lease.source.node.generation == lease.focus.node.generation,
+              lease.source.mount == lease.focus.mount, target.targetEnabled,
+              UIFocusSystem.focusSystem(for: root)?.focusedItem === target else { return false }
+        if !scope { return key == lease.source.key }
+        return lease.scopes.contains { registration, node in
+            guard registration.key == key, root.scopes[key] === registration, let view = registration.view else { return false }
+            return registration.node.slot == node.slot && registration.node.generation == node.generation &&
+                view.owner === root && view.nearestSurface() === root && view.window === root.window &&
+                view.scopeKey == key && view.collectionDataset == dataset
+        }
+    }
+    private func retainPublication(_ next: CollectionDocument) -> Publication? {
+        guard let root, let previous = document, previous.nodes.count == next.nodes.count,
+              zip(previous.nodes, next.nodes).contains(where: { old, new in (old.rowEntry ?? 0) != (new.rowEntry ?? 0) }),
+              zip(previous.nodes, next.nodes).allSatisfy({ old, new in
+                  var comparable = new; comparable.rowEntry = old.rowEntry; return comparable == old
+              }), let target = UIFocusSystem.focusSystem(for: root)?.focusedItem as? ItarTargetHost,
+              let source = target.registration, ownsSource(source) else { return nil }
+        var scopes: [(AppleScopeRegistration, ItarNode)] = []
+        for entry in previous.path(source.key) {
+            guard let scope = root.scopes[entry.parent], let view = scope.view,
+                  view.collectionDataset == previous.dataset else { return nil }
+            scopes.append((scope, scope.node))
+        }
+        // ownsSource verified actual host focus even while animation geometry is unsettled.
+        return Publication(source: source, focus: ItarFocus(kind: 0, node: source.node, mount: source.mount), dataset: previous.dataset, scopes: scopes)
     }
     var dataset: String { document?.dataset ?? "0" }
     func ownsSource(_ registration: AppleRegistration) -> Bool {
         guard let root, let target = registration.target, root.acceptsInput,
               root.registrations[registration.key] === registration, target.registration === registration,
               target.owner === root, target.window === root.window, target.occurrenceKey == registration.key,
-              target.targetEnabled, !target.label.isEmpty, target.collectionDataset == dataset,
+              target.targetEnabled, !target.label.isEmpty, accepts(registration.key, dataset: target.collectionDataset, scope: false),
               entry(registration.key)?.enabled == true, root.scopeActive(registration.scopeKey) else { return false }
         // Native focus animations can temporarily invalidate destination geometry.
         // A verified current source still owns ordered input during that interval.
@@ -58,6 +98,7 @@ final class AppleCollections {
         }
         let previous = document
         let previousHandles = handles
+        publication = retainPublication(next)
         document = next
         handles = Dictionary(uniqueKeysWithValues: next.nodes.compactMap { entry in
             guard let node = try? root.dispatcher?.connection.find(entry.key) else { return nil }
@@ -68,7 +109,7 @@ final class AppleCollections {
             guard let owned = previousHandles[registration.key],
                   registration.node.slot == owned.slot, registration.node.generation == owned.generation else { continue }
             let removed = entry(registration.key) == nil
-            if let target = registration.target, removed || target.collectionDataset != next.dataset {
+            if let target = registration.target, removed || !accepts(registration.key, dataset: target.collectionDataset, scope: false) {
                 target.isAccessibilityElement = false
                 if let loss = root.detachMount(target) { losses.append((loss.node, loss.mount, 0, 0)) }
             }
@@ -222,10 +263,50 @@ final class AppleCollections {
         pending = nil; steps.removeAll(); prepared = false; scrolled = false; realized = false
         if let effect { emit(["state": "release", "request": String(effect.token.request), "effect": String(effect.token.effect)]) }
     }
-    func close() { release(); document = nil; handles.removeAll() }
+    func close() { release(); publication = nil; document = nil; handles.removeAll() }
 }
 
 extension ItarSurfaceHost {
+    // Reject an incorrect UIKit row entry, then request the C++ destination on
+    // the next owner turn. Never recursively invoke UIKit from its focus query.
+    // nil leaves the normal scope-entry policy in charge; true accepts UIKit's
+    // already-correct destination; false defers an incorrect intermediate move.
+    func allowCollectionEntry(from previous: ItarTargetHost, to next: ItarTargetHost, heading: UIFocusHeading) -> Bool? {
+        let direction: Int32
+        switch heading { case .up: direction = 2; case .down: direction = 3; default: return nil }
+        guard acceptsInput, !UIAccessibility.isVoiceOverRunning,
+              previous.owner === self, next.owner === self, previous.isFocused,
+              let origin = previous.registration, collections.ownsSource(origin),
+              let owner = dispatcher, !owner.pumping, !owner.closed,
+              let snapshot = try? owner.connection.snapshot(), snapshot.active_request == 0,
+              snapshot.input.kind == 0, snapshot.input.node.slot == origin.node.slot,
+              snapshot.input.node.generation == origin.node.generation, snapshot.input.mount == origin.mount,
+              let proposal = try? owner.connection.directionQuery(direction), proposal.kind == 0 || proposal.kind == 1,
+              let source = collections.entry(origin.key), let sourceRow = collections.entry(source.parent),
+              let target = collections.entry(proposal.target), let targetRow = collections.entry(target.parent),
+              sourceRow.key != targetRow.key, sourceRow.layout == 1, targetRow.layout == 1,
+              sourceRow.parent == targetRow.parent, collections.entry(sourceRow.parent)?.rowEntry == 1 else { return nil }
+        if let registration = next.registration, registration.node.slot == proposal.target.slot,
+           registration.node.generation == proposal.target.generation, live(registration) === next { return true }
+        let dataset = collections.dataset, declaration = collectionData, sequence = eventSequence, lifetime = lifetime, mount = origin.mount
+        let now = owner.clock()
+        guard now <= UInt64.max - 3000 else { return nil }
+        entryWork?.cancel()
+        let work = DispatchWorkItem { [weak self, weak previous] in
+            guard let self, let previous, self.acceptsInput, !UIAccessibility.isVoiceOverRunning,
+                  self.lifetime == lifetime, self.collections.dataset == dataset, self.collectionData == declaration, self.eventSequence == sequence,
+                  previous.registration === origin, origin.mount == mount, self.collections.ownsSource(origin),
+                  owner.clock() < now + 3000 else { return }
+            self.entryWork = nil
+            self.commitGeometry()
+            guard self.collections.dataset == dataset, self.collections.ownsSource(origin) else { return }
+            owner.enqueue(.direction(direction, owner.clock(), now + 3000))
+            owner.enqueue(.releaseInput)
+        }
+        entryWork = work
+        DispatchQueue.main.async(execute: work)
+        return false
+    }
     var dispatcherIsPumping: Bool { dispatcher?.pumping == true }
     func collectionDirection(_ presses: Set<UIPress>) -> Int32? {
         guard acceptsInput, !UIAccessibility.isVoiceOverRunning, presses.count == 1,

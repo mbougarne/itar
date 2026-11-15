@@ -79,10 +79,10 @@ test('row entry is published on the outer collection and changes the dataset bef
   f.accept(); f.render(first);
   assert.equal(f.render(first).props.value, '2');
   assert.throws(() => f.render({...options, rowEntry: 'typo'}), /rowEntry/);
-  for (const os of ['ios', 'web']) {
-    assert.throws(() => fixture(undefined, os === 'ios', os).render(first), /rowEntry.*Android/);
-    fixture(undefined, os === 'ios', os).render({...options, rowEntry: 'nearest'});
-  }
+  const apple = fixture(undefined, true, 'ios');
+  apple.render(first);
+  assert.equal(apple.nodes()[0].rowEntry, 1);
+  assert.throws(() => fixture().render(first), /rowEntry.*adapter/);
 });
 
 test('readiness does not authorize a replacement from a stale render snapshot', () => {

@@ -23,7 +23,7 @@ Horizontal moves and explicit keyed/restoration requests keep their own contract
 There is no new row-skipping, wrapping or scroll-alignment policy.
 
 The [React Native rails option](../packages/itar/virtualization.md) forwards this
-policy on the Android adapter. Browser forwarding remains separate work; Apple
-rejects first-entry while UIKit owns mounted directional selection. Neither the
+policy on Android and through the cooperative tvOS adapter. Browser forwarding
+remains separate work. Neither the
 C++ capability nor transport validation establishes screen-reader movement or
 physical-device support. Visual anchoring remains owned by the list/host adapter.

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { Button, Platform, StyleSheet, Text, View } from 'react-native';
 import {
   FocusProvider,
   FocusScope,
@@ -23,6 +23,7 @@ function Screen() {
   const request = useRef<FocusRequest | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [nested, setNested] = useState(false);
+  const [firstEntry, setFirstEntry] = useState(false);
   const [reverse, setReverse] = useState(false);
   const [removed, setRemoved] = useState(false);
   const [active, setActive] = useState(true);
@@ -127,6 +128,14 @@ function Screen() {
           onPress={() => setNested(!nested)}
         />
         <Button title="Reorder dataset" onPress={() => setReverse(!reverse)} />
+        {nested &&
+          Platform.isTV &&
+          (Platform.OS === 'ios' || Platform.OS === 'android') && (
+            <Button
+              title={`Row entry: ${firstEntry ? 'first' : 'nearest'}`}
+              onPress={() => setFirstEntry(!firstEntry)}
+            />
+          )}
         <Button
           title={removed ? 'Restore item 2' : 'Remove item 2'}
           onPress={() => setRemoved(!removed)}
@@ -148,6 +157,7 @@ function Screen() {
               key="rails"
               id="rails"
               rails={rails}
+              rowEntry={firstEntry ? 'first' : 'nearest'}
               itemExtent={160}
               rowExtent={120}
               viewportExtent={680}

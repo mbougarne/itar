@@ -3,7 +3,7 @@ import Foundation
 import ItarEngineCore
 #endif
 
-struct CollectionEntry: Decodable {
+struct CollectionEntry: Decodable, Equatable {
     let key: String
     let parent: String
     let order: Int32
@@ -28,8 +28,7 @@ struct CollectionDocument: Decodable {
               document.nodes.count <= 256,
               document.nodes.allSatisfy({ node in
                   let first = node.leadingExtent ?? 0
-                  // UIKit selects mounted destinations; do not silently accept first-entry policy.
-                  return (node.rowEntry == nil || node.rowEntry == 0) &&
+                  return (node.rowEntry == nil || node.rowEntry == 0 || node.rowEntry == 1) &&
                       first.isFinite && first >= 0 && first <= 1_000_000 && (node.scope || first == 0)
               }) else { return nil }
         return document
@@ -65,7 +64,8 @@ extension EngineConnection {
             }
             let records = document.nodes.enumerated().map { index, node in
                 ItarCollectionNode(key: key(index * 2), parent: key(index * 2 + 1), order: node.order,
-                    layout: node.layout, scope: node.scope ? 1 : 0, enabled: node.enabled ? 1 : 0, extent: node.extent)
+                    layout: node.layout, scope: node.scope ? 1 : 0, enabled: node.enabled ? 1 : 0, extent: node.extent,
+                    row_entry: node.rowEntry ?? 0)
             }
             let result = records.withUnsafeBufferPointer {
                 itar_engine_collections(nativeHandle, lifetime, UInt64(document.dataset) ?? 0, $0.baseAddress, $0.count)

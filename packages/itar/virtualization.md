@@ -41,7 +41,7 @@ with `itemExtent`, `rowExtent`, `viewportExtent`, and optional `viewportRows`
 horizontal rails enter at the nearest available logical column; this declared
 fixed-column policy does not depend on which cells happen to be mounted.
 
-On Android TV, `rowEntry="first"` on `FocusVirtualizedRails` changes Up/Down
+On the Android TV and tvOS adapters, `rowEntry="first"` on `FocusVirtualizedRails` changes Up/Down
 entry to the first eligible item in the destination row. The default is
 `rowEntry="nearest"`. Disabled items are skipped; an unmounted first item is
 realized instead of substituting a later mounted item. This also applies when
@@ -49,12 +49,17 @@ crossing the leading header row. Horizontal movement and explicit keyed
 restoration keep their existing behavior. Changing the option publishes a new
 dataset and invalidates pending work from the old policy.
 
-The browser probe and Apple TV currently reject `first` explicitly. The browser
-Wasm route still needs collection-policy integration. UIKit chooses mounted
-destinations while the Apple adapter only claims cold collection arrows; wiring
-the C++ value alone would not establish a consistent policy for mounted arrows,
-swipes or momentum. Native screen readers retain ownership for both policies.
-Android device/speech acceptance remains separate from transport tests.
+The browser probe currently rejects `first` explicitly until its Wasm route
+integrates collection policy. On tvOS, the adapter cooperates with UIKit: an
+already-correct mounted destination proceeds normally, while a differing owned
+vertical row entry is rejected before focus changes and deferred through the
+engine's native request/confirmation path. Offscreen items use collection
+realization. Default mounted selection remains UIKit-owned. This does not claim
+gesture/momentum parity or override VoiceOver navigation. Physical-device and
+spoken-reader acceptance remain separate from boundary/simulator tests.
+
+The native virtualized-list probe offers a **Row entry: nearest/first** toggle
+after selecting **Nested rails** for manual comparison.
 
 Rails optionally accept one leading row through `listHeader`, `listHeaderExtent`,
 `listHeaderScope`, and `listHeaderItems`. The header must render the declared scope

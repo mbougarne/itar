@@ -18,9 +18,12 @@ extension ItarSurfaceHost {
            (context.focusHeading == .left || context.focusHeading == .right),
            source.adjust(context.focusHeading == .left ? -1 : 1) { return false }
         guard scopeAllows(context) else { return false }
-        if context.focusHeading != [], let previous = context.previouslyFocusedView as? ItarTargetHost,
-           let next = context.nextFocusedView as? ItarTargetHost,
-           redirectScopeEntry(from: previous, to: next) { return false }
+        if let previous = context.previouslyFocusedView as? ItarTargetHost,
+           let next = context.nextFocusedView as? ItarTargetHost, context.focusHeading != [] {
+            if let allowed = allowCollectionEntry(from: previous, to: next, heading: context.focusHeading) {
+                if !allowed { return false }
+            } else if redirectScopeEntry(from: previous, to: next) { return false }
+        }
         if context.focusHeading != [], !UIAccessibility.isVoiceOverRunning,
            pendingRequest != 0,
            let source = context.previouslyFocusedView as? ItarTargetHost,

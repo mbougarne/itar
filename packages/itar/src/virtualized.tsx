@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
 export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewportExtent, viewportRows = 2,
   style, itemStyle, testID, viewportHeight, headerExtent = 0, listHeader, listHeaderExtent = 0,
   listHeaderItems, listHeaderScope, renderDecoration, renderRailHeader, active = true, onReady, onEndReached, rowEntry = 'nearest'}: Common & {
-    /** Logical Up/Down entry; first is currently supported only on Android TV. */
+    /** Logical Up/Down entry into an adjacent rail on the native TV adapters. */
     rowEntry?: 'nearest' | 'first';
     active?: boolean; onReady?: () => void; onEndReached?: () => void; rails: readonly VirtualizedFocusRail[]; rowExtent: number; viewportRows?: number; viewportHeight?: number; headerExtent?: number;
     /** A real leading collection row. Render its matching scope and focusable items
@@ -152,8 +152,8 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
   const alignedKey = useRef<string | null>(null);
   const model = useMemo(() => {
     if (rowEntry !== 'nearest' && rowEntry !== 'first') { throw new Error('rowEntry must be nearest or first'); }
-    if (rowEntry === 'first' && !(Platform.isTV && Platform.OS === 'android')) {
-      throw new Error('rowEntry first is currently supported only on Android TV');
+    if (rowEntry === 'first' && !supported) {
+      throw new Error('rowEntry first requires an Android TV or tvOS adapter');
     }
     extent(itemExtent); extent(rowExtent); extent(viewportExtent);
     if (viewportHeight !== undefined) { extent(viewportHeight); }
