@@ -51,6 +51,30 @@ test('web Search recovers only its own focused edit control when the query becom
   assert.deepEqual(f.requests, [], 'ordinary deletion must keep its current focus');
 });
 
+test('initial web retry waits for committed results and respects focus ownership and repeated failure', () => {
+  for (const platform of ['web', 'android']) {
+    for (const ownsFocus of [true, false]) {
+      const id = 'catalogue';
+      const f = fixture(ownsFocus ? occurrenceKey(id, 'load-more') : 'elsewhere', 'applied', platform);
+      Object.assign(f.catalogueState, {rows: [], error: 'failed', ended: false});
+      const browse = f.component('Browse', {id, active: true, grid: true, mode: 'fixture', kind: 'movie'});
+      browse.layout();
+      const retry = () => browse.find('Rails').props.rails.at(-1).items[0].onPress();
+      const ready = () => browse.find('Rails').props.onReady();
+      retry();
+      Object.assign(f.catalogueState, {loading: true, error: ''}); browse.render(); ready();
+      assert.deepEqual(f.requests, [], 'loading cannot focus a speculative result');
+      Object.assign(f.catalogueState, {loading: false, error: 'again'}); browse.render(); ready();
+      assert.deepEqual(f.requests, [], 'another failure must preserve usable Retry');
+      retry();
+      Object.assign(f.catalogueState, {error: '', ended: true, rows: [{id: 'first', entries: [film]}]});
+      browse.render(); ready();
+      assert.equal(f.loadCalls(), 2);
+      assert.deepEqual(f.requests, platform === 'web' && ownsFocus ? [occurrenceKey(id, 'grid-0', film.id)] : []);
+    }
+  }
+});
+
 // Run the real component callbacks and effects without rendering native views.
 // The command double records intent; it cannot establish reader-owned focus.
 function fixture(inputKey, outcome = 'applied', platform = 'android') {
@@ -86,6 +110,9 @@ function fixture(inputKey, outcome = 'applied', platform = 'android') {
     },
   };
   const focus = {kind: 'managed', occurrenceKey: inputKey};
+  const catalogueState = {loading: false, error: '', ended: true, limitReached: false,
+    rows: ['first', 'second'].map(id => ({id, title: id, entries: [film]}))};
+  let loadCalls = 0;
   const imports = name => {
     if (name === 'react') { return react; }
     if (name === 'react-native') {
@@ -96,7 +123,8 @@ function fixture(inputKey, outcome = 'applied', platform = 'android') {
     }
     if (name === 'itar/react') {
       return {FocusProvider: 'FocusProvider', FocusScope: 'FocusScope', FocusVirtualizedRails: 'Rails', occurrenceKey,
-        useFocusCommands: () => commands, useFocusReady: () => true, useFocusState: () => focus};
+        useFocusCommands: () => commands, useFocusReady: () => true, useFocusState: () => focus,
+        useIsFocused: key => focus.kind === 'managed' && focus.occurrenceKey === key};
     }
     if (name.endsWith('/theme')) { return {DesignTheme: 'Theme', useDesign: () => ({s: {}, u: 1})}; }
     if (name.endsWith('/ui')) { return {Action: 'Action', Backdrop: 'Backdrop', Header: 'Header', Picture: 'Picture', icons: {}, art: []}; }
@@ -104,8 +132,7 @@ function fixture(inputKey, outcome = 'applied', platform = 'android') {
     if (name === './browse-layout') { return {layoutRows}; }
     if (name === './guide') { return {useGuide: () => ({guide: null})}; }
     if (name === './useCatalogue') {
-      return {useCatalogue: () => ({state: {loading: false, ended: true,
-        rows: ['first', 'second'].map(id => ({id, title: id, entries: [film]}))}})};
+      return {useCatalogue: () => ({state: catalogueState, loadMore: () => { loadCalls++; }, reload() {}, nextWindow() {}})};
     }
     if (name === './tmdb') { return {fetchDetails: () => Promise.resolve({film: {...film, id: 'enriched-b', title: 'Enriched B'}})}; }
     if (name === './src/browser-session') { return {readBrowserSession: () => ({mode: 'fixture', profile: 'Explorer'}), saveBrowserSession() {}}; }
@@ -146,7 +173,7 @@ function fixture(inputKey, outcome = 'applied', platform = 'android') {
   const tv = mount(launch.tree().type, launch.tree().props);
   const app = mount(child(tv).type, child(tv).props);
   const component = (name, props) => mount(load(`src/${name}`), props);
-  return {app, component, requests, requestKinds,
+  return {app, component, requests, requestKinds, catalogueState, loadCalls: () => loadCalls,
     navigate: screen => { app.find('Action', screen).props.onPress(); app.render(); },
     ready: () => { app.find('Details').props.onReady(); app.render(); },
     close: () => { assert.equal(back(), true); app.render(); },

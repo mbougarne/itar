@@ -266,7 +266,7 @@ export function FocusVirtualizedRails({
     return () => store.removeCollection(token);
   }, [store, token, model, active, hasHeader, listHeaderExtent, rowExtent]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (active) {
       onReady?.();
     }

@@ -1,6 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Text, View, useWindowDimensions } from 'react-native';
-import { FocusVirtualizedRails, occurrenceKey, useIsFocused } from 'itar/react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { Platform, Text, View, useWindowDimensions } from 'react-native';
+import {
+  FocusVirtualizedRails,
+  occurrenceKey,
+  useIsFocused,
+  useFocusCommands,
+} from 'itar/react';
 import type { VirtualizedFocusItem, VirtualizedFocusRail } from 'itar/react';
 import { hero, type Category, type Film, type Kind } from './catalog';
 import { useCatalogue } from './useCatalogue';
@@ -118,6 +129,14 @@ export default function Browse({
   const featuredFilm = mode === 'fixture' ? hero : state.rows[0]?.entries[0];
   const initial = state.rows.length === 0;
   const pending = state.loading || (initial && !state.error && !state.ended);
+  const retryInitial = useRef(false);
+  const commands = useFocusCommands();
+  const retryFocused = useIsFocused(occurrenceKey(id, 'load-more'));
+
+  const retry = useCallback(() => {
+    retryInitial.current = Platform.OS === 'web' && initial && retryFocused;
+    loadMore();
+  }, [initial, retryFocused, loadMore]);
 
   const viewport = Math.max(
     200 * u,
@@ -260,7 +279,13 @@ export default function Browse({
               : state.ended
               ? 'Reload catalogue'
               : 'Load more stories',
-            state.limitReached ? nextWindow : state.ended ? reload : loadMore,
+            state.error
+              ? retry
+              : state.limitReached
+              ? nextWindow
+              : state.ended
+              ? reload
+              : loadMore,
           ),
         ],
       });
@@ -290,6 +315,7 @@ export default function Browse({
     reload,
     nextWindow,
     loadMore,
+    retry,
     searchResults,
     onOpen,
   ]);
@@ -321,7 +347,7 @@ export default function Browse({
           <View
             style={[s.feedback, { height: (searchResults ? 116 : 270) * u }]}
           >
-            {!!state.error && (
+            {!!state.error && Platform.OS !== 'web' && (
               <>
                 <Text numberOfLines={1} style={s.heading}>
                   {initial
@@ -420,16 +446,51 @@ export default function Browse({
       return;
     }
 
+    if (retryInitial.current && !pending) {
+      retryInitial.current = false;
+
+      const row = displayedRows.find(value => value.entries.length > 0);
+      const first = row?.entries[0];
+
+      if (active && retryFocused && !state.error && row && first) {
+        commands.focusByKey(
+          featured && featuredFilm
+            ? occurrenceKey(id, 'hero', featuredFilm.id)
+            : occurrenceKey(id, row.id, first.id),
+        );
+      }
+    }
+
     onReady?.(
       featured && featuredFilm
         ? occurrenceKey(id, 'hero', featuredFilm.id)
         : occurrenceKey(id, 'load-more'),
     );
-  }, [featured, featuredFilm, state.loading, onReady, id]);
+  }, [
+    featured,
+    featuredFilm,
+    state.loading,
+    onReady,
+    id,
+    pending,
+    displayedRows,
+    active,
+    retryFocused,
+    state.error,
+    commands,
+  ]);
 
   return (
     <View style={s.fill}>
       {featured && featuredFilm && <Backdrop film={featuredFilm} />}
+      {Platform.OS === 'web' && !!state.error && (
+        <View accessibilityRole="alert">
+          <Text style={s.heading}>
+            {initial ? 'Couldn’t load stories' : 'Couldn’t load more stories'}
+          </Text>
+          <Text style={s.muted}>{state.error}</Text>
+        </View>
+      )}
       <View
         style={featured ? s.homeRails : s.fill}
         onLayout={event => {
