@@ -29,6 +29,8 @@ struct ScopeHistory {
 
 bool liveFocus(const Registry& registry, FocusState focus) noexcept;
 FocusState reconcileFocus(const Registry& registry, FocusState focus) noexcept;
+// Reconcile ancestry from an already observed input fact, without a focus event.
+void rememberInputFocus(const Registry&, FocusState, std::vector<ScopeHistory>&);
 void pruneHistory(const Registry& registry, std::vector<ScopeHistory>& history);
 
 }  // namespace itar

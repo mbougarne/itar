@@ -26,6 +26,25 @@ void pruneHistory(const Registry& registry,
   });
 }
 
+void rememberInputFocus(const Registry& registry, FocusState focus,
+                        std::vector<ScopeHistory>& history) {
+  if (!liveFocus(registry, focus)) { return; }
+  auto parent = registry.lookup(focus.node)->parent;
+  const auto& key = *registry.key(focus.node);
+  while (parent) {
+    auto entry = std::find_if(
+        history.begin(), history.end(),
+        [&](const ScopeHistory& h) { return h.scope == parent; });
+    if (entry == history.end()) {
+      history.reserve(registry.limits().capacity);
+      history.push_back({parent, key});
+    } else {
+      entry->occurrence = key;
+    }
+    parent = registry.lookup(parent)->parent;
+  }
+}
+
 const OccurrenceKey* State::history(NodeHandle scope) const noexcept {
   for (const auto& entry : committed_.history) {
     if (entry.scope == scope) {
@@ -70,20 +89,7 @@ ObservationStatus State::observeFocus(FocusObservation observation) {
     if (observation.channel == FocusChannel::input &&
         focus.kind == FocusKind::managed) {
       auto history = committed_.history;
-      history.reserve(committed_.registry.limits().capacity);
-      auto parent = committed_.registry.lookup(focus.node)->parent;
-      const auto key = *committed_.registry.key(focus.node);
-      while (parent) {
-        auto entry = std::find_if(
-            history.begin(), history.end(),
-            [&](const ScopeHistory& h) { return h.scope == parent; });
-        if (entry == history.end()) {
-          history.push_back({parent, key});
-        } else {
-          entry->occurrence = key;
-        }
-        parent = committed_.registry.lookup(parent)->parent;
-      }
+      rememberInputFocus(committed_.registry, focus, history);
       committed_.history.swap(history);
     }
     current = focus;

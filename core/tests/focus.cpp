@@ -91,4 +91,29 @@ int main() {
         BatchStatus::valid);
   CHECK(state.snapshot().inputFocus == focus &&
         *state.history(root) == item.key);
+  // Reparenting can preserve the exact observed input identity. Its new scope
+  // still needs history even when the next observation is deduplicated.
+  Mutation destination = scope;
+  destination.key = OccurrenceKey{"destination"};
+  destination.parent = scope.key;
+  item.kind = MutationKind::update;
+  item.expected = state.snapshot().registry.find(item.key);
+  item.parent = destination.key;
+  const auto reparent = std::array{destination, item};
+  CHECK(state.apply({state.surface(), Revision{5}, reparent}).status == BatchStatus::valid);
+  const auto movedScope = state.snapshot().registry.find(destination.key);
+  CHECK(state.snapshot().inputFocus == focus);
+  CHECK(state.history(movedScope) && *state.history(movedScope) == item.key);
+  CHECK(state.observeFocus(observed) == ObservationStatus::unchanged);
+  CHECK(state.apply({state.surface(), Revision{6}, duplicate}).status != BatchStatus::valid);
+  CHECK(state.history(movedScope) && *state.history(movedScope) == item.key);
+  observed.focus = {FocusKind::unmanaged, {}, {}};
+  CHECK(state.observeFocus(observed) == ObservationStatus::changed);
+  observed.channel = FocusChannel::accessibility;
+  observed.focus = focus;
+  CHECK(state.observeFocus(observed) == ObservationStatus::changed);
+  item.parent = nested.key;
+  CHECK(state.apply({state.surface(), Revision{6}, std::span{&item, 1}}).status == BatchStatus::valid);
+  CHECK(!state.history(state.snapshot().registry.find(nested.key)));
+
 }
