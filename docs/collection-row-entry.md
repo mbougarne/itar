@@ -23,7 +23,12 @@ Horizontal moves and explicit keyed/restoration requests keep their own contract
 There is no new row-skipping, wrapping or scroll-alignment policy.
 
 The [React Native rails option](../packages/itar/virtualization.md) forwards this
-policy on Android and through the cooperative tvOS adapter. Browser forwarding
-remains separate work. Neither the
-C++ capability nor transport validation establishes screen-reader movement or
+policy on Android, the cooperative tvOS adapter and the browser Wasm probe.
+Neither the C++ capability nor transport validation establishes screen-reader movement or
 physical-device support. Visual anchoring remains owned by the list/host adapter.
+
+Adapters that already publish the registry atomically can use
+`validCollectionNodes` and `proposeCollectionEntry` without transferring registry
+ownership. The projection and its parallel handles must describe the same
+committed registrations; generation checks reject retired identities. Native
+`Collections` uses these same validation and selection functions.

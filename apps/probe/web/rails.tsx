@@ -25,6 +25,7 @@ import {
   WebScopeContext,
 } from './focus';
 import { createNode } from './focus-store';
+import type { Registration } from './focus-store';
 import { headerScrollOffset } from '../../../packages/itar/src/api/viewport';
 
 import { visibleIndices } from './window';
@@ -181,10 +182,8 @@ export function FocusVirtualizedRails({
   const height = viewportHeight ?? viewportRows * rowExtent;
 
   const model = useMemo(() => {
-    if (rowEntry !== 'nearest') {
-      throw new Error(
-        'Web rowEntry currently supports only nearest; first requires the collection Wasm binding',
-      );
+    if (rowEntry !== 'nearest' && rowEntry !== 'first') {
+      throw new Error('rowEntry must be nearest or first');
     }
 
     const path = [...parent.path, id];
@@ -196,10 +195,13 @@ export function FocusVirtualizedRails({
 
     const positions = new Map<string, number>();
 
-    const nodes = [
+    const nodes: Registration[] = [
       {
         ...createNode(root, parent.key, true),
         layout: 2,
+        collection: true,
+        extent: rowExtent,
+        rowEntry: rowEntry === 'first' ? 1 : 0,
         active: parent.active && active,
       },
     ];
@@ -210,6 +212,8 @@ export function FocusVirtualizedRails({
       nodes.push({
         ...createNode(key, root, true),
         layout: 1,
+        collection: true,
+        extent: rail.itemExtent ?? itemExtent,
         order,
         active: parent.active && active,
       });
@@ -221,6 +225,7 @@ export function FocusVirtualizedRails({
 
         nodes.push({
           ...createNode(target, key),
+          collection: true,
           order: index,
           enabled: item.enabled !== false,
           active: parent.active && active,
@@ -240,6 +245,8 @@ export function FocusVirtualizedRails({
     listHeaderScope,
     listHeaderItems,
     rowEntry,
+    rowExtent,
+    itemExtent,
   ]);
 
   const offset = (index: number) =>
@@ -250,6 +257,7 @@ export function FocusVirtualizedRails({
   useLayoutEffect(() => {
     store.collection(token, {
       nodes: model.nodes,
+      release: key => setForced(current => (current === key ? '' : current)),
       reveal: key => {
         const index = model.positions.get(key);
 

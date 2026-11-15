@@ -41,17 +41,18 @@ with `itemExtent`, `rowExtent`, `viewportExtent`, and optional `viewportRows`
 horizontal rails enter at the nearest available logical column; this declared
 fixed-column policy does not depend on which cells happen to be mounted.
 
-On the Android TV and tvOS adapters, `rowEntry="first"` on `FocusVirtualizedRails` changes Up/Down
-entry to the first eligible item in the destination row. The default is
+On the native TV adapters and browser probe, `rowEntry="first"` on
+`FocusVirtualizedRails` changes Up/Down entry to the first eligible item in the
+destination row. The default is
 `rowEntry="nearest"`. Disabled items are skipped; an unmounted first item is
 realized instead of substituting a later mounted item. This also applies when
 crossing the leading header row. Horizontal movement and explicit keyed
 restoration keep their existing behavior. Changing the option publishes a new
 dataset and invalidates pending work from the old policy.
 
-The browser probe currently rejects `first` explicitly until its Wasm route
-integrates collection policy. On tvOS, the adapter cooperates with UIKit: an
-already-correct mounted destination proceeds normally, while a differing owned
+The browser probe forwards a validated logical projection to the same C++
+selector; DOM measurement and mounting remain browser-owned. On tvOS, the adapter
+cooperates with UIKit: an already-correct mounted destination proceeds normally, while a differing owned
 vertical row entry is rejected before focus changes and deferred through the
 engine's native request/confirmation path. Offscreen items use collection
 realization. Default mounted selection remains UIKit-owned. This does not claim

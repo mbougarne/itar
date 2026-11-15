@@ -137,6 +137,79 @@ test('logical collection row order survives mounted scope overlay', async t => {
   assert.equal(f.active(), b.element);
 });
 
+test('collection metadata survives DOM overlay and policy changes cancel delayed realization', async t => {
+  const f = fixture(t),
+    token = {};
+
+  f.store.update(f.store.get('row'), { layout: 2 });
+
+  const catalogue = {
+    ...createNode('row', '', true),
+    layout: 2,
+    collection: true,
+    extent: 120,
+  };
+
+  const logical = ['header', 'rail'].flatMap((key, order) => [
+    {
+      ...createNode(key, 'row', true),
+      order,
+      layout: 1,
+      collection: true,
+      extent: 100,
+    },
+    ...[0, 1, 2].map(index => ({
+      ...createNode(`${key}-${index}`, key),
+      order: index,
+      collection: true,
+      enabled: key !== 'rail' || index !== 0,
+    })),
+  ]);
+
+  let requested;
+  const released = [];
+
+  const publish = rowEntry =>
+    f.store.collection(token, {
+      nodes: [{ ...catalogue, rowEntry }, ...logical],
+      release: key => released.push(key),
+      reveal: key => {
+        requested = key;
+
+        return true;
+      },
+    });
+
+  publish(1);
+  f.store.register({ ...createNode('header', 'row', true), layout: 1 });
+  f.store.register({ ...createNode('rail', 'row', true), layout: 1 });
+
+  const source = f.target('header-2', 2, 'header');
+
+  f.target('rail-2', 2, 'rail');
+  await f.store.request('header-2').result;
+  f.store.direction(3);
+  assert.equal(requested, 'rail-1');
+  assert.equal(f.active(), source.element);
+  publish(0);
+  f.store.flush();
+  await Promise.resolve();
+  f.target('rail-1', 1, 'rail');
+  f.store.flush();
+  await Promise.resolve();
+
+  assert.equal(
+    f.active(),
+    source.element,
+    'a late mount must not fulfill the old policy',
+  );
+
+  assert.deepEqual(released, ['rail-1']);
+
+  f.store.direction(3);
+  assert.equal(f.store.snapshot().occurrenceKey, 'rail-2');
+});
+
 test('cancelled delayed reveal cannot later steal DOM focus', async t => {
   const f = fixture(t);
   const a = f.target('a', 0);

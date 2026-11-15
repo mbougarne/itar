@@ -64,7 +64,7 @@ vm.runInNewContext(output, {
   },
 });
 
-test('web rails accept nearest and reject unsupported or invalid entry policies explicitly', () => {
+test('web rails accept both entry policies and reject invalid values', () => {
   const props = {
     id: 'rows',
     rails: [],
@@ -82,8 +82,9 @@ test('web rails accept nearest and reject unsupported or invalid entry policies 
     );
 
   assert.equal(render(), render('nearest'));
+  assert.doesNotThrow(() => render('first'));
 
-  for (const value of ['first', 'typo', 1, null]) {
+  for (const value of ['typo', 1, null]) {
     assert.throws(() => render(value), /rowEntry.*nearest/);
   }
 });
