@@ -13,6 +13,13 @@ struct CollectionEntry: Decodable, Equatable {
     let extent: Double
     var leadingExtent: Double? = nil
     var rowEntry: Int32? = nil
+    var horizontalAlignment: String? = nil
+    func horizontalOffset(start: CGFloat, end: CGFloat, current: CGFloat, viewport: CGFloat, content: CGFloat, rtl: Bool) -> CGFloat {
+        let desired: CGFloat
+        if horizontalAlignment == "leading" { desired = rtl ? end - viewport : start }
+        else { desired = start < current ? start : (end > current + viewport ? end - viewport : current) }
+        return min(max(0, desired), max(0, content - viewport))
+    }
     func offset(_ index: Int32) -> Double {
         let first = leadingExtent ?? 0
         return first > 0 && index > 0 ? first + Double(index - 1) * extent : Double(index) * extent
@@ -28,7 +35,9 @@ struct CollectionDocument: Decodable {
               document.nodes.count <= 256,
               document.nodes.allSatisfy({ node in
                   let first = node.leadingExtent ?? 0
-                  return (node.rowEntry == nil || node.rowEntry == 0 || node.rowEntry == 1) &&
+                  let alignment = node.horizontalAlignment
+                  return (alignment == nil || ((alignment == "nearest" || alignment == "leading") && node.scope && node.layout == 1)) &&
+                      (node.rowEntry == nil || node.rowEntry == 0 || node.rowEntry == 1) &&
                       first.isFinite && first >= 0 && first <= 1_000_000 && (node.scope || first == 0)
               }) else { return nil }
         return document

@@ -48,9 +48,9 @@ final class AppleCollections {
     }
     private func retainPublication(_ next: CollectionDocument) -> Publication? {
         guard let root, let previous = document, previous.nodes.count == next.nodes.count,
-              zip(previous.nodes, next.nodes).contains(where: { old, new in (old.rowEntry ?? 0) != (new.rowEntry ?? 0) }),
+              zip(previous.nodes, next.nodes).contains(where: { old, new in (old.rowEntry ?? 0) != (new.rowEntry ?? 0) || old.horizontalAlignment != new.horizontalAlignment }),
               zip(previous.nodes, next.nodes).allSatisfy({ old, new in
-                  var comparable = new; comparable.rowEntry = old.rowEntry; return comparable == old
+                  var comparable = new; comparable.rowEntry = old.rowEntry; comparable.horizontalAlignment = old.horizontalAlignment; return comparable == old
               }), let target = UIFocusSystem.focusSystem(for: root)?.focusedItem as? ItarTargetHost,
               let source = target.registration, ownsSource(source) else { return nil }
         var scopes: [(AppleScopeRegistration, ItarNode)] = []
@@ -128,6 +128,33 @@ final class AppleCollections {
         }
         emit(["state": "catalog", "dataset": next.dataset])
         root.geometryChanged()
+        if let target = UIFocusSystem.focusSystem(for: root)?.focusedItem as? ItarTargetHost,
+           let registration = target.registration {
+            DispatchQueue.main.async { [weak self, weak target] in
+                guard let target, target.registration === registration else { return }
+                self?.align(target, dataset: next.dataset)
+            }
+        }
+    }
+    func align(_ target: ItarTargetHost, dataset: String) {
+        guard self.dataset == dataset, pending == nil, let root, root.acceptsInput,
+              !UIAccessibility.isVoiceOverRunning, let registration = target.registration,
+              ownsSource(registration), let item = entry(registration.key), let list = entry(item.parent),
+              list.horizontalAlignment == "leading", let scope = root.scopes[list.key]?.view else { return }
+        var parent = target.superview
+        while let view = parent, view !== scope {
+            if let scroll = view as? UIScrollView {
+                guard !scroll.isDragging, !scroll.isDecelerating else { return }
+                let bounds = target.convert(target.bounds, to: scroll)
+                var point = scroll.contentOffset
+                point.x = list.horizontalOffset(start: bounds.minX, end: bounds.maxX, current: point.x,
+                    viewport: scroll.bounds.width, content: scroll.contentSize.width,
+                    rtl: scroll.effectiveUserInterfaceLayoutDirection == .rightToLeft)
+                scroll.setContentOffset(point, animated: false)
+                root.geometryChanged(); return
+            }
+            parent = view.superview
+        }
     }
     func invoke(_ effect: ItarEffect) -> Int32 {
         guard let root, root.acceptsInput, !UIAccessibility.isVoiceOverRunning,
@@ -217,7 +244,10 @@ final class AppleCollections {
             let offset = CGFloat(list.offset(steps[step].order))
             var point = scroll.contentOffset
             if list.layout == 1 {
-                point.x = min(max(0, offset), max(0, scroll.contentSize.width - scroll.bounds.width))
+                let rtl = scroll.effectiveUserInterfaceLayoutDirection == .rightToLeft
+                let start = rtl ? scroll.contentSize.width - offset - list.extent : offset
+                point.x = list.horizontalOffset(start: start, end: start + list.extent, current: point.x,
+                    viewport: scroll.bounds.width, content: scroll.contentSize.width, rtl: rtl)
             } else {
                 point.y = min(max(0, offset), max(0, scroll.contentSize.height - scroll.bounds.height))
             }

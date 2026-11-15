@@ -13,10 +13,13 @@ export type VirtualizedFocusRail = Readonly<{id: string; items: readonly Virtual
   overlayTarget?: boolean; itemExtent?: number; itemStyle?: StyleProp<ViewStyle>}>;
 type FocusRailRow = VirtualizedFocusRail & {key: string};
 type Common = {id: string; itemExtent: number; viewportExtent: number; style?: StyleProp<ViewStyle>;
-  itemStyle?: StyleProp<ViewStyle>; testID?: string};
+  itemStyle?: StyleProp<ViewStyle>; testID?: string; horizontalAlignment?: 'nearest' | 'leading'};
 const supported = Platform.isTV && (Platform.OS === 'ios' || Platform.OS === 'android');
 function extent(value: number) {
   if (!Number.isFinite(value) || value <= 0 || value > 1000000) { throw new Error('List extents must be positive and at most 1000000'); }
+}
+function alignment(value: string) {
+  if (value !== 'nearest' && value !== 'leading') { throw new Error('horizontalAlignment must be nearest or leading'); }
 }
 function list(key: string, parent: string, order: number, horizontal: boolean, size: number): CollectionNode {
   return {key, parent, order, scope: true, enabled: true, layout: horizontal ? 1 : 2, extent: size};
@@ -101,17 +104,17 @@ const ItemList = memo(function ItemListView({data, collection, horizontal, itemE
 });
 
 /** Fixed-extent owned buttons using the pinned react-native-tvos FlatList. */
-export function FocusVirtualizedList({id, data, horizontal = true, itemExtent, viewportExtent, style, itemStyle, testID}: Common & {
+export function FocusVirtualizedList({id, data, horizontal = true, itemExtent, viewportExtent, style, itemStyle, testID, horizontalAlignment = 'nearest'}: Common & {
   data: readonly VirtualizedFocusItem[]; horizontal?: boolean;
 }) {
   const parent = useContext(ScopeContext);
   const model = useMemo(() => {
-    extent(itemExtent); extent(viewportExtent);
+    extent(itemExtent); extent(viewportExtent); alignment(horizontalAlignment);
     if (!id) { throw new Error('A virtualized list requires a stable id'); }
     const key = nativeScopeKey([...parent.path, id]);
     return {id, key, data, horizontal, itemExtent, viewportExtent,
-      nodes: [list(key, parent.key, 0, horizontal, itemExtent), ...items(data, key)]};
-  }, [id, data, horizontal, itemExtent, viewportExtent, parent.path, parent.key]);
+      nodes: [{...list(key, parent.key, 0, horizontal, itemExtent), ...(horizontal ? {horizontalAlignment} : {})}, ...items(data, key)]};
+  }, [id, data, horizontal, itemExtent, viewportExtent, parent.path, parent.key, horizontalAlignment]);
   const published = usePublished(model);
   if (!published) { return <View style={style} testID={testID} />; }
   const value = published.model;
@@ -132,7 +135,7 @@ const styles = StyleSheet.create({
 /** Two-level row-then-item realization with logical column entry. */
 export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewportExtent, viewportRows = 2,
   style, itemStyle, testID, viewportHeight, headerExtent = 0, listHeader, listHeaderExtent = 0,
-  listHeaderItems, listHeaderScope, renderDecoration, renderRailHeader, active = true, onReady, onEndReached, rowEntry = 'nearest'}: Common & {
+  listHeaderItems, listHeaderScope, renderDecoration, renderRailHeader, active = true, onReady, onEndReached, rowEntry = 'nearest', horizontalAlignment = 'nearest'}: Common & {
     /** Logical Up/Down entry into an adjacent rail on the native TV adapters. */
     rowEntry?: 'nearest' | 'first';
     active?: boolean; onReady?: () => void; onEndReached?: () => void; rails: readonly VirtualizedFocusRail[]; rowExtent: number; viewportRows?: number; viewportHeight?: number; headerExtent?: number;
@@ -151,6 +154,7 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
   const scrollOffset = useRef(0);
   const alignedKey = useRef<string | null>(null);
   const model = useMemo(() => {
+    alignment(horizontalAlignment);
     if (rowEntry !== 'nearest' && rowEntry !== 'first') { throw new Error('rowEntry must be nearest or first'); }
     if (rowEntry === 'first' && !supported) {
       throw new Error('rowEntry first requires an Android TV or tvOS adapter');
@@ -178,11 +182,11 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
       return {...rail, key: nativeScopeKey([...path, rail.id])};
     });
     const nodes = [{...list(key, parent.key, 0, false, rowExtent), leadingExtent: listHeaderExtent, rowEntry: rowEntry === 'first' ? 1 as const : 0 as const}, ...rows.flatMap((row, index) =>
-      [list(row.key, key, index, true, row.itemExtent ?? itemExtent), ...items(row.items, row.key)])];
+      [{...list(row.key, key, index, true, row.itemExtent ?? itemExtent), horizontalAlignment}, ...items(row.items, row.key)])];
     return {id, key, rows, nodes, itemExtent, rowExtent, viewportExtent, viewportRows, viewportHeight, headerExtent,
       listHeader, listHeaderExtent, listHeaderScope, renderDecoration, renderRailHeader};
   }, [id, rails, rowExtent, itemExtent, viewportExtent, viewportRows, viewportHeight, headerExtent, listHeader,
-    listHeaderExtent, listHeaderItems, listHeaderScope, renderDecoration, renderRailHeader, parent.path, parent.key, rowEntry]);
+    listHeaderExtent, listHeaderItems, listHeaderScope, renderDecoration, renderRailHeader, parent.path, parent.key, rowEntry, horizontalAlignment]);
   const published = usePublished(model, active);
   React.useEffect(() => {
     // A layout effect may publish a replacement after this render's snapshot.

@@ -153,6 +153,14 @@ public final class ItarSurfaceHost: UIView {
     public override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
         super.didUpdateFocus(in: context, with: coordinator)
         observedFocus(context)
+        if let target = context.nextFocusedView as? ItarTargetHost, target.owner === self,
+           let registration = target.registration {
+            let dataset = collections.dataset, mount = registration.mount
+            coordinator.addCoordinatedAnimations({}, completion: { [weak self, weak target] in
+                guard let self, let target, target.registration === registration, registration.mount == mount else { return }
+                self.collections.align(target, dataset: dataset)
+            })
+        }
     }
     func activityChanged() {
         accessibilityElementsHidden = !active || covered

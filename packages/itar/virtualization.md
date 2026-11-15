@@ -59,6 +59,18 @@ realization. Default mounted selection remains UIKit-owned. This does not claim
 gesture/momentum parity or override VoiceOver navigation. Physical-device and
 spoken-reader acceptance remain separate from boundary/simulator tests.
 
+`horizontalAlignment="nearest"` (default) leaves a mounted highlight free to move
+and scrolls enough to reveal a cold target. `"leading"` aligns confirmed focus to
+the viewport's leading edge (left in LTR, right in RTL), clamped to content bounds.
+The final cells can therefore move within the viewport. Native TV adapters implement
+these modes; browser forwarding is the separate0138 increment. Both list components
+accept this option; it applies to horizontal rows only and is independent of
+`rowEntry`. Native/DOM hosts own the scroll, not the C++ destination selector.
+Policy changes cancel old reveal work; stale focus, inactive routes and reader
+ownership cannot authorize alignment. UIKit alignment waits for its focus
+animation and skips native dragging/deceleration. Physical gesture and spoken
+reader acceptance is deferred for joint testing after implementation.
+
 The native virtualized-list probe offers a **Row entry: nearest/first** toggle
 after selecting **Nested rails** for manual comparison.
 

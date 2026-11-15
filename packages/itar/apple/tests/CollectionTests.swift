@@ -4,6 +4,12 @@ struct CollectionTests {
     static func check(_ condition: Bool) { precondition(condition) }
     static func run() throws {
         try rowEntry()
+        var row = CollectionEntry(key: "row", parent: "", order: 0, scope: true, enabled: true, layout: 1, extent: 100)
+        precondition(row.horizontalOffset(start: 400, end: 500, current: 100, viewport: 300, content: 1000, rtl: false) == 200)
+        row.horizontalAlignment = "leading"
+        precondition(row.horizontalOffset(start: 400, end: 500, current: 100, viewport: 300, content: 1000, rtl: false) == 400)
+        precondition(row.horizontalOffset(start: 500, end: 600, current: 700, viewport: 300, content: 1000, rtl: true) == 300)
+        precondition(row.horizontalOffset(start: 900, end: 1000, current: 300, viewport: 350, content: 1000, rtl: false) == 650)
         let connection = try EngineConnection(surface: 21, lifetime: 21, capacity: 8)
         defer { try? connection.close() }
         let text = """
@@ -17,6 +23,9 @@ struct CollectionTests {
         for value in ["-1", "2", "0.5", "\"first\""] {
             precondition(CollectionDocument.decode(nearest.replacingOccurrences(of: "\"rowEntry\":0", with: "\"rowEntry\":\(value)")) == nil)
         }
+        let aligned = text.replacingOccurrences(of: "\"extent\":100", with: "\"extent\":100,\"horizontalAlignment\":\"leading\"")
+        precondition(CollectionDocument.decode(aligned)?.nodes[0].horizontalAlignment == "leading")
+        precondition(CollectionDocument.decode(aligned.replacingOccurrences(of: "leading", with: "center")) == nil)
         precondition(document.nodes[0].offset(2) == 200)
         let leading = text.replacingOccurrences(of: "\"extent\":100", with: "\"extent\":100,\"leadingExtent\":624")
         guard let withHeader = CollectionDocument.decode(leading) else { preconditionFailure("Leading row rejected") }

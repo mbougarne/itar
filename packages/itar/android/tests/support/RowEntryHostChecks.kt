@@ -29,6 +29,30 @@ class RowEntryHostChecks(context: Context) {
         mounted = checkNotNull(target.mount)
         check(root.live(mounted) === target)
     }
+    fun horizontal() {
+        row.removeView(target)
+        val scroll = android.widget.HorizontalScrollView(root.context)
+        val content = android.widget.FrameLayout(root.context)
+        scroll.addView(content, android.widget.FrameLayout.LayoutParams(1000, 100))
+        content.addView(target, android.widget.FrameLayout.LayoutParams(100, 80).apply { leftMargin = 300 })
+        row.addView(scroll)
+        root.layout(0, 0, 800, 600); outer.layout(0, 0, 600, 400); row.layout(0, 0, 600, 200)
+        scroll.measure(android.view.View.MeasureSpec.makeMeasureSpec(300, android.view.View.MeasureSpec.EXACTLY), android.view.View.MeasureSpec.makeMeasureSpec(100, android.view.View.MeasureSpec.EXACTLY))
+        scroll.layout(0, 0, 300, 100); content.layout(0, 0, 1000, 100); target.layout(300, 0, 400, 80)
+        target.commitProps(); root.refreshGeometry(); check(target.requestFocus()); root.observe()
+        scroll.scrollTo(0, 0)
+        root.collectionData = root.collectionData.replace("\"dataset\":\"1\"", "\"dataset\":\"2\"")
+            .replace("\"extent\":100", "\"extent\":100,\"horizontalAlignment\":\"leading\"")
+    }
+    fun align(rtl: Boolean) {
+        (target.parent.parent as android.widget.HorizontalScrollView).layoutDirection =
+            if (rtl) android.view.View.LAYOUT_DIRECTION_RTL else android.view.View.LAYOUT_DIRECTION_LTR
+        root.collections.focused(target)
+    }
+    fun aligned(expected: Int) {
+        val scroll = target.parent.parent as android.widget.HorizontalScrollView
+        check(target.hasFocus() && scroll.scrollX == expected) { "Leading alignment lost focus or offset: ${scroll.scrollX}" }
+    }
     fun retained() {
         check(root.collections.dataset == 2L && !root.closed)
         check(root.findFocus() === target && target.mount == mounted && root.live(mounted) === target) {

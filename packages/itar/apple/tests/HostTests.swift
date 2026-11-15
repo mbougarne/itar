@@ -557,3 +557,30 @@ extension AdapterHostTests {
         XCTAssertTrue(cells.allSatisfy { !$0.canBecomeFocused })
     }
 }
+
+extension AdapterHostTests {
+    func testLeadingAlignmentUsesConfirmedHostAndRejectsStalePolicy() async throws {
+        let rows = try await rowEntryRails(policy: 0)
+        let target = rows[0][2]
+        let scroll = try XCTUnwrap(target.superview as? UIScrollView)
+        var document = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(root.collectionData.utf8)) as? [String: Any])
+        var nodes = try XCTUnwrap(document["nodes"] as? [[String: Any]])
+        nodes[1]["horizontalAlignment"] = "leading"; document["nodes"] = nodes; document["dataset"] = "2"
+        root.collectionData = String(data: try JSONSerialization.data(withJSONObject: document), encoding: .utf8)!
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.root.collections.dataset == "2" }, object: nil)], timeout: 3)
+        root.collections.align(target, dataset: "2")
+        XCTAssertTrue(target.isFocused)
+        XCTAssertEqual(scroll.contentOffset.x, 300, accuracy: 1)
+        scroll.contentOffset.x = 0
+        root.collections.align(target, dataset: "1")
+        XCTAssertEqual(scroll.contentOffset.x, 0)
+        scroll.semanticContentAttribute = .forceRightToLeft
+        target.frame.origin.x = 600
+        root.collections.align(target, dataset: "2")
+        XCTAssertEqual(scroll.contentOffset.x, 250, accuracy: 1) // Target right700 minus viewport450.
+        root.active = false
+        scroll.contentOffset.x = 20
+        root.collections.align(target, dataset: "2")
+        XCTAssertEqual(scroll.contentOffset.x, 20)
+    }
+}

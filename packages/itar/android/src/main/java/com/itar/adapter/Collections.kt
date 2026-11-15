@@ -14,7 +14,12 @@ import org.json.JSONObject
 
 internal data class CollectionEntry(val key: String, val parent: String, val order: Int,
     val scope: Boolean, val enabled: Boolean, val layout: Int, val extent: Double,
-    val leadingExtent: Double = 0.0, val rowEntry: Int = 0) {
+    val leadingExtent: Double = 0.0, val rowEntry: Int = 0, val horizontalAlignment: String = "nearest") {
+    fun horizontalOffset(start: Double, end: Double, current: Double, viewport: Double, content: Double, rtl: Boolean): Int {
+        val desired = if (horizontalAlignment == "leading") { if (rtl) end - viewport else start }
+            else if (start < current) start else if (end > current + viewport) end - viewport else current
+        return desired.coerceIn(0.0, (content - viewport).coerceAtLeast(0.0)).toInt()
+    }
     fun offset(index: Int): Double = if (leadingExtent > 0 && index > 0)
         leadingExtent + (index - 1) * extent else index * extent
 }
@@ -42,11 +47,14 @@ internal data class CollectionDocument(val dataset: Long, val nodes: List<Collec
                 val node = entries.getJSONObject(index)
                 val rowEntry = if (node.has("rowEntry")) node.get("rowEntry") else 0
                 require(rowEntry is Number && (rowEntry.toDouble() == 0.0 || rowEntry.toDouble() == 1.0))
+                val alignment = if (node.has("horizontalAlignment")) node.get("horizontalAlignment") else "nearest"
+                require(alignment is String && (alignment == "nearest" || alignment == "leading") &&
+                    (!node.has("horizontalAlignment") || (node.getBoolean("scope") && node.getInt("layout") == 1)))
                 val leadingExtent = if (node.has("leadingExtent")) node.getDouble("leadingExtent") else 0.0
                 require(leadingExtent.isFinite() && leadingExtent >= 0 && leadingExtent <= 1000000 &&
                     (node.getBoolean("scope") || leadingExtent == 0.0))
                 CollectionEntry(node.getString("key"), node.getString("parent"), node.getInt("order"),
-                    node.getBoolean("scope"), node.getBoolean("enabled"), node.getInt("layout"), node.getDouble("extent"), leadingExtent, rowEntry.toInt())
+                    node.getBoolean("scope"), node.getBoolean("enabled"), node.getInt("layout"), node.getDouble("extent"), leadingExtent, rowEntry.toInt(), alignment)
             })
         } catch (_: IllegalArgumentException) { null } catch (_: org.json.JSONException) { null }
     }
@@ -97,7 +105,7 @@ internal class Collections(private val root: SurfaceView) {
         repeat(3) {
             val current = item ?: return@repeat
             // Selection policy cancels intent in core; it does not change a live host declaration.
-            if (next.nodes.firstOrNull { it.key == current.key }?.copy(rowEntry = current.rowEntry) != current) return null
+            if (next.nodes.firstOrNull { it.key == current.key }?.copy(rowEntry = current.rowEntry, horizontalAlignment = current.horizontalAlignment) != current) return null
             ancestry.add(current)
             item = previous.nodes.firstOrNull { it.key == current.parent }
         }
@@ -147,7 +155,39 @@ internal class Collections(private val root: SurfaceView) {
             emit(JSONObject().put("state", "catalog").put("dataset", next.dataset.toString()))
             root.scopeChanged()
             root.dispatcher.kick()
+            focused(root.rootView.findFocus())
         }
+    }
+    // One next-frame continuation lets the platform finish its own focus scroll.
+    // It carries no destination authority: recheck the exact observed host/mount.
+    private var alignment: Runnable? = null
+    fun focused(view: View?) {
+        alignment?.let { root.removeCallbacks(it) }; alignment = null
+        val target = view as? TargetView ?: return
+        val mount = target.mount ?: return
+        val dataset = dataset
+        val work = Runnable {
+            alignment = null
+            if (root.closed || !root.acceptsInput || root.readerOwnsInput || pending != null || this.dataset != dataset ||
+                root.live(mount) !== target || root.rootView.findFocus() !== target) return@Runnable
+            val item = entry(mount.key) ?: return@Runnable
+            val list = entry(item.parent) ?: return@Runnable
+            if (list.horizontalAlignment != "leading") return@Runnable
+            val scope = root.scopes[list.key]?.get() ?: return@Runnable
+            var parent = target.parent
+            while (parent is View && parent !== scope) {
+                if (parent is HorizontalScrollView) {
+                    val scroll = parent
+                    val bounds = Rect(); target.getDrawingRect(bounds); scroll.offsetDescendantRectToMyCoords(target, bounds)
+                    val content = scroll.getChildAt(0)?.width ?: return@Runnable
+                    scroll.scrollTo(list.horizontalOffset(bounds.left.toDouble(), bounds.right.toDouble(),
+                        scroll.scrollX.toDouble(), scroll.width.toDouble(), content.toDouble(), scroll.layoutDirection == View.LAYOUT_DIRECTION_RTL), scroll.scrollY)
+                    root.geometryChanged(); return@Runnable
+                }
+                parent = parent.parent
+            }
+        }
+        alignment = work; root.postOnAnimation(work)
     }
     fun invoke(effect: LongArray): Boolean {
         val document = document ?: return false
@@ -216,7 +256,13 @@ internal class Collections(private val root: SurfaceView) {
             if (!root.dispatcher.hostCall {
                 scrolled = true
                 when (val view = scroll) {
-                    is HorizontalScrollView -> view.scrollTo(offset.coerceAtLeast(0), view.scrollY)
+                    is HorizontalScrollView -> {
+                        val content = view.getChildAt(0)?.width ?: 0
+                        val rtl = view.layoutDirection == View.LAYOUT_DIRECTION_RTL
+                        val start = if (rtl) content - offset - list.extent * root.resources.displayMetrics.density else offset.toDouble()
+                        view.scrollTo(list.horizontalOffset(start, start + list.extent * root.resources.displayMetrics.density,
+                            view.scrollX.toDouble(), view.width.toDouble(), content.toDouble(), rtl), view.scrollY)
+                    }
                     is ScrollView -> view.scrollTo(view.scrollX, offset.coerceAtLeast(0))
                 }
                 root.geometryChanged()
@@ -247,5 +293,5 @@ internal class Collections(private val root: SurfaceView) {
         pending = null; steps = emptyList(); source = null; prepared = false; scrolled = false; realized = false
         effect?.let { emit(JSONObject().put("state", "release").put("request", it[3].toString()).put("effect", it[4].toString())) }
     }
-    fun close() { release(); publicationLease = null; document = null; handles = emptyMap() }
+    fun close() { alignment?.let { root.removeCallbacks(it) }; alignment = null; release(); publicationLease = null; document = null; handles = emptyMap() }
 }

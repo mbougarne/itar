@@ -200,3 +200,28 @@ test('confirmed Hero focus returns its scrolling row to the top', () => {
   f.flush();
   assert.deepEqual(plain(calls), [{offset: 0, animated: false}]);
 });
+
+test('horizontal alignment publishes only row metadata and retains accepted cells during a policy change', () => {
+  const f = fixture(undefined, true, 'android');
+  f.render(options); f.accept(); f.render(options); f.render(options);
+  assert.equal(f.nodes()[1].horizontalAlignment, 'nearest');
+  const leading = {...options, horizontalAlignment: 'leading'};
+  assert.equal(f.render(leading).props.value, '1');
+  assert.equal(f.nodes()[1].horizontalAlignment, 'leading');
+  assert.equal(f.nodes()[0].horizontalAlignment, undefined);
+  f.accept(); f.render(leading);
+  assert.equal(f.render(leading).props.value, '2');
+  assert.throws(() => f.render({...options, horizontalAlignment: 'center'}), /horizontalAlignment/);
+});
+
+test('horizontal offsets clamp bounds, partial final cells and RTL without changing selection', () => {
+  const {horizontalScrollOffset: offset} = require('../packages/itar/lib/api/viewport');
+  assert.equal(offset(400,500,100,300,1000,'leading'),400);
+  assert.equal(offset(400,500,100,300,1000,'nearest'),200);
+  assert.equal(offset(400,500,300,300,1000,'nearest'),300);
+  assert.equal(offset(900,1000,300,350,1000,'leading'),650);
+  assert.equal(offset(100,200,0,300,1000,'leading',true),0);
+  assert.equal(offset(500,600,700,300,1000,'leading',true),300);
+  assert.equal(offset(0,100,0,300,200,'leading'),0);
+  assert.equal(offset(900,1000,300,300,1500,'leading'),900); // Appended page changes the clamp, not identity.
+});

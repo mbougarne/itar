@@ -24,6 +24,7 @@ function Screen() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [nested, setNested] = useState(false);
   const [firstEntry, setFirstEntry] = useState(false);
+  const [leading, setLeading] = useState(false);
   const [reverse, setReverse] = useState(false);
   const [removed, setRemoved] = useState(false);
   const [active, setActive] = useState(true);
@@ -137,6 +138,10 @@ function Screen() {
             />
           )}
         <Button
+          title={`Horizontal alignment: ${leading ? 'leading' : 'nearest'}`}
+          onPress={() => setLeading(!leading)}
+        />
+        <Button
           title={removed ? 'Restore item 2' : 'Remove item 2'}
           onPress={() => setRemoved(!removed)}
         />
@@ -157,6 +162,7 @@ function Screen() {
               key="rails"
               id="rails"
               rails={rails}
+              horizontalAlignment={leading ? 'leading' : 'nearest'}
               rowEntry={firstEntry ? 'first' : 'nearest'}
               itemExtent={160}
               rowExtent={120}
@@ -166,6 +172,7 @@ function Screen() {
             />
           ) : (
             <FocusVirtualizedList
+              horizontalAlignment={leading ? 'leading' : 'nearest'}
               key="list"
               id="list"
               data={rails[0].items}

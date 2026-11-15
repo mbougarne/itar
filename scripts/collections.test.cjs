@@ -136,3 +136,14 @@ test('collection ownership handoff rejects stale preparation from the prior scre
   f.store.remove(detailsOwner);
   assert.deepEqual(JSON.parse(f.store.snapshot().data).nodes, []);
 });
+
+test('horizontal alignment validates row-only metadata atomically', () => {
+  const f = fixture();
+  for (const value of [null, 1, 'center']) {
+    assert.throws(() => f.store.publish(f.owner, [{...nodes[0], horizontalAlignment: value}, ...nodes.slice(1)]), /Horizontal alignment/);
+    assert.equal(f.store.snapshot().dataset, f.dataset);
+  }
+  assert.throws(() => f.store.publish(f.owner, [{...nodes[0], layout: 2, horizontalAlignment: 'leading'}, ...nodes.slice(1)]), /Horizontal alignment/);
+  f.store.publish(f.owner, [{...nodes[0], horizontalAlignment: 'leading'}, ...nodes.slice(1)]);
+  assert.equal(JSON.parse(f.store.snapshot().data).nodes[0].horizontalAlignment, 'leading');
+});
