@@ -62,7 +62,9 @@ spoken-reader acceptance remain separate from boundary/simulator tests.
 `horizontalAlignment="nearest"` (default) leaves a mounted highlight free to move
 and scrolls enough to reveal a cold target. `"leading"` aligns confirmed focus to
 the viewport's leading edge (left in LTR, right in RTL), clamped to content bounds.
-The final cells can therefore move within the viewport. Native TV adapters and the browser probe implement these modes. Both list components
+The final cells can therefore move within the viewport. Cold-cell planning uses
+the leading edge when a declared cell exceeds the viewport; actual measured
+target eligibility is still required before focus. Native TV adapters and the browser probe implement these modes. Both list components
 accept this option; it applies to horizontal rows only and is independent of
 `rowEntry`. Native/DOM hosts own the scroll, not the C++ destination selector.
 Policy changes cancel old reveal work; stale focus, inactive routes and reader

@@ -16,7 +16,7 @@ struct CollectionEntry: Decodable, Equatable {
     var horizontalAlignment: String? = nil
     func horizontalOffset(start: CGFloat, end: CGFloat, current: CGFloat, viewport: CGFloat, content: CGFloat, rtl: Bool) -> CGFloat {
         let desired: CGFloat
-        if horizontalAlignment == "leading" { desired = rtl ? end - viewport : start }
+        if horizontalAlignment == "leading" || end - start > viewport { desired = rtl ? end - viewport : start }
         else { desired = start < current ? start : (end > current + viewport ? end - viewport : current) }
         return min(max(0, desired), max(0, content - viewport))
     }

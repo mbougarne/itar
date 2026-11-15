@@ -16,7 +16,7 @@ internal data class CollectionEntry(val key: String, val parent: String, val ord
     val scope: Boolean, val enabled: Boolean, val layout: Int, val extent: Double,
     val leadingExtent: Double = 0.0, val rowEntry: Int = 0, val horizontalAlignment: String = "nearest") {
     fun horizontalOffset(start: Double, end: Double, current: Double, viewport: Double, content: Double, rtl: Boolean): Int {
-        val desired = if (horizontalAlignment == "leading") { if (rtl) end - viewport else start }
+        val desired = if (horizontalAlignment == "leading" || end - start > viewport) { if (rtl) end - viewport else start }
             else if (start < current) start else if (end > current + viewport) end - viewport else current
         return desired.coerceIn(0.0, (content - viewport).coerceAtLeast(0.0)).toInt()
     }

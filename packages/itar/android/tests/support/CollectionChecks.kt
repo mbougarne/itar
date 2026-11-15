@@ -74,6 +74,7 @@ object CollectionChecks {
     }
     fun leadingRowOffsets() {
         val row = CollectionEntry("row", "", 0, true, true, 1, 100.0)
+        check(row.horizontalOffset(400.0,800.0,0.0,300.0,1000.0,false) == 400)
         check(row.horizontalOffset(400.0,500.0,100.0,300.0,1000.0,false) == 200)
         check(row.copy(horizontalAlignment = "leading").horizontalOffset(400.0,500.0,100.0,300.0,1000.0,false) == 400)
         check(row.copy(horizontalAlignment = "leading").horizontalOffset(500.0,600.0,700.0,300.0,1000.0,true) == 300)

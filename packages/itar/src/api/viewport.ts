@@ -8,7 +8,7 @@ export function headerScrollOffset(headerExtent: number, currentOffset: number, 
 // converted by its adapter. This function never chooses a focus destination.
 export function horizontalScrollOffset(start: number, end: number, current: number,
   viewport: number, content: number, alignment: 'nearest' | 'leading', rtl = false): number {
-  const desired = alignment === 'leading' ? (rtl ? end - viewport : start)
+  const desired = alignment === 'leading' || end - start > viewport ? (rtl ? end - viewport : start)
     : start < current ? start : end > current + viewport ? end - viewport : current;
   return Math.min(Math.max(0, desired), Math.max(0, content - viewport));
 }

@@ -216,6 +216,7 @@ test('horizontal alignment publishes only row metadata and retains accepted cell
 
 test('horizontal offsets clamp bounds, partial final cells and RTL without changing selection', () => {
   const {horizontalScrollOffset: offset} = require('../packages/itar/lib/api/viewport');
+  assert.equal(offset(400,800,0,300,1000,'nearest'),400); // An oversized cell must not hide its leading target.
   assert.equal(offset(400,500,100,300,1000,'leading'),400);
   assert.equal(offset(400,500,100,300,1000,'nearest'),200);
   assert.equal(offset(400,500,300,300,1000,'nearest'),300);

@@ -6,6 +6,7 @@ struct CollectionTests {
         try rowEntry()
         var row = CollectionEntry(key: "row", parent: "", order: 0, scope: true, enabled: true, layout: 1, extent: 100)
         precondition(row.horizontalOffset(start: 400, end: 500, current: 100, viewport: 300, content: 1000, rtl: false) == 200)
+        precondition(row.horizontalOffset(start: 400, end: 800, current: 0, viewport: 300, content: 1000, rtl: false) == 400)
         row.horizontalAlignment = "leading"
         precondition(row.horizontalOffset(start: 400, end: 500, current: 100, viewport: 300, content: 1000, rtl: false) == 400)
         precondition(row.horizontalOffset(start: 500, end: 600, current: 700, viewport: 300, content: 1000, rtl: true) == 300)
