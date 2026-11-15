@@ -42,12 +42,13 @@ function fixture(platform) {
       if (changed(effects[i], deps)) { effects[i]?.cleanup?.(); effects[i] = {deps, cleanup: callback()}; }
     },
   };
+  const contexts = load('packages/itar/src/api/contexts.ts', () => react);
   const component = load(native ? 'packages/itar/src/react.tsx' : 'apps/probe/web/focus.tsx', name => {
     if (name === 'react') { return react; }
     if (name === 'react-native') { return {...web, Platform: {OS: platform, isTV: true}}; }
     if (name.endsWith('/types')) { return types; }
     if (name === './api/store') { return {FocusStore}; }
-    if (name === './api/contexts') { return {ScopeContext: {value: {key: '', active: true}}, CollectionDatasetContext: {value: ''}}; }
+    if (name.endsWith('/api/contexts')) { return contexts; }
     if (name === './specs/ItarTargetNativeComponent') { return {__esModule: true, default: 'NativeTarget'}; }
     if (name === './focus-store') { return {createNode: key => ({key})}; }
     return {};

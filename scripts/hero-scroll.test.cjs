@@ -254,10 +254,10 @@ test('composed rails render lazily inside the same host and retain the native co
   assert.equal(updated.props.value, accepted.props.value, 'a renderer update must not publish another logical dataset');
   const content = tree => {
     const props = list(tree).props;
-    const row = props.renderItem({item: props.data[0]});
-    const inner = row.props.children.find(child => typeof child?.type === 'function');
-    const flat = inner.type(inner.props).props;
-    return flat.renderItem({item: flat.data[0], index: 0}).props.children[0].type;
+    const renderedRow = props.renderItem({item: props.data[0]});
+    const itemList = renderedRow.props.children.find(child => typeof child?.type === 'function');
+    const renderedList = itemList.type(itemList.props).props;
+    return renderedList.renderItem({item: renderedList.data[0], index: 0}).props.children[0].type;
   };
   assert.equal(content(updated), 'ReplacementVisual');
   const replacement = {...changed, rails: [{id: 'new-row', items: options.rails[0].items}], renderItem: () => ({type: 'NewDatasetVisual'})};

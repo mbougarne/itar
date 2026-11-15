@@ -8,22 +8,39 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const ts = require('typescript');
 
-const filename = path.join(__dirname, '../focus.tsx');
+function load(filename, imports) {
+  const { outputText } = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      jsx: ts.JsxEmit.React,
+      esModuleInterop: true,
+    },
+  });
 
-const { outputText } = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
-  compilerOptions: {
-    module: ts.ModuleKind.CommonJS,
-    jsx: ts.JsxEmit.React,
-    esModuleInterop: true,
-  },
-});
+  const moduleRecord = { exports: {} };
 
-const moduleRecord = { exports: {} };
+  vm.runInNewContext(outputText, {
+    module: moduleRecord,
+    exports: moduleRecord.exports,
+    require: imports,
+  });
 
-vm.runInNewContext(outputText, {
-  module: moduleRecord,
-  exports: moduleRecord.exports,
-  require(name) {
+  return moduleRecord.exports;
+}
+
+const contexts = load(
+  path.join(__dirname, '../../../../packages/itar/src/api/contexts.ts'),
+  require,
+);
+
+const types = load(
+  path.join(__dirname, '../../../../packages/itar/src/api/types.ts'),
+  require,
+);
+
+const { FocusProvider, FocusScope, Focusable, initializeFocusEngine } = load(
+  path.join(__dirname, '../focus.tsx'),
+  name => {
     if (name === 'react') {
       return React;
     }
@@ -41,11 +58,11 @@ vm.runInNewContext(outputText, {
     }
 
     if (name.endsWith('/api/contexts')) {
-      return require('../../../../packages/itar/lib/api/contexts');
+      return contexts;
     }
 
     if (name.endsWith('/api/types')) {
-      return require('../../../../packages/itar/lib/api/types');
+      return types;
     }
 
     if (name === './focus-store') {
@@ -62,10 +79,7 @@ vm.runInNewContext(outputText, {
 
     throw new Error(`Unexpected import ${name}`);
   },
-});
-
-const { FocusProvider, FocusScope, Focusable, initializeFocusEngine } =
-  moduleRecord.exports;
+);
 
 before(initializeFocusEngine);
 
