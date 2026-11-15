@@ -53,7 +53,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     private var refreshPosted = false
     var closed = false
         private set
-    private val focusObserver = ViewTreeObserver.OnGlobalFocusChangeListener { _, target -> observe(target) }
+    private val focusObserver = ViewTreeObserver.OnGlobalFocusChangeListener { _, target -> observe(target); collections.focused(target) }
     private val scrollObserver = ViewTreeObserver.OnScrollChangedListener { geometryChanged() }
     private val layoutObserver = ViewTreeObserver.OnGlobalLayoutListener { orderedFocusChanged() }
     private val refreshTask = Runnable {

@@ -66,9 +66,32 @@ selection and gestures, with explicit engine preferences and the owned direction
 trap constraint. A layout/wrap declaration does not establish identical UIKit
 destinations. Native controls and screen-reader navigation keep native ownership.
 
-The initial `Focusable` is an owned button with a committed label, enabled state,
-order and activation. Arbitrary native descendants/third-party attachment are
-outside this API. Use `style` for layout. `focusStyle.accentColor` and
+`Focusable` is an owned button with a committed label, enabled state, order and
+activation. It also accepts presentation-only `children`, such as an image and
+text. Supply an explicit outer size using `style`; the content fills those bounds.
+The outer host owns focus, accessibility, native feedback and `onPress`. The
+children are hidden from accessibility and cannot independently receive input.
+Do not nest interactive controls, `Focusable` or `FocusScope` inside it; owned
+focus declarations reject nesting. Put activation on the outer host. Attaching
+Itar to an existing third-party native control remains outside this API.
+
+```tsx
+<Focusable occurrenceKey={first} accessibilityLabel="A favorite movie"
+  style={{width: 280, height: 180}} onPress={() => openMovie('movie-42')}>
+  <View style={{flex: 1}}>
+    <Image source={poster} style={{width: 280, height: 140}} />
+    <Text>Movie title</Text>
+  </View>
+</Focusable>
+```
+
+Import `View`, `Image` and `Text` from React Native. Omitting `children` (or passing
+null) keeps the existing `displayLabel`/label mode. Custom child text uses its own
+styles; `focusStyle` continues to configure the owned host's native feedback.
+The React API preview contains an image/text card and a label/custom toggle.
+Collection renderer callbacks remain separate work. Physical reader/input
+acceptance is deferred for joint testing after implementation.
+ Use `style` for layout. `focusStyle.accentColor` and
 `baseAccentColor` configure Android text color or the tvOS border. The tvOS border
 uses widths 1 and 5, coordinates with UIKit focus animation, and respects reduced
 motion. Visual feedback follows observed host focus. Custom React visuals can use

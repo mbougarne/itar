@@ -38,7 +38,7 @@ object StyleChecks {
         check(detached.layoutParams == null)
         detached.actionLabel = "Accessible detached target"
         detached.displayLabel = "Updated before parent layout"
-        check(detached.text.toString() == "Updated before parent layout" && detached.layoutParams != null)
+        check(detached.text.toString() == "Updated before parent layout" && detached.layoutParams == null)
         a.setBaseColor(Color.RED)
         check(a.currentTextColor == Color.YELLOW && a.foreground != null)
         check(b.requestFocus())

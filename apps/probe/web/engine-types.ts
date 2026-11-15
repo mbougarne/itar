@@ -18,6 +18,10 @@ export type EngineNode = {
   y: number;
   width: number;
   height: number;
+  collection?: boolean;
+  extent?: number;
+  rowEntry?: 0 | 1;
+  horizontalAlignment?: 0 | 1;
 };
 
 export type EngineEffect = {

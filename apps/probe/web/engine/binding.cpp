@@ -1,5 +1,5 @@
 #include <emscripten/bind.h>
-#include <itar/transaction.hpp>
+#include <itar/collection.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -59,6 +59,8 @@ class WebEngine {
       const auto next = epoch_ + 1;
       const auto& registry = state_.snapshot().registry;
       std::vector<Mutation> mutations;
+      std::vector<CollectionNode> catalog;
+      std::vector<std::pair<std::string, int>> alignments;
       std::set<std::string, std::less<>> keys;
       mutations.reserve(count + registry.size());
       for (unsigned i = 0; i < count; ++i) {
@@ -81,6 +83,22 @@ class WebEngine {
         record.navigation.trap = field(value, "trap", false);
         record.navigation.entryReady = field(value, "entryReady", true);
         record.navigation.restoreOnEntry = field(value, "restoreOnEntry", false);
+        const auto policy = value["rowEntry"];
+        if (!policy.isUndefined() && policy.typeOf().as<std::string>() != "number") {
+          return static_cast<int>(BatchStatus::invalid);
+        }
+        const auto entry = integer(field(value, "rowEntry", 0.0), 1);
+        if (field(value, "collection", false)) {
+          const auto visual = value["horizontalAlignment"];
+          if (!visual.isUndefined() && (visual.typeOf().as<std::string>() != "number" ||
+              !record.scope || record.navigation.layout != Layout::row)) { return static_cast<int>(BatchStatus::invalid); }
+          const auto alignment = integer(field(value, "horizontalAlignment", 0.0), 1);
+          if (alignment && (!record.scope || record.navigation.layout != Layout::row)) { return static_cast<int>(BatchStatus::invalid); }
+          alignments.emplace_back(key, alignment);
+          catalog.push_back({OccurrenceKey{key}, OccurrenceKey{field(value, "parent", std::string{})},
+            record.order, record.scope, record.enabled, record.navigation.layout,
+            field(value, "extent", 0.0), static_cast<CollectionRowEntry>(entry)});
+        } else if (!policy.isUndefined()) { return static_cast<int>(BatchStatus::invalid); }
         if (record.mounted) {
           record.geometry = {state_.surface(), record.mount, LayoutRevision{next},
             {field(value, "x", 0.0), field(value, "y", 0.0),
@@ -98,6 +116,13 @@ class WebEngine {
           OccurrenceKey{key}, node, OccurrenceKey{field(value, "parent", std::string{})}, record,
           std::move(preferred)});
       }
+      if (!validCollectionNodes(catalog, registry.limits())) { return static_cast<int>(BatchStatus::invalid); }
+      // DOM registration/transport order is not a logical dataset change.
+      std::sort(catalog.begin(), catalog.end(), [](const auto& a, const auto& b) { return a.key.value() < b.key.value(); });
+      std::sort(alignments.begin(), alignments.end());
+      const auto changed = catalog != catalog_ || alignments != alignments_;
+      if (changed && dataset_ == ceiling) { return static_cast<int>(BatchStatus::revision_exhausted); }
+      std::vector<NodeHandle> handles(catalog.size());
       for (const auto node : registry.handles()) {
         const auto key = *registry.key(node);
         if (!keys.contains(key.value())) { mutations.push_back({MutationKind::erase, key, node, {}, {}}); }
@@ -114,7 +139,17 @@ class WebEngine {
         }
       }
       const auto applied = tx_.apply({state_.surface(), state_.snapshot().revision, mutations});
-      if (applied.status == BatchStatus::valid) { epoch_ = next; }
+      if (applied.status == BatchStatus::valid) {
+        epoch_ = next;
+        if (changed) {
+          if (const auto& active = tx_.active(); active &&
+              (std::any_of(catalog_.begin(), catalog_.end(), [&](const auto& node) { return node.key == active->targetKey; }) ||
+               std::any_of(catalog.begin(), catalog.end(), [&](const auto& node) { return node.key == active->targetKey; }))) { tx_.cancel(active->id); }
+          ++dataset_;
+        }
+        for (std::size_t i = 0; i < catalog.size(); ++i) { handles[i] = registry.find(catalog[i].key); }
+        catalog_.swap(catalog); handles_.swap(handles); alignments_.swap(alignments);
+      }
       tx_.drainNotifications();
       return static_cast<int>(applied.status);
     } catch (const std::bad_alloc&) { return static_cast<int>(BatchStatus::resource); }
@@ -149,7 +184,10 @@ class WebEngine {
   }
   val direction(int direction, int owner) {
     if (direction < 0 || direction > 3 || owner < 0 || owner > 4) { return result({RequestStatus::invalid, {}}); }
-    return result(tx_.directionalInput(static_cast<Direction>(direction), input(owner), options()));
+    const auto heading = static_cast<Direction>(direction);
+    const auto context = input(owner);
+    return result(tx_.directionalInput(heading, context, options(),
+        proposeCollectionEntry(state_, catalog_, handles_, heading, context)));
   }
   val focus(const std::string& key, int owner) {
     if (owner < 0 || owner > 4) { return result({RequestStatus::invalid, {}}); }
@@ -216,7 +254,7 @@ class WebEngine {
     const auto found = effects_.find(effect);
     if (found == effects_.end()) { return result({RequestStatus::stale, {}}); }
     const auto realized = tx_.realize({found->second.token, state_.surface(), find(target),
-                                      MountGeneration{mount}, DatasetRevision{1}, true});
+                                      MountGeneration{mount}, found->second.dataset, true});
     if (realized.status == RequestStatus::started) { effects_.erase(found); issued_.erase(effect); }
     return result(realized);
   }
@@ -250,12 +288,16 @@ class WebEngine {
   InputContext input(int owner = 0) const {
     return {state_.surface(), {}, static_cast<InputOwner>(owner), state_.snapshot().inputFocus};
   }
-  RequestOptions options() const { return {now_ + 1000, DatasetRevision{1}, ResourceId{1}, {}}; }
+  RequestOptions options() const { return {now_ + 1000, DatasetRevision{dataset_}, ResourceId{1}, {}}; }
   State state_;
   Transactions tx_;
+  std::vector<CollectionNode> catalog_;
+  std::vector<NodeHandle> handles_;
+  std::vector<std::pair<std::string, int>> alignments_;
   std::map<unsigned, Effect> effects_;
   std::set<unsigned> issued_;
   unsigned epoch_{};
+  unsigned dataset_{1};
   TimePoint now_{};
   bool disposed_{};
 };

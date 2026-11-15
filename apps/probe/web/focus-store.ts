@@ -11,7 +11,11 @@ export type Registration = EngineNode & {
   adjust?: (delta: -1 | 1) => void;
 };
 
-type Collection = { nodes: Registration[]; reveal(key: string): boolean };
+type Collection = {
+  nodes: Registration[];
+  reveal(key: string): boolean;
+  release?(key: string): void;
+};
 
 type Pending = {
   resolve(value: FocusOutcome): void;
@@ -49,7 +53,7 @@ export class WebFocusStore {
   private visibilityChecks = new Map<object, () => void>();
   private listeners = new Set<() => void>();
   private pending = new Map<number, Pending>();
-  private reveals = new Map<number, EngineEffect>();
+  private reveals = new Map<number, EngineEffect & { release(): void }>();
   private input: FocusState = unknown;
   private accessibility: FocusState = unknown;
   private queued = false;
@@ -135,6 +139,14 @@ export class WebFocusStore {
     this.schedule();
   }
 
+  canAlign() {
+    return (
+      this.available() &&
+      directionalNavigationEnabled &&
+      !this.engine.snapshot().activeRequest
+    );
+  }
+
   collection(token: object, collection: Collection) {
     const element = this.activeElement();
 
@@ -182,6 +194,13 @@ export class WebFocusStore {
     this.visibilityChecks.delete(token);
     this.collections.delete(token);
     this.schedule();
+  }
+
+  private retireReveal(id: number) {
+    const reveal = this.reveals.get(id);
+
+    this.reveals.delete(id);
+    reveal?.release();
   }
 
   private schedule() {
@@ -233,6 +252,10 @@ export class WebFocusStore {
       nodes.set(record.key, {
         ...record,
         order: nodes.get(record.key)?.order ?? record.order,
+        collection: nodes.get(record.key)?.collection,
+        extent: nodes.get(record.key)?.extent,
+        rowEntry: nodes.get(record.key)?.rowEntry,
+        horizontalAlignment: nodes.get(record.key)?.horizontalAlignment,
         mounted,
         active: this.enabled && record.active,
         x: rect?.x ?? 0,
@@ -277,9 +300,9 @@ export class WebFocusStore {
         const result = this.engine.realize(id, effect.key, node.mount);
 
         if (result.status === 0) {
-          this.reveals.delete(id);
+          this.retireReveal(id);
         } else if (result.status !== 16) {
-          this.reveals.delete(id);
+          this.retireReveal(id);
           this.engine.complete(id, 1);
           this.finish(effect.request, 'unavailable', 'stale-reveal');
         }
@@ -474,7 +497,7 @@ export class WebFocusStore {
           }
 
           if (effect.kind === 2) {
-            this.reveals.delete(effect.cancels);
+            this.retireReveal(effect.cancels);
             this.engine.complete(effect.id, 3);
 
             continue;
@@ -486,7 +509,11 @@ export class WebFocusStore {
             );
 
             if (owner?.reveal(effect.key)) {
-              this.reveals.set(effect.id, effect);
+              this.reveals.set(effect.id, {
+                ...effect,
+                release: () => owner.release?.(effect.key),
+              });
+
               this.schedule();
             } else {
               this.engine.complete(effect.id, 1);

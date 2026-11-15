@@ -31,15 +31,67 @@ same surface capacity. Keys remain subject to the native 512-byte limit.
 
 `itemExtent` is the complete fixed width of a horizontal cell or height of a
 vertical cell, including any spacing. `viewportExtent` is the list's scrolling
-viewport size. Arbitrary insets, separators, transforms, variable cell sizes, and
-custom renderers are outside this integration. `itemStyle` can decorate a
+viewport size. Arbitrary insets, separators, transforms, and variable cell sizes remain outside
+this integration. `itemStyle` can decorate a
 button while preserving these dimensions. Keep data immutable between updates.
+
+Both components accept `renderItem(item, index)` to return presentation-only
+content inside the collection-owned `Focusable`. The index is within the list or
+current rail; occurrence keys, semantics, activation and native focus styling
+remain owned by the collection. Return null for label mode. Without a callback,
+`item.children` is used. Do not return another focus host or interactive control.
+
+```tsx
+<FocusVirtualizedList id="favorites" data={data} itemExtent={180}
+  viewportExtent={720} renderItem={item => <MovieCard id={item.contentId} />} />
+```
+
+Rendering is lazy for mounted cells. A visual-only callback change keeps the
+logical dataset, pending commit markers and focus identities; membership changes
+still publish a new dataset. Keep callbacks stable and declared extents fixed.
+Legacy `renderDecoration` can supply separate noninteractive notices, but artwork
+no longer needs a transparent focus overlay. Source/target render regions and
+native layout acknowledgments retain their existing cancellation/lifetime rules.
 
 For nested rails, pass `rails={[{id, items}]}` to `FocusVirtualizedRails`, along
 with `itemExtent`, `rowExtent`, `viewportExtent`, and optional `viewportRows`
 (default 2). Row IDs and item occurrence keys must be stable and unique. Adjacent
 horizontal rails enter at the nearest available logical column; this declared
 fixed-column policy does not depend on which cells happen to be mounted.
+
+On the native TV adapters and browser probe, `rowEntry="first"` on
+`FocusVirtualizedRails` changes Up/Down entry to the first eligible item in the
+destination row. The default is
+`rowEntry="nearest"`. Disabled items are skipped; an unmounted first item is
+realized instead of substituting a later mounted item. This also applies when
+crossing the leading header row. Horizontal movement and explicit keyed
+restoration keep their existing behavior. Changing the option publishes a new
+dataset and invalidates pending work from the old policy.
+
+The browser probe forwards a validated logical projection to the same C++
+selector; DOM measurement and mounting remain browser-owned. On tvOS, the adapter
+cooperates with UIKit: an already-correct mounted destination proceeds normally, while a differing owned
+vertical row entry is rejected before focus changes and deferred through the
+engine's native request/confirmation path. Offscreen items use collection
+realization. Default mounted selection remains UIKit-owned. This does not claim
+gesture/momentum parity or override VoiceOver navigation. Physical-device and
+spoken-reader acceptance remain separate from boundary/simulator tests.
+
+`horizontalAlignment="nearest"` (default) leaves a mounted highlight free to move
+and scrolls enough to reveal a cold target. `"leading"` aligns confirmed focus to
+the viewport's leading edge (left in LTR, right in RTL), clamped to content bounds.
+The final cells can therefore move within the viewport. Cold-cell planning uses
+the leading edge when a declared cell exceeds the viewport; actual measured
+target eligibility is still required before focus. Native TV adapters and the browser probe implement these modes. Both list components
+accept this option; it applies to horizontal rows only and is independent of
+`rowEntry`. Native/DOM hosts own the scroll, not the C++ destination selector.
+Policy changes cancel old reveal work; stale focus, inactive routes and reader
+ownership cannot authorize alignment. UIKit alignment waits for its focus
+animation and skips native dragging/deceleration. Physical gesture and spoken
+reader acceptance is deferred for joint testing after implementation.
+
+The native virtualized-list probe offers a **Row entry: nearest/first** toggle
+after selecting **Nested rails** for manual comparison.
 
 Rails optionally accept one leading row through `listHeader`, `listHeaderExtent`,
 `listHeaderScope`, and `listHeaderItems`. The header must render the declared scope

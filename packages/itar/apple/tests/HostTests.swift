@@ -284,6 +284,136 @@ import UIKit
 }
 
 extension AdapterHostTests {
+    func rowEntryRails(policy: Int = 1, cold: Bool = false) async throws -> [[ItarTargetHost]] {
+        for target in [a!, b!] { target.removeFromSuperview(); target.recycle() }
+        let names = ["header", "rail"]
+        var nodes: [[String: Any]] = [["key": "outer", "parent": "", "order": 0, "scope": true,
+            "enabled": true, "layout": 2, "extent": 160, "rowEntry": policy]]
+        for (index, name) in names.enumerated() {
+            nodes.append(["key": name, "parent": "outer", "order": index, "scope": true, "enabled": true, "layout": 1, "extent": 150])
+            for order in 0..<3 { nodes.append(["key": "\(name)-\(order)", "parent": name, "order": order,
+                "scope": false, "enabled": name != "rail" || order != 0, "layout": 0, "extent": 0]) }
+        }
+        root.collectionData = String(data: try JSONSerialization.data(withJSONObject: ["dataset": "1", "nodes": nodes]), encoding: .utf8)!
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.root.collections.dataset == "1" }, object: nil)], timeout: 3)
+        let outer = ItarScopeHost(frame: root.bounds)
+        outer.collectionDataset = "1"
+        outer.configure("outer", parent: "", active: true, layout: 2, boundary: 2, trap: false, entryReady: true, preferred: "")
+        root.addSubview(outer)
+        let vertical = UIScrollView(frame: outer.bounds)
+        vertical.contentSize = CGSize(width: outer.bounds.width, height: 320)
+        outer.addSubview(vertical)
+        var result: [[ItarTargetHost]] = []
+        for (index, name) in names.enumerated() {
+            let row = ItarScopeHost(frame: CGRect(x: 0, y: index * 160, width: 450, height: 140))
+            row.collectionDataset = "1"
+            row.configure(name, parent: "outer", active: true, layout: 1, boundary: 2, trap: false, entryReady: true, preferred: "")
+            let scroll = UIScrollView(frame: row.bounds)
+            scroll.contentSize = CGSize(width: 1000, height: 140)
+            row.addSubview(scroll); vertical.addSubview(row)
+            result.append((0..<3).map { order in
+                let cell = target("\(name)-\(order)", x: CGFloat(order * 150))
+                cell.frame = CGRect(x: order * 150, y: 20, width: 100, height: 60)
+                cell.scopeKey = name; cell.collectionDataset = "1"; cell.targetEnabled = name != "rail" || order != 0
+                scroll.addSubview(cell)
+                return cell
+            })
+            if cold && index == 1 { scroll.contentOffset.x = 300 }
+        }
+        root.commitGeometry()
+        root.onCollectionRecord = { [weak self] record in
+            guard let self, let text = record["payload"] as? String, let data = text.data(using: .utf8),
+                  var value = try? JSONSerialization.jsonObject(with: data) as? [String: Any], value["state"] as? String == "prepare" else { return }
+            value["lifetime"] = String(self.root.lifetime)
+            guard let bytes = try? JSONSerialization.data(withJSONObject: value), let acknowledgement = String(data: bytes, encoding: .utf8) else { return }
+            DispatchQueue.main.async { [weak self] in self?.root.prepareCollection(acknowledgement) }
+        }
+        root.focus("header-2")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in result[0][2].isFocused }, object: nil)], timeout: 3)
+        return result
+    }
+    func testCooperativeFirstRowEntryConfirmsWithoutIntermediateGeometricFocus() async throws {
+        let rows = try await rowEntryRails()
+        var observations: [String] = []
+        root.onFocusRecord = { observations.append($0["occurrenceKey"] as? String ?? "") }
+        XCTAssertNil(root.allowCollectionEntry(from: rows[0][2], to: rows[1][2], heading: .right))
+        XCTAssertEqual(root.allowCollectionEntry(from: rows[0][2], to: rows[1][1], heading: .down), true)
+        // Supply UIKit's proposed destination to the production decision gate;
+        // actual preferences, realization and focus confirmation remain native.
+        XCTAssertEqual(root.allowCollectionEntry(from: rows[0][2], to: rows[1][2], heading: .down), false)
+        XCTAssertTrue(rows[0][2].isFocused)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in rows[1][1].isFocused }, object: nil)], timeout: 3)
+        XCTAssertFalse(observations.contains("rail-2"))
+        root.focus("rail-2")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in rows[1][2].isFocused }, object: nil)], timeout: 3)
+        observations.removeAll()
+        XCTAssertEqual(root.allowCollectionEntry(from: rows[1][2], to: rows[0][2], heading: .up), false)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in rows[0][0].isFocused }, object: nil)], timeout: 3)
+        XCTAssertFalse(observations.contains("header-2"))
+    }
+    func testCooperativeFirstEntryRevealsOffscreenItem() async throws {
+        let rows = try await rowEntryRails(cold: true)
+        XCTAssertFalse(rows[1][1].canBecomeFocused)
+        var observations: [String] = []
+        root.onFocusRecord = { observations.append($0["occurrenceKey"] as? String ?? "") }
+        XCTAssertEqual(root.allowCollectionEntry(from: rows[0][2], to: rows[1][2], heading: .down), false)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in rows[1][1].isFocused }, object: nil)], timeout: 3)
+        XCTAssertFalse(rows[1][2].isFocused)
+        XCTAssertFalse(observations.contains("rail-2"))
+    }
+    func testCooperativeEntryKeepsDefaultPolicy() async throws {
+        let rows = try await rowEntryRails(policy: 0)
+        XCTAssertNil(root.allowCollectionEntry(from: rows[0][2], to: rows[1][2], heading: .down))
+    }
+    func testCooperativeEntryDiscardsQueuedWorkAfterRouteChanges() async throws {
+        let rows = try await rowEntryRails()
+        var requests = 0
+        root.onRequestRecord = { if $0["status"] as? String == "started" { requests += 1 } }
+        XCTAssertEqual(root.allowCollectionEntry(from: rows[0][2], to: rows[1][2], heading: .down), false)
+        root.active = false
+        let drained = expectation(description: "Deferred owner turn drained")
+        DispatchQueue.main.async { drained.fulfill() }
+        await fulfillment(of: [drained], timeout: 3)
+        XCTAssertEqual(requests, 0)
+        XCTAssertEqual(try root.dispatcher?.connection.snapshot().active_request, 0)
+    }
+    func testRowPolicyRevisionRetainsExactFocusedHostUntilReactAcceptance() async throws {
+        let rows = try await rowEntryRails(policy: 0)
+        let source = rows[0][2], registration = try XCTUnwrap(source.registration)
+        let data = try XCTUnwrap(root.collectionData.data(using: .utf8))
+        var document = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var nodes = try XCTUnwrap(document["nodes"] as? [[String: Any]])
+        nodes[0]["rowEntry"] = 1; document["nodes"] = nodes; document["dataset"] = "2"
+        root.collectionData = String(data: try JSONSerialization.data(withJSONObject: document), encoding: .utf8)!
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.root.collections.dataset == "2" }, object: nil)], timeout: 3)
+        XCTAssertTrue(source.isFocused && source.registration === registration && source.canBecomeFocused)
+        for scope in root.scopes.values { scope.view?.collectionDataset = "2" }
+        for row in rows { row.forEach { $0.collectionDataset = "2" } }
+        root.commitGeometry()
+        XCTAssertTrue(source.isFocused && source.registration === registration && source.canBecomeFocused)
+    }
+    func testCooperativeEntryDiscardsQueuedWorkAfterDatasetReplacement() async throws {
+        let rows = try await rowEntryRails()
+        var requests = 0
+        root.onRequestRecord = { if $0["status"] as? String == "started" { requests += 1 } }
+        XCTAssertEqual(root.allowCollectionEntry(from: rows[0][2], to: rows[1][2], heading: .down), false)
+        root.collectionData = root.collectionData.replacingOccurrences(of: "\"dataset\":\"1\"", with: "\"dataset\":\"2\"")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.root.collections.dataset == "2" }, object: nil)], timeout: 3)
+        XCTAssertEqual(requests, 0)
+        XCTAssertEqual(try root.dispatcher?.connection.snapshot().active_request, 0)
+    }
+    func testCooperativeEntryDiscardsQueuedWorkAfterSourceRemoval() async throws {
+        let rows = try await rowEntryRails()
+        var requests = 0
+        root.onRequestRecord = { if $0["status"] as? String == "started" { requests += 1 } }
+        XCTAssertEqual(root.allowCollectionEntry(from: rows[0][2], to: rows[1][2], heading: .down), false)
+        rows[0][2].removeFromSuperview()
+        let drained = expectation(description: "Retired source turn drained")
+        DispatchQueue.main.async { drained.fulfill() }
+        await fulfillment(of: [drained], timeout: 3)
+        XCTAssertEqual(requests, 0)
+        XCTAssertEqual(try root.dispatcher?.connection.snapshot().active_request, 0)
+    }
     func virtualCollection() async throws -> (UIScrollView, ItarTargetHost) {
         a.removeFromSuperview()
         a.recycle() // The catalog, rather than a physical cell, now owns logical A.
@@ -314,6 +444,10 @@ extension AdapterHostTests {
         let cold = target("cold", x: 400)
         cold.frame.origin.y = 0
         cold.scopeKey = "list"; cold.collectionDataset = "1"
+        for host in [a!, cold] {
+            let label = UILabel(); label.text = "Presentation"
+            host.presentationContent.addSubview(label); host.presentationContentChanged()
+        }
         scroll.addSubview(cold)
         root.addSubview(scope)
         root.commitGeometry()
@@ -425,5 +559,62 @@ extension AdapterHostTests {
         }, object: nil)], timeout: 3)
         XCTAssertFalse(root.dispatcher?.closed ?? true)
         XCTAssertTrue(cells.allSatisfy { !$0.canBecomeFocused })
+    }
+}
+
+extension AdapterHostTests {
+    func testLeadingAlignmentUsesConfirmedHostAndRejectsStalePolicy() async throws {
+        let rows = try await rowEntryRails(policy: 0)
+        let target = rows[0][2]
+        let scroll = try XCTUnwrap(target.superview as? UIScrollView)
+        var document = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(root.collectionData.utf8)) as? [String: Any])
+        var nodes = try XCTUnwrap(document["nodes"] as? [[String: Any]])
+        nodes[1]["horizontalAlignment"] = "leading"; document["nodes"] = nodes; document["dataset"] = "2"
+        root.collectionData = String(data: try JSONSerialization.data(withJSONObject: document), encoding: .utf8)!
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.root.collections.dataset == "2" }, object: nil)], timeout: 3)
+        root.collections.align(target, dataset: "2")
+        XCTAssertTrue(target.isFocused)
+        XCTAssertEqual(scroll.contentOffset.x, 300, accuracy: 1)
+        scroll.contentOffset.x = 0
+        root.collections.align(target, dataset: "1")
+        XCTAssertEqual(scroll.contentOffset.x, 0)
+        scroll.semanticContentAttribute = .forceRightToLeft
+        target.frame.origin.x = 600
+        root.collections.align(target, dataset: "2")
+        XCTAssertEqual(scroll.contentOffset.x, 250, accuracy: 1) // Target right700 minus viewport450.
+        root.active = false
+        scroll.contentOffset.x = 20
+        root.collections.align(target, dataset: "2")
+        XCTAssertEqual(scroll.contentOffset.x, 20)
+    }
+}
+
+extension AdapterHostTests {
+    func testPresentationContentKeepsSingleFocusAndActivationOwner() async throws {
+        let image = UIView(frame: b.bounds); image.backgroundColor = .blue
+        b.presentationContent.addSubview(image); b.presentationContentChanged(); b.setNeedsLayout(); b.layoutIfNeeded()
+        root.commitGeometry()
+        let original = try XCTUnwrap(b.registration)
+        root.focus("b")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.b.isFocused }, object: nil)], timeout: 3)
+        XCTAssertEqual(b.presentationContent.frame, b.bounds)
+        XCTAssertNil(b.title(for: .normal))
+        XCTAssertFalse(b.presentationContent.isUserInteractionEnabled)
+        XCTAssertTrue(b.presentationContent.accessibilityElementsHidden)
+        XCTAssertTrue(b.isAccessibilityElement)
+        XCTAssertEqual(b.accessibilityLabel, "Button b")
+        XCTAssertEqual(b.layer.borderWidth, 5)
+        var activations = 0
+        b.onActivate = { _ in activations += 1 }
+        XCTAssertTrue(b.accessibilityActivate()); XCTAssertEqual(activations, 1)
+        b.frame.size.width = 280; b.setNeedsLayout(); b.layoutIfNeeded(); root.commitGeometry()
+        XCTAssertEqual(b.presentationContent.frame, b.bounds)
+        XCTAssertTrue(b.registration === original)
+        image.removeFromSuperview(); b.presentationContentChanged()
+        XCTAssertEqual(b.title(for: .normal), "Button b")
+        b.presentationContent.addSubview(image); b.recycle()
+        XCTAssertTrue(b.presentationContent.subviews.isEmpty)
+        XCTAssertNil(b.registration)
+        XCTAssertFalse(b.accessibilityActivate())
     }
 }

@@ -10,7 +10,7 @@ const {headerScrollOffset} = require('../packages/itar/lib/api/viewport');
 
 // Evaluate the component's real collection/layout calculations with a host-free
 // hook harness. No native view, application, browser, or renderer is started.
-function fixture(focus = {kind: 'unknown', occurrenceKey: null}, native = false) {
+function fixture(focus = {kind: 'unknown', occurrenceKey: null}, native = false, os = native ? 'ios' : 'web') {
   let published;
   const effects = [];
   const commits = [];
@@ -46,14 +46,14 @@ function fixture(focus = {kind: 'unknown', occurrenceKey: null}, native = false)
   const module = {exports: {}};
   vm.runInNewContext(output, {module, exports: module.exports, require: name => {
     if (name === 'react') { return react; }
-    if (name === 'react-native') { return {FlatList: 'FlatList', View: 'View', Platform: {OS: native ? 'ios' : 'web', isTV: native}, StyleSheet: {create: value => value}}; }
+    if (name === 'react-native') { return {FlatList: 'FlatList', View: 'View', Platform: {OS: os, isTV: native}, StyleSheet: {create: value => value}}; }
     if (name === './api/contexts') { return contexts; }
     if (name === './api/types') { return {nativeScopeKey, nativeTargetKey}; }
     if (name === './api/viewport') { return {headerScrollOffset}; }
     if (name === './react') { return {Focusable: 'Focusable', FocusScope: 'FocusScope', useFocusState: () => focus}; }
     throw new Error(`Unexpected import ${name}`);
   }});
-  return {render: props => { stateIndex = refIndex = 0; effects.length = 0; return module.exports.FocusVirtualizedRails(props); }, nodes: () => published,
+  return {renderList: props => { stateIndex = refIndex = 0; effects.length = 0; return module.exports.FocusVirtualizedList(props); }, render: props => { stateIndex = refIndex = 0; effects.length = 0; return module.exports.FocusVirtualizedRails(props); }, nodes: () => published,
     commits: () => commits,
     accept: () => { snapshot = {...snapshot, accepted: snapshot.dataset}; },
     flush: () => effects.forEach(callback => callback()), prepare: value => { snapshot.preparation = value; }};
@@ -64,6 +64,26 @@ const options = {
 };
 const list = tree => tree.props.children[0].props.children[0];
 const plain = value => JSON.parse(JSON.stringify(value));
+
+test('row entry is published on the outer collection and changes the dataset before acceptance', () => {
+  const f = fixture(undefined, true, 'android');
+  const initial = {...options, listHeader: {}, listHeaderExtent: 624,
+    listHeaderScope: 'hero', listHeaderItems: [{occurrenceKey: 'action', accessibilityLabel: 'Action'}]};
+  f.render(initial); f.accept(); f.render(initial); f.render(initial);
+  assert.equal(f.nodes()[0].rowEntry, 0);
+  const first = {...initial, rowEntry: 'first'};
+  const old = f.render(first);
+  assert.equal(f.nodes()[0].rowEntry, 1);
+  assert.ok(f.nodes().slice(1).every(node => node.rowEntry === undefined));
+  assert.equal(old.props.value, '1', 'retain the accepted cells until the new policy is accepted');
+  f.accept(); f.render(first);
+  assert.equal(f.render(first).props.value, '2');
+  assert.throws(() => f.render({...options, rowEntry: 'typo'}), /rowEntry/);
+  const apple = fixture(undefined, true, 'ios');
+  apple.render(first);
+  assert.equal(apple.nodes()[0].rowEntry, 1);
+  assert.throws(() => fixture().render(first), /rowEntry.*adapter/);
+});
 
 test('readiness does not authorize a replacement from a stale render snapshot', () => {
   const f = fixture(undefined, true);
@@ -179,4 +199,89 @@ test('confirmed Hero focus returns its scrolling row to the top', () => {
   props.onScroll({nativeEvent: {contentOffset: {y: 1044}}});
   f.flush();
   assert.deepEqual(plain(calls), [{offset: 0, animated: false}]);
+});
+
+test('horizontal alignment publishes only row metadata and retains accepted cells during a policy change', () => {
+  const f = fixture(undefined, true, 'android');
+  f.render(options); f.accept(); f.render(options); f.render(options);
+  assert.equal(f.nodes()[1].horizontalAlignment, 'nearest');
+  const leading = {...options, horizontalAlignment: 'leading'};
+  assert.equal(f.render(leading).props.value, '1');
+  assert.equal(f.nodes()[1].horizontalAlignment, 'leading');
+  assert.equal(f.nodes()[0].horizontalAlignment, undefined);
+  f.accept(); f.render(leading);
+  assert.equal(f.render(leading).props.value, '2');
+  assert.throws(() => f.render({...options, horizontalAlignment: 'center'}), /horizontalAlignment/);
+});
+
+test('horizontal offsets clamp bounds, partial final cells and RTL without changing selection', () => {
+  const {horizontalScrollOffset: offset} = require('../packages/itar/lib/api/viewport');
+  assert.equal(offset(400,800,0,300,1000,'nearest'),400); // An oversized cell must not hide its leading target.
+  assert.equal(offset(400,500,100,300,1000,'leading'),400);
+  assert.equal(offset(400,500,100,300,1000,'nearest'),200);
+  assert.equal(offset(400,500,300,300,1000,'nearest'),300);
+  assert.equal(offset(900,1000,300,350,1000,'leading'),650);
+  assert.equal(offset(100,200,0,300,1000,'leading',true),0);
+  assert.equal(offset(500,600,700,300,1000,'leading',true),300);
+  assert.equal(offset(0,100,0,300,200,'leading'),0);
+  assert.equal(offset(900,1000,300,300,1500,'leading'),900); // Appended page changes the clamp, not identity.
+});
+
+test('composed rails render lazily inside the same host and retain the native commit handshake', () => {
+  const calls = [], f = fixture(undefined, true, 'android');
+  const renderItem = (item, index) => { calls.push([item.occurrenceKey, index]); return {type: 'MovieCard', key: item.occurrenceKey}; };
+  const initial = {...options, renderItem};
+  f.render(initial); f.accept(); f.render(initial);
+  const accepted = f.render(initial);
+  const outer = list(accepted).props;
+  const row = outer.renderItem({item: outer.data[0]});
+  const inner = row.props.children.find(child => typeof child?.type === 'function');
+  const flat = inner.type(inner.props).props;
+  assert.equal(calls.length, 0, 'logical publication must not eagerly render the catalogue');
+  const item = flat.data[0], target = flat.renderItem({item, index: 0});
+  assert.equal(target.type, 'Focusable');
+  assert.equal(target.props.occurrenceKey, item.occurrenceKey);
+  assert.deepEqual(calls, [['film', 0]]);
+  assert.equal(target.props.children[0].type, 'MovieCard');
+  const step = {request: '9', effect: '10', step: 0, key: nativeTargetKey('film'), path: [{collection: inner.props.collection}], source: []};
+  f.prepare(step);
+  const cell = flat.CellRendererComponent({children: target, item, style: {width: 300}});
+  assert.equal(f.commits().length, 0);
+  cell.props.children[1].props.onLayout();
+  assert.equal(f.commits()[0].key, nativeTargetKey('film'));
+  const changed = {...initial, renderItem: () => ({type: 'ReplacementVisual'})};
+  f.render(changed); const updated = f.render(changed);
+  assert.equal(updated.props.value, accepted.props.value, 'a renderer update must not publish another logical dataset');
+  const content = tree => {
+    const props = list(tree).props;
+    const renderedRow = props.renderItem({item: props.data[0]});
+    const itemList = renderedRow.props.children.find(child => typeof child?.type === 'function');
+    const renderedList = itemList.type(itemList.props).props;
+    return renderedList.renderItem({item: renderedList.data[0], index: 0}).props.children[0].type;
+  };
+  assert.equal(content(updated), 'ReplacementVisual');
+  const replacement = {...changed, rails: [{id: 'new-row', items: options.rails[0].items}], renderItem: () => ({type: 'NewDatasetVisual'})};
+  assert.equal(content(f.render(replacement)), 'ReplacementVisual', 'pending data must keep its accepted renderer');
+  f.accept(); f.render(replacement);
+  assert.equal(content(f.render(replacement)), 'NewDatasetVisual');
+});
+
+test('linear list renderer and item children remain content of the collection-owned host', () => {
+  for (const horizontal of [true, false]) {
+    const f = fixture(undefined, true, 'ios');
+    const renderItem = (item, index) => ({type: 'Visual', key: item.occurrenceKey, index});
+    const props = {id: 'items', data: options.rails[0].items, itemExtent: 160, viewportExtent: 640, horizontal, renderItem};
+    f.renderList(props); f.accept(); f.renderList(props);
+    const scope = f.renderList(props).props.children[0];
+    const inner = scope.props.children[0];
+    const flat = inner.type(inner.props).props;
+    const target = flat.renderItem({item: props.data[0], index: 0});
+    assert.equal(target.props.children[0].index, 0);
+    assert.equal(target.props.order, 0);
+    assert.equal(flat.windowSize, 3);
+    assert.equal(flat.getItemLayout(null, 30).offset, 4800);
+    assert.equal(inner.type({...inner.props, renderItem: () => null}).props.renderItem({item: props.data[0], index: 0}).props.children[0], null);
+    const child = {type: 'DefaultVisual'};
+    assert.equal(inner.type({...inner.props, renderItem: undefined}).props.renderItem({item: {...props.data[0], children: child}, index: 0}).props.children[0], child);
+  }
 });

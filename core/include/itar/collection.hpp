@@ -33,6 +33,13 @@ struct CollectionStep {
   bool horizontal{};
 };
 
+// Read-only policy for adapters that already own atomic registry publication.
+// Validate declarations before publication; handles identify the matching live
+// registrations in the same order. Neither function mutates state or owns nodes.
+bool validCollectionNodes(std::span<const CollectionNode>, RegistryLimits) noexcept;
+Proposal proposeCollectionEntry(const State&, std::span<const CollectionNode>,
+    std::span<const NodeHandle>, Direction, const InputContext&) noexcept;
+
 // State/transactions outlive this owner. No views, callbacks or renderer state.
 // Publication is one validated engine batch plus no-throw metadata swaps.
 class Collections {

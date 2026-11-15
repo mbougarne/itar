@@ -22,8 +22,13 @@ boundaries and input ownership. Explicit directional overrides retain priority.
 Horizontal moves and explicit keyed/restoration requests keep their own contracts.
 There is no new row-skipping, wrapping or scroll-alignment policy.
 
-This is a **C++ API capability**. React Native configuration, private wire
-forwarding, native/browser host integration and per-runtime acceptance are
-separate work. In particular, this does not establish identical UIKit directional
-selection, screen-reader movement or physical-device support. Visual anchoring
-remains owned by the list/host adapter.
+The [React Native rails option](../packages/itar/virtualization.md) forwards this
+policy on Android, the cooperative tvOS adapter and the browser Wasm probe.
+Neither the C++ capability nor transport validation establishes screen-reader movement or
+physical-device support. Visual anchoring remains owned by the list/host adapter.
+
+Adapters that already publish the registry atomically can use
+`validCollectionNodes` and `proposeCollectionEntry` without transferring registry
+ownership. The projection and its parallel handles must describe the same
+committed registrations; generation checks reject retired identities. Native
+`Collections` uses these same validation and selection functions.

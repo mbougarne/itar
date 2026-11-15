@@ -1,5 +1,5 @@
 import React, { StrictMode, useEffect, useRef, useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { Button, Image, StyleSheet, Text, View } from 'react-native';
 import {
   FocusProvider,
   FocusScope,
@@ -66,6 +66,7 @@ function Screen() {
   const [outcome, setOutcome] = useState('None');
   const [activation, setActivation] = useState('None');
   const [count, setCount] = useState(0);
+  const [customContent, setCustomContent] = useState(true);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -120,6 +121,10 @@ function Screen() {
   return (
     <View style={styles.screen}>
       <View style={styles.controls}>
+        <Button
+          title={customContent ? 'Use label card' : 'Use custom card'}
+          onPress={() => setCustomContent(!customContent)}
+        />
         <Button
           title="Focus rail B"
           disabled={!ready}
@@ -193,7 +198,17 @@ function Screen() {
                 baseAccentColor="#222222"
                 style={styles.card}
                 onPress={pressed}
-              />
+              >
+                {customContent && rail.id === 'rail-a' && index === 0 ? (
+                  <View style={styles.customCard}>
+                    <Image
+                      source={require('./ott/assets/1-landscape.png')}
+                      style={styles.customImage}
+                    />
+                    <Text style={styles.customTitle}>Custom movie card</Text>
+                  </View>
+                ) : null}
+              </Focusable>
             ))}
           </FocusScope>
         ))}
@@ -238,6 +253,9 @@ const styles = StyleSheet.create({
   controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   home: { width: '100%', gap: 12 },
   rail: { flexDirection: 'row', gap: 20, height: 70 },
+  customCard: { flex: 1 },
+  customImage: { width: '100%', height: 36 },
+  customTitle: { color: 'white', fontSize: 12, lineHeight: 20 },
   card: { width: '45%', height: 64 },
   details: { height: 70 },
   hidden: { position: 'absolute', opacity: 0 },

@@ -207,7 +207,6 @@ export default function Browse({
 
       rails.push({
         id: rail.id,
-        overlayTarget: true,
         itemExtent: cardWidth + 24 * u,
         itemStyle: {
           width: cardWidth,
@@ -402,6 +401,26 @@ export default function Browse({
         );
       }
 
+      return null;
+    },
+    [
+      model.visuals,
+      s,
+      u,
+      landscapeWidth,
+      state.error,
+      state.limitReached,
+      state.ended,
+      initial,
+      pending,
+      searchResults,
+    ],
+  );
+
+  const renderItem = useCallback(
+    (item: VirtualizedFocusItem) => {
+      const visual = model.visuals.get(item.occurrenceKey);
+
       if (!visual?.film) {
         return null;
       }
@@ -420,18 +439,7 @@ export default function Browse({
         />
       );
     },
-    [
-      model.visuals,
-      s,
-      u,
-      landscapeWidth,
-      state.error,
-      state.limitReached,
-      state.ended,
-      initial,
-      pending,
-      searchResults,
-    ],
+    [model.visuals, u, landscapeWidth],
   );
 
   const railHeader = useCallback(
@@ -556,6 +564,7 @@ export default function Browse({
             headerExtent={headerExtent}
             renderRailHeader={grid ? undefined : railHeader}
             renderDecoration={decoration}
+            renderItem={renderItem}
           />
         )}
       </View>

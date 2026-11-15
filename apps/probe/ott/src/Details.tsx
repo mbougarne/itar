@@ -171,7 +171,6 @@ export default function Details({
     const rails: VirtualizedFocusRail[] = [
       {
         id: tab,
-        overlayTarget: true,
         itemExtent: castTab ? 204 * u : cardWidth + 24 * u,
         itemStyle: {
           width: castTab ? 180 * u : cardWidth,
@@ -185,7 +184,7 @@ export default function Details({
     return { rails, visuals };
   }, [tab, people, related, film.id, cardWidth, onOpen, highContrast, u]);
 
-  const decoration = useCallback(
+  const renderItem = useCallback(
     (item: VirtualizedFocusItem) => {
       const visual = model.visuals.get(item.occurrenceKey);
 
@@ -193,17 +192,25 @@ export default function Details({
         const member = visual.person;
 
         return (
-          <Picture
-            source={
-              film.source
-                ? member.portraitUrl
-                  ? { uri: member.portraitUrl }
-                  : undefined
-                : portraits[member.id]
-            }
-            style={{ width: 180 * u, height: 180 * u, borderRadius: 8 * u }}
-            fallback="Portrait unavailable"
-          />
+          <View>
+            <Picture
+              source={
+                film.source
+                  ? member.portraitUrl
+                    ? { uri: member.portraitUrl }
+                    : undefined
+                  : portraits[member.id]
+              }
+              style={{ width: 180 * u, height: 180 * u, borderRadius: 8 * u }}
+              fallback="Portrait unavailable"
+            />
+            <Text
+              numberOfLines={1}
+              style={[s.body, { height: 40 * u, fontSize: 22 * u }]}
+            >
+              {member.name}
+            </Text>
+          </View>
         );
       }
 
@@ -219,7 +226,7 @@ export default function Details({
         />
       ) : null;
     },
-    [model.visuals, film.source, u, cardWidth],
+    [model.visuals, film.source, u, cardWidth, s.body],
   );
 
   return (
@@ -362,7 +369,7 @@ export default function Details({
                 itemExtent={cardWidth + 24 * u}
                 viewportExtent={viewport.width}
                 viewportHeight={Math.min(viewport.height, 250 * u)}
-                renderDecoration={decoration}
+                renderItem={renderItem}
               />
             )}
             {!loading && !error && !model.rails[0].items.length && (

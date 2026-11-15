@@ -13,6 +13,7 @@ import type {
   FocusProvider as NativeProvider,
   FocusScope as NativeScope,
 } from '../../../packages/itar/src/react';
+import { FocusContentContext } from '../../../packages/itar/src/api/contexts';
 import type { FocusChannel } from '../../../packages/itar/src/api/types';
 import {
   nativeScopeKey,
@@ -47,6 +48,7 @@ export { FocusVirtualizedRails, FocusVirtualizedList } from './rails';
 export type {
   VirtualizedFocusRail,
   VirtualizedFocusItem,
+  VirtualizedFocusItemRenderer,
 } from '../../../packages/itar/src/virtualized';
 
 let engineModule: EngineModule;
@@ -226,6 +228,11 @@ export function FocusScope({
   testID,
 }: React.ComponentProps<typeof NativeScope>) {
   const store = useWebStore();
+
+  if (useContext(FocusContentContext)) {
+    throw new Error('Focusable content cannot contain a focus scope');
+  }
+
   const parent = useContext(WebScopeContext);
   const path = useMemo(() => [...parent.path, id], [parent.path, id]);
   const key = nativeScopeKey(path);
@@ -298,8 +305,14 @@ export function Focusable({
   displayLabel,
   labelPlacement = 'center',
   labelSize = 14,
+  children,
 }: FocusableProps) {
   const store = useWebStore();
+
+  if (useContext(FocusContentContext)) {
+    throw new Error('Focusable content cannot contain another focus host');
+  }
+
   const scope = useContext(WebScopeContext);
   const key = nativeTargetKey(publicKey);
 
@@ -392,21 +405,38 @@ export function Focusable({
         }
       }}
     >
-      <Text
-        pointerEvents="none"
-        accessible={false}
-        style={[
-          labelStyles.base,
-          labelPlacement === 'bottom' ? labelStyles.left : labelStyles.center,
-          labelPlacement === 'center' ? labelStyles.middle : labelStyles.bottom,
-          { color: baseAccentColor ?? '#F4EEE4', fontSize: labelSize },
-          labelPlacement === 'center' && {
-            transform: [{ translateY: -labelSize * 0.65 }],
-          },
-        ]}
-      >
-        {displayLabel ?? accessibilityLabel}
-      </Text>
+      {children == null ? (
+        <Text
+          pointerEvents="none"
+          accessible={false}
+          style={[
+            labelStyles.base,
+            labelPlacement === 'bottom' ? labelStyles.left : labelStyles.center,
+            labelPlacement === 'center'
+              ? labelStyles.middle
+              : labelStyles.bottom,
+            { color: baseAccentColor ?? '#F4EEE4', fontSize: labelSize },
+            labelPlacement === 'center' && {
+              transform: [{ translateY: -labelSize * 0.65 }],
+            },
+          ]}
+        >
+          {displayLabel ?? accessibilityLabel}
+        </Text>
+      ) : (
+        <View
+          {...{ inert: true }}
+          aria-hidden
+          pointerEvents="none"
+          accessible={false}
+          importantForAccessibility="no-hide-descendants"
+          style={StyleSheet.absoluteFill}
+        >
+          <FocusContentContext.Provider value>
+            {children}
+          </FocusContentContext.Provider>
+        </View>
+      )}
     </Pressable>
   );
 }

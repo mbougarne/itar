@@ -5,6 +5,50 @@
 
 namespace itar {
 
+bool validCollectionNodes(std::span<const CollectionNode> nodes, RegistryLimits limits) noexcept {
+  if (nodes.size() > limits.capacity) { return false; }
+  const auto lookup = [&](const OccurrenceKey& key) -> const CollectionNode* {
+    const auto found = std::find_if(nodes.begin(), nodes.end(), [&](const auto& value) { return value.key == key; });
+    return found == nodes.end() ? nullptr : &*found;
+  };
+  for (std::size_t i = 0; i < nodes.size(); ++i) {
+    const auto& value = nodes[i];
+    if ((value.rowEntry != CollectionRowEntry::nearest && value.rowEntry != CollectionRowEntry::first) ||
+        (value.rowEntry == CollectionRowEntry::first &&
+         (!value.scope || value.layout != Layout::column || lookup(value.parent)))) {
+      return false;
+    }
+    if (!value.key || value.key.value().size() > limits.keyBytes ||
+        value.parent.value().size() > limits.keyBytes || value.order < 0 ||
+        !std::isfinite(value.extent) ||
+        (value.scope ? (value.extent <= 0 || value.extent > 1'000'000 ||
+                       (value.layout != Layout::row && value.layout != Layout::column))
+                     : (value.extent != 0 || value.layout != Layout::spatial))) { return false; }
+    if (std::any_of(nodes.begin(), nodes.begin() + i, [&](const auto& old) { return old.key == value.key; })) {
+      return false;
+    }
+    const auto* parent = lookup(value.parent);
+    if ((!value.scope && !parent) || (parent && !parent->scope)) { return false; }
+    auto ancestor = parent;
+    std::size_t depth = value.scope ? 1 : 0;
+    while (ancestor) {
+      if (++depth > 2) { return false; }
+      ancestor = lookup(ancestor->parent);
+    }
+  }
+  for (const auto& list : nodes) {
+    if (!list.scope) { continue; }
+    const auto count = std::count_if(nodes.begin(), nodes.end(), [&](const auto& value) { return value.parent == list.key; });
+    for (const auto& value : nodes) {
+      if (value.parent != list.key) { continue; }
+      if (value.order >= count || std::count_if(nodes.begin(), nodes.end(), [&](const auto& other) {
+            return other.parent == list.key && other.order == value.order;
+          }) != 1) { return false; }
+    }
+  }
+  return true;
+}
+
 const CollectionNode* Collections::find(const OccurrenceKey& key) const noexcept {
   const auto found = std::find_if(nodes_.begin(), nodes_.end(), [&](const auto& value) { return value.key == key; });
   if (found == nodes_.end()) { return nullptr; }
@@ -27,49 +71,17 @@ CollectionResult Collections::apply(DatasetRevision dataset, std::span<const Col
   if (dataset.value <= dataset_.value) { return result(CollectionStatus::stale); }
   const auto& registry = state_.snapshot().registry;
   if (nodes.size() > registry.limits().capacity) { return result(CollectionStatus::capacity); }
+  if (!validCollectionNodes(nodes, registry.limits())) { return result(CollectionStatus::invalid); }
   const auto lookup = [&](const OccurrenceKey& key) -> const CollectionNode* {
     const auto found = std::find_if(nodes.begin(), nodes.end(), [&](const auto& value) { return value.key == key; });
     return found == nodes.end() ? nullptr : &*found;
   };
-  for (std::size_t i = 0; i < nodes.size(); ++i) {
-    const auto& value = nodes[i];
-    if ((value.rowEntry != CollectionRowEntry::nearest && value.rowEntry != CollectionRowEntry::first) ||
-        (value.rowEntry == CollectionRowEntry::first &&
-         (!value.scope || value.layout != Layout::column || lookup(value.parent)))) {
-      return result(CollectionStatus::invalid);
-    }
-    if (!value.key || value.key.value().size() > registry.limits().keyBytes ||
-        value.parent.value().size() > registry.limits().keyBytes || value.order < 0 ||
-        !std::isfinite(value.extent) ||
-        (value.scope ? (value.extent <= 0 || value.extent > 1'000'000 ||
-                       (value.layout != Layout::row && value.layout != Layout::column))
-                     : (value.extent != 0 || value.layout != Layout::spatial))) { return result(CollectionStatus::invalid); }
-    if (std::any_of(nodes.begin(), nodes.begin() + i, [&](const auto& old) { return old.key == value.key; })) {
-      return result(CollectionStatus::invalid);
-    }
-    const auto* parent = lookup(value.parent);
-    if ((!value.scope && !parent) || (parent && !parent->scope)) { return result(CollectionStatus::invalid); }
-    auto ancestor = parent;
-    std::size_t depth = value.scope ? 1 : 0;
-    while (ancestor) {
-      if (++depth > 2) { return result(CollectionStatus::invalid); }
-      ancestor = lookup(ancestor->parent);
-    }
+  for (const auto& value : nodes) {
     if (const auto existing = registry.find(value.key); existing && !find(value.key)) {
       return result(CollectionStatus::conflict);
     }
     if (const auto* previous = find(value.key); previous && previous->scope != value.scope) {
       return result(CollectionStatus::invalid);
-    }
-  }
-  for (const auto& list : nodes) {
-    if (!list.scope) { continue; }
-    const auto count = std::count_if(nodes.begin(), nodes.end(), [&](const auto& value) { return value.parent == list.key; });
-    for (const auto& value : nodes) {
-      if (value.parent != list.key) { continue; }
-      if (value.order >= count || std::count_if(nodes.begin(), nodes.end(), [&](const auto& other) {
-            return other.parent == list.key && other.order == value.order;
-          }) != 1) { return result(CollectionStatus::invalid); }
     }
   }
   // Prepare every allocation before publishing the new graph or revision.
@@ -123,11 +135,21 @@ RequestOptions Collections::options(const OccurrenceKey& target, TimePoint deadl
 }
 
 Proposal Collections::propose(Direction direction, const InputContext& input) const noexcept {
-  auto proposal = resolve(state_, direction, input);
+  return proposeCollectionEntry(state_, nodes_, handles_, direction, input);
+}
+
+Proposal proposeCollectionEntry(const State& state, std::span<const CollectionNode> nodes,
+    std::span<const NodeHandle> handles, Direction direction, const InputContext& input) noexcept {
+  const auto find = [&](const OccurrenceKey& key) -> const CollectionNode* {
+    const auto value = std::find_if(nodes.begin(), nodes.end(), [&](const auto& item) { return item.key == key; });
+    if (value == nodes.end() || nodes.size() != handles.size()) { return nullptr; }
+    return state.snapshot().registry.find(key) == handles[static_cast<std::size_t>(value - nodes.begin())] ? &*value : nullptr;
+  };
+  auto proposal = resolve(state, direction, input);
   if ((direction != Direction::up && direction != Direction::down) ||
       (proposal.kind != ProposalKind::ready && proposal.kind != ProposalKind::reveal) ||
       proposal.reason == ProposalReason::override_target) { return proposal; }
-  const auto& registry = state_.snapshot().registry;
+  const auto& registry = state.snapshot().registry;
   const auto* sourceKey = registry.key(input.source.node);
   const auto* targetKey = registry.key(proposal.target);
   const auto* source = sourceKey ? find(*sourceKey) : nullptr;
@@ -141,14 +163,14 @@ Proposal Collections::propose(Direction direction, const InputContext& input) co
   const auto* collection = find(targetRow->parent);
   const auto entryOrder = collection && collection->rowEntry == CollectionRowEntry::first ? 0 : source->order;
   const CollectionNode* best = nullptr;
-  for (const auto& item : nodes_) {
+  for (const auto& item : nodes) {
     if (item.parent != targetRow->key || item.scope || !find(item.key) ||
-        !logicalTarget(state_, registry.find(item.key))) { continue; }
+        !logicalTarget(state, registry.find(item.key))) { continue; }
     const auto distance = std::abs(std::int64_t{item.order} - entryOrder);
     if (!best || distance < std::abs(std::int64_t{best->order} - entryOrder) ||
         (distance == std::abs(std::int64_t{best->order} - entryOrder) && item.order < best->order)) { best = &item; }
   }
-  return best ? proposeTarget(state_, registry.find(best->key), input) : proposal;
+  return best ? proposeTarget(state, registry.find(best->key), input) : proposal;
 }
 
 RequestResult Collections::input(Direction direction, const InputContext& input, TimePoint deadline) {

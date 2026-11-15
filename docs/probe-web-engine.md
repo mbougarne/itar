@@ -39,6 +39,18 @@ file-scheme fetch limitations in packaged TV apps.
 
 ## Ownership and effect protocol
 
+Collection members carry private `collection: true` metadata, fixed `extent`
+values and root `rowEntry` (`0` nearest, `1` first). The complete projection is
+validated before committing the registry. Wasm shares C++ collection selection
+with native adapters; JavaScript does not choose the destination column.
+Row scopes also carry private `horizontalAlignment` (`0` nearest, `1` leading).
+DOM alignment preserves card order and normalizes negative RTL scroll offsets.
+Logical or alignment changes advance a dataset and cancel affected pending collection work;
+mount/geometry-only updates preserve the request and its original deadline.
+Completion/cancellation releases the requested virtual-window target. This
+remains an app-only browser probe, with physical web-TV and reader acceptance
+requiring separate evidence.
+
 - `sync(nodes)` atomically publishes a complete bounded logical graph, including
   unmounted virtualized nodes. Node keys are stable occurrence identities;
   parent keys describe scopes. Mounted targets carry positive DOM geometry and

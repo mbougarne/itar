@@ -162,6 +162,12 @@ _host.onSurfaceRecord = ^(NSDictionary *record) {
   _host.cornerRadius = next.cornerRadius;
   _host.focusBackgroundColor = RCTUIColorFromSharedColor(next.focusBackgroundColor);
 }
+- (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)child index:(NSInteger)index {
+  [_host.presentationContent insertSubview:child atIndex:index]; [_host presentationContentChanged];
+}
+- (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)child index:(NSInteger)index {
+  [child removeFromSuperview]; [_host presentationContentChanged];
+}
 - (BOOL)isAccessibilityElement { return NO; }
 - (NSObject *)accessibilityElement { return _host; }
 - (void)prepareForRecycle {

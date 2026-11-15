@@ -19,6 +19,36 @@ class VirtualizedTest : ActivityInstrumentationTestCase2<MainActivity>(MainActiv
     private var lastControlAt = 0L
     private val requestRecords = ArrayList<CollectionChecks.Request>()
     private var lastCatalog: CollectionChecks.Catalog? = null
+    fun testPublicCustomCardContent() {
+        instrumentation.setInTouchMode(false)
+        activity
+        press("React API preview")
+        await("Custom card was not mounted by Fabric") { nodes -> nodes.filterIsInstance<TargetView>().any {
+            it.contentDescription == "movie-1, rail-a" && TargetManager().getChildCount(it) == 1 && (TargetManager().getChildAt(it, 0)?.width ?: 0) > 0
+        } }
+        lateinit var card: TargetView
+        instrumentation.runOnMainSync {
+            val target = views().filterIsInstance<TargetView>().first { it.contentDescription == "movie-1, rail-a" }
+            card = target
+            val content = checkNotNull(TargetManager().getChildAt(target, 0))
+            check(content.width == target.width && content.height == target.height)
+            check(content.importantForAccessibility == View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS)
+            check(target.descendantFocusability == ViewGroup.FOCUS_BLOCK_DESCENDANTS)
+            check(target.requestFocus()); target.focusColor = android.graphics.Color.YELLOW
+            check(target.foreground != null)
+            val info = target.createAccessibilityNodeInfo()
+            check(info.className == "android.widget.Button" && info.contentDescription == "movie-1, rail-a"); info.recycle()
+        }
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+        text("Activations: 1;")
+        press("Use label card")
+        await("Label mode did not preserve the focused host") { nodes -> nodes.filterIsInstance<TargetView>().any {
+            it === card && TargetManager().getChildCount(it) == 0
+        } }
+        instrumentation.runOnMainSync { check(card.requestFocus()) }
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+        text("Activations: 2;")
+    }
     fun testLeadingRowOffsets() {
         CollectionChecks.leadingRowOffsets()
     }
@@ -117,6 +147,24 @@ class VirtualizedTest : ActivityInstrumentationTestCase2<MainActivity>(MainActiv
         press("Virtualized list preview")
         press("Focus start")
         focused("Rail 1, item 1")
+        lateinit var card: TargetView
+        var dataset = ""
+        instrumentation.runOnMainSync {
+            card = views().filterIsInstance<TargetView>().first { it.hasFocus() }
+            dataset = card.collectionDataset
+            val content = checkNotNull(TargetManager().getChildAt(card, 0))
+            check(content.width == card.width && content.height == card.height)
+            check(card.descendantFocusability == ViewGroup.FOCUS_BLOCK_DESCENDANTS)
+        }
+        press("Change card content")
+        text("Alternate 1")
+        instrumentation.runOnMainSync {
+            check(card.isAttachedToWindow && card.collectionDataset == dataset)
+            check(views().filterIsInstance<TargetView>().first {
+                it.contentDescription?.toString() == "Rail 1, item 1"
+            } === card)
+            check(card.requestFocus())
+        }
         val records = ArrayList<CollectionChecks.Focus>()
         var stop: (() -> Unit)? = null
         instrumentation.runOnMainSync {

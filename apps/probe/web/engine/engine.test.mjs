@@ -51,6 +51,60 @@ function confirm(engine, key, mount = 1) {
   return effect;
 }
 
+const rows = (rowEntry = 0, realized = false) => [
+  {key: 'outer', parent: '', scope: true, layout: 2, collection: true, extent: 120, rowEntry},
+  ...['header', 'rail'].flatMap((key, order) => [
+    {key, parent: 'outer', order, scope: true, layout: 1, collection: true, extent: 100},
+    ...[0, 1, 2].map(index => ({...target(`${key}-${index}`, index, key === 'header' || index !== 1 || realized,
+      key === 'rail' && index === 1 && realized ? 2 : 1), parent: key, collection: true,
+      enabled: key !== 'rail' || index !== 0, y: order * 120})),
+  ]),
+];
+function withRows(policy, run) {
+  const engine = new module.WebEngine(64);
+  try { assert.equal(engine.sync(rows(policy)), 0); engine.observe('', 0, 0, 0);
+    engine.focus('header-2', 0); confirm(engine, 'header-2'); run(engine);
+  } finally { engine.delete(); }
+}
+test('shared collection policy selects logical first before a later mounted column', () => {
+  for (const policy of [0, 1]) withRows(policy, engine => {
+    assert.equal(engine.direction(3, 3).status, 3);
+    assert.deepEqual(engine.drain(), []);
+    assert.equal(engine.direction(3, 0).status, 0);
+    if (policy === 1) {
+      const [reveal] = engine.drain();
+      assert.equal(reveal.key, 'rail-1'); assert.equal(reveal.kind, 0);
+      assert.equal(engine.issue(reveal.id).status, 15);
+      assert.equal(engine.sync(rows(1, true).reverse()), 0); // Mount/transport order is not a new logical dataset.
+      assert.equal(engine.realize(reveal.id, 'rail-1', 2).status, 0);
+      confirm(engine, 'rail-1', 2);
+    } else confirm(engine, 'rail-2');
+    engine.release(); engine.direction(2, 0);
+    confirm(engine, policy ? 'header-0' : 'header-2');
+    engine.focus('header-1', 0); confirm(engine, 'header-1');
+    engine.direction(1, 0); confirm(engine, 'header-2');
+    engine.focus('header-1', 0); confirm(engine, 'header-1'); engine.unmanaged(0);
+    engine.restore('header'); confirm(engine, 'header-1');
+  });
+});
+test('policy publication cancels old realization and invalid snapshots reject atomically', () => withRows(1, engine => {
+  engine.direction(3, 0); const [reveal] = engine.drain();
+  assert.equal(reveal.key, 'rail-1'); assert.equal(engine.issue(reveal.id).status, 15);
+  const pending = engine.snapshot().activeRequest;
+  for (const rowEntry of [-1, 2, 0.5, 'first', null, Number.NaN]) {
+    assert.notEqual(engine.sync(rows(rowEntry)), 0);
+    assert.equal(engine.snapshot().activeRequest, pending);
+  }
+  const misplaced = rows(0); misplaced[1].rowEntry = 1;
+  assert.notEqual(engine.sync(misplaced), 0);
+  assert.equal(engine.sync(rows(0)), 0);
+  assert.equal(engine.snapshot().inputKey, 'header-2');
+  assert.equal(engine.realize(reveal.id, 'rail-1', 2).status, 4);
+  const [cancel] = engine.drain(); assert.equal(cancel.cancels, reveal.id);
+  engine.issue(cancel.id); engine.complete(cancel.id, 3);
+  assert.equal(engine.snapshot().activeRequest, 0);
+}));
+
 test('compiled C++ selects directions and preserves reader ownership/focus channels', () =>
   withEngine(engine => {
     assert.equal(engine.focus('a', 0).status, 0);
@@ -192,4 +246,18 @@ test('cycles, overlong keys and fractional protocol integers reject without chan
   assert.equal(engine.snapshot().inputKey, 'a');
   assert.equal(engine.direction(1, 0).status, 0);
   confirm(engine, 'b');
+}));
+
+test('visual alignment publication cancels old reveal without changing the selected key', () => withRows(1, engine => {
+  engine.direction(3, 0); const [reveal] = engine.drain();
+  assert.equal(engine.issue(reveal.id).status, 15);
+  for (const horizontalAlignment of [-1,2,0.5,null,'leading']) {
+    assert.notEqual(engine.sync(rows(1).map(node => node.key === 'rail' ? {...node, horizontalAlignment} : node)),0);
+    assert.equal(engine.snapshot().activeRequest,reveal.request);
+  }
+  const aligned = rows(1).map(node => node.key === 'rail' ? {...node, horizontalAlignment: 1} : node);
+  assert.equal(engine.sync(aligned), 0);
+  assert.equal(engine.snapshot().activeRequest, 0);
+  assert.equal(engine.realize(reveal.id, 'rail-1', 2).status, 4);
+  assert.equal(engine.snapshot().inputKey, 'header-2');
 }));

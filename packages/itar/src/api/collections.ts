@@ -3,7 +3,7 @@ import type {SurfaceRecord} from './types';
 
 export type CollectionNode = Readonly<{key: string; parent: string; order: number; scope: boolean;
   // A host-only offset rule for one leading row; the core still owns ordering.
-  enabled: boolean; layout: number; extent: number; leadingExtent?: number}>;
+  enabled: boolean; layout: number; extent: number; leadingExtent?: number; rowEntry?: 0 | 1; horizontalAlignment?: 'nearest' | 'leading'}>;
 export type CollectionStep = Readonly<{collection: string; key: string; index: number}>;
 export type Preparation = Readonly<{lifetime: string; request: string; effect: string; dataset: string;
   step: number; key: string; path: readonly CollectionStep[]; source: readonly CollectionStep[]}>;
@@ -33,6 +33,14 @@ export class CollectionStore {
     const keys = new Set<string>();
     for (const node of nodes) {
       if (!node.key || keys.has(node.key)) { throw new Error('Collection occurrence keys must be unique across the surface'); }
+      if ((node.rowEntry !== undefined && node.rowEntry !== 0 && node.rowEntry !== 1) ||
+          (node.rowEntry === 1 && (!node.scope || node.layout !== 2 || nodes.some(parent => parent.key === node.parent)))) {
+        throw new Error('Collection row entry requires nearest (0) or first (1) on an outer column');
+      }
+      if (node.horizontalAlignment !== undefined && (!node.scope || node.layout !== 1 ||
+          (node.horizontalAlignment !== 'nearest' && node.horizontalAlignment !== 'leading'))) {
+        throw new Error('Horizontal alignment requires nearest or leading on a row');
+      }
       if (node.leadingExtent !== undefined && (!node.scope || !Number.isFinite(node.leadingExtent) ||
           node.leadingExtent < 0 || node.leadingExtent > 1000000)) {
         throw new Error('A collection leading extent must be finite and within 0–1000000');

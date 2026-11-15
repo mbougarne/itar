@@ -95,6 +95,7 @@ typedef struct {
   int32_t order, layout;
   uint8_t scope, enabled;
   double extent; // Offset planning only; never focus geometry.
+  int32_t row_entry; // nearest = 0 (default); first = 1 on the outer column.
 } ItarCollectionNode;
 typedef struct { ItarCallStatus call; int32_t kind; ItarNode target; } ItarProposal;
 

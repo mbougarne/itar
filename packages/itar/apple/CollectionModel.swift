@@ -3,7 +3,7 @@ import Foundation
 import ItarEngineCore
 #endif
 
-struct CollectionEntry: Decodable {
+struct CollectionEntry: Decodable, Equatable {
     let key: String
     let parent: String
     let order: Int32
@@ -12,6 +12,14 @@ struct CollectionEntry: Decodable {
     let layout: Int32
     let extent: Double
     var leadingExtent: Double? = nil
+    var rowEntry: Int32? = nil
+    var horizontalAlignment: String? = nil
+    func horizontalOffset(start: CGFloat, end: CGFloat, current: CGFloat, viewport: CGFloat, content: CGFloat, rtl: Bool) -> CGFloat {
+        let desired: CGFloat
+        if horizontalAlignment == "leading" || end - start > viewport { desired = rtl ? end - viewport : start }
+        else { desired = start < current ? start : (end > current + viewport ? end - viewport : current) }
+        return min(max(0, desired), max(0, content - viewport))
+    }
     func offset(_ index: Int32) -> Double {
         let first = leadingExtent ?? 0
         return first > 0 && index > 0 ? first + Double(index - 1) * extent : Double(index) * extent
@@ -27,7 +35,10 @@ struct CollectionDocument: Decodable {
               document.nodes.count <= 256,
               document.nodes.allSatisfy({ node in
                   let first = node.leadingExtent ?? 0
-                  return first.isFinite && first >= 0 && first <= 1_000_000 && (node.scope || first == 0)
+                  let alignment = node.horizontalAlignment
+                  return (alignment == nil || ((alignment == "nearest" || alignment == "leading") && node.scope && node.layout == 1)) &&
+                      (node.rowEntry == nil || node.rowEntry == 0 || node.rowEntry == 1) &&
+                      first.isFinite && first >= 0 && first <= 1_000_000 && (node.scope || first == 0)
               }) else { return nil }
         return document
     }
@@ -62,7 +73,8 @@ extension EngineConnection {
             }
             let records = document.nodes.enumerated().map { index, node in
                 ItarCollectionNode(key: key(index * 2), parent: key(index * 2 + 1), order: node.order,
-                    layout: node.layout, scope: node.scope ? 1 : 0, enabled: node.enabled ? 1 : 0, extent: node.extent)
+                    layout: node.layout, scope: node.scope ? 1 : 0, enabled: node.enabled ? 1 : 0, extent: node.extent,
+                    row_entry: node.rowEntry ?? 0)
             }
             let result = records.withUnsafeBufferPointer {
                 itar_engine_collections(nativeHandle, lifetime, UInt64(document.dataset) ?? 0, $0.baseAddress, $0.count)

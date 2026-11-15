@@ -13,11 +13,25 @@ import android.view.View
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import java.lang.ref.WeakReference
-import androidx.appcompat.widget.AppCompatButton
-import androidx.core.view.ViewCompat
+import androidx.appcompat.widget.AppCompatTextView
+import android.widget.FrameLayout
+import com.facebook.react.views.view.ReactViewGroup
 import com.facebook.react.uimanager.ReactAccessibilityDelegate.AccessibilityRole
 
-class TargetView(context: Context) : AppCompatButton(context) {
+class TargetView(context: Context) : FrameLayout(context) {
+    private val labelView = AppCompatTextView(context)
+    internal val content = ReactViewGroup(context).apply {
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+    }
+    internal var text: CharSequence
+        get() = labelView.text
+        set(value) { labelView.text = value }
+    internal val currentTextColor get() = labelView.currentTextColor
+    private fun setTextColor(colors: ColorStateList) { labelView.setTextColor(colors) }
+    private fun setTextColor(color: Int) { labelView.setTextColor(color) }
+    internal fun contentChanged() { labelView.visibility = if (content.childCount == 0) VISIBLE else GONE }
+    override fun onInterceptTouchEvent(event: android.view.MotionEvent) = true
+
     private val outline = GradientDrawable().apply { setColor(Color.TRANSPARENT); cornerRadius = 6 * resources.displayMetrics.density }
     private var outlineLayer: android.graphics.drawable.Drawable = outline
     var actionLabel = ""
@@ -25,18 +39,14 @@ class TargetView(context: Context) : AppCompatButton(context) {
     var displayLabel = ""
         set(value) { field = value; updateLabel() }
     private fun updateLabel() {
-        // Fabric can update a measured, detached TextView before assigning parent
-        // layout params. Android checkForRelayout requires them when text changes.
-        if (layoutParams == null) {
-            layoutParams = android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT)
-        }
-        if (text.toString() != displayLabel) text = displayLabel
+        val text = displayLabel.ifEmpty { actionLabel }
+        if (labelView.text.toString() != text) labelView.text = text
     }
     fun placeLabel(value: String?) {
-        gravity = if (value?.startsWith("bottom") == true) Gravity.BOTTOM or (if (value == "bottom") Gravity.START else Gravity.CENTER_HORIZONTAL) else Gravity.CENTER
-        setPadding(8, 0, 8, if (value?.startsWith("bottom") == true) (4 * resources.displayMetrics.density).toInt() else 0)
+        labelView.gravity = if (value?.startsWith("bottom") == true) Gravity.BOTTOM or (if (value == "bottom") Gravity.START else Gravity.CENTER_HORIZONTAL) else Gravity.CENTER
+        labelView.setPadding(8, 0, 8, if (value?.startsWith("bottom") == true) (4 * resources.displayMetrics.density).toInt() else 0)
     }
-    fun labelSize(value: Float) { setTextSize(TypedValue.COMPLEX_UNIT_SP, if (value.isFinite() && value > 0) value else 14f) }
+    fun labelSize(value: Float) { labelView.setTextSize(TypedValue.COMPLEX_UNIT_SP, if (value.isFinite() && value > 0) value else 14f) }
     fun outlineInset(value: Float) {
         val inset = if (value.isFinite()) (value.coerceIn(0f, 10000f) * resources.displayMetrics.density).toInt() else 0
         outlineLayer = InsetDrawable(outline, 0, 0, 0, inset)
@@ -47,7 +57,7 @@ class TargetView(context: Context) : AppCompatButton(context) {
     var scopeKey = ""
     var collectionDataset = ""
     var registrationId = ""
-    private val originalColors: ColorStateList = textColors
+    private val originalColors: ColorStateList = labelView.textColors
     private var baseColors = originalColors
     private var styling = true
     var focusColor: Int? = null
@@ -106,6 +116,7 @@ class TargetView(context: Context) : AppCompatButton(context) {
     override fun setEnabled(enabled: Boolean) {
         if (isEnabled != enabled) surface?.orderedFocusChanged()
         super.setEnabled(enabled)
+        labelView.isEnabled = enabled
     }
     override fun setId(id: Int) {
         if (this.id != id) surface?.orderedFocusChanged()
@@ -129,7 +140,8 @@ class TargetView(context: Context) : AppCompatButton(context) {
     }
     override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
         super.onInitializeAccessibilityNodeInfo(info)
-        // AppCompatButton overwrites the class after RN's delegate applies it.
+        info.className = "android.widget.Button"
+        // Preserve the committed switch role on the owned container.
         if (AccessibilityRole.fromViewTag(this) == AccessibilityRole.SWITCH) {
             info.className = "android.widget.Switch"
         }
@@ -145,16 +157,17 @@ class TargetView(context: Context) : AppCompatButton(context) {
     private var collectionAccessibility: Int? = null
     init {
         isFocusable = false
-        // RN owns the declared frame/background; theme button insets and tint
-        // otherwise clip labels and replace the application's base colors.
-        isAllCaps = false
-        minWidth = 0
-        minHeight = 0
-        setPadding(0, 0, 0, 0)
-        ViewCompat.setBackgroundTintList(this, null)
-        background = null
-        maxLines = 1
-        ellipsize = android.text.TextUtils.TruncateAt.END
+        isClickable = true
+        descendantFocusability = FOCUS_BLOCK_DESCENDANTS
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
+        setWillNotDraw(false)
+        labelView.isFocusable = false
+        labelView.importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        labelView.maxLines = 1
+        labelView.ellipsize = android.text.TextUtils.TruncateAt.END
+        labelView.gravity = Gravity.CENTER
+        addView(labelView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
     fun setBaseColor(value: Int?) {
         baseColors = value?.let { ColorStateList.valueOf(it) } ?: originalColors

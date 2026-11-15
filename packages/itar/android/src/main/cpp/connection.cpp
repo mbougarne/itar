@@ -99,9 +99,9 @@ Java_com_itar_adapter_Connection_collectionsNative(JNIEnv* env, jobject, jlong t
   using namespace itar::android;
   if (dataset <= 0 || !keys || !parents || !input) return conversion;
   const auto count = env->GetArrayLength(keys);
-  if (count > 256 || env->GetArrayLength(parents) != count || env->GetArrayLength(input) != count * 5) return conversion;
+  if (count > 256 || env->GetArrayLength(parents) != count || env->GetArrayLength(input) != count * 6) return conversion;
   return boundary.access(token, [&](Session& session) -> std::int64_t {
-    std::vector<jlong> values(count * 5);
+    std::vector<jlong> values(count * 6);
     if (!values.empty()) env->GetLongArrayRegion(input, 0, static_cast<jsize>(values.size()), values.data());
     if (env->ExceptionCheck()) return resource;
     std::vector<itar::CollectionNode> nodes;
@@ -123,11 +123,11 @@ Java_com_itar_adapter_Connection_collectionsNative(JNIEnv* env, jobject, jlong t
         if (!text.bytes) return resource;
         copied[j] = text.bytes;
       }
-      const auto* v = values.data() + i * 5;
-      if (v[0] < 0 || v[0] > INT32_MAX || v[1] < 0 || v[1] > 1 || v[2] < 0 || v[2] > 1 || v[3] < 0 || v[3] > 2) return conversion;
+      const auto* v = values.data() + i * 6;
+      if (v[0] < 0 || v[0] > INT32_MAX || v[1] < 0 || v[1] > 1 || v[2] < 0 || v[2] > 1 || v[3] < 0 || v[3] > 2 || v[5] < 0 || v[5] > 1) return conversion;
       nodes.push_back({itar::OccurrenceKey{std::move(copied[0])}, itar::OccurrenceKey{std::move(copied[1])},
           static_cast<std::int32_t>(v[0]), v[1] != 0, v[2] != 0, static_cast<itar::Layout>(v[3]),
-          std::bit_cast<double>(v[4])});
+          std::bit_cast<double>(v[4]), static_cast<itar::CollectionRowEntry>(v[5])});
     }
     return static_cast<std::int64_t>(session.collections.apply({static_cast<std::uint64_t>(dataset)}, nodes).status);
   });

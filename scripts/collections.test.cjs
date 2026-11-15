@@ -68,6 +68,28 @@ test('catalog publication rejects duplicate identities and competing owners', ()
   f.store.remove(f.owner);
   assert.deepEqual(JSON.parse(f.store.snapshot().data).nodes, []);
 });
+
+test('row-entry wire validation is atomic and a policy revision revokes preparation', () => {
+  const f = fixture();
+  f.record({state: 'catalog', dataset: f.dataset}); f.record(f.prepare);
+  const before = f.store.snapshot();
+  const column = {...nodes[0], layout: 2, rowEntry: 1};
+  for (const invalid of [2, -1, 0.5, 'first', null]) {
+    assert.throws(() => f.store.publish(f.owner, [{...column, rowEntry: invalid}, ...nodes.slice(1)]), /row entry/);
+    assert.equal(f.store.snapshot(), before);
+  }
+  for (const invalid of [{...column, layout: 1}, {...column, scope: false}, {...column, parent: 'nested'}]) {
+    const parents = invalid.parent === 'nested' ? [{...nodes[0], key: 'nested', layout: 2}] : [];
+    assert.throws(() => f.store.publish(f.owner, [...parents, invalid]), /row entry/);
+    assert.equal(f.store.snapshot(), before);
+  }
+  const next = f.store.publish(f.owner, [column, ...nodes.slice(1)]);
+  assert.notEqual(next, f.dataset);
+  assert.equal(f.store.snapshot().preparation, null);
+  assert.equal(JSON.parse(f.store.snapshot().data).nodes[0].rowEntry, 1);
+  f.store.committed(before.preparation, 'item-9');
+  assert.equal(f.calls.length, 0);
+});
 test('nested preparation retains two indices per list and acknowledges only the current step', () => {
   const f = fixture();
   const nested = [
@@ -113,4 +135,15 @@ test('collection ownership handoff rejects stale preparation from the prior scre
   assert.equal(f.store.snapshot().dataset, dataset);
   f.store.remove(detailsOwner);
   assert.deepEqual(JSON.parse(f.store.snapshot().data).nodes, []);
+});
+
+test('horizontal alignment validates row-only metadata atomically', () => {
+  const f = fixture();
+  for (const value of [null, 1, 'center']) {
+    assert.throws(() => f.store.publish(f.owner, [{...nodes[0], horizontalAlignment: value}, ...nodes.slice(1)]), /Horizontal alignment/);
+    assert.equal(f.store.snapshot().dataset, f.dataset);
+  }
+  assert.throws(() => f.store.publish(f.owner, [{...nodes[0], layout: 2, horizontalAlignment: 'leading'}, ...nodes.slice(1)]), /Horizontal alignment/);
+  f.store.publish(f.owner, [{...nodes[0], horizontalAlignment: 'leading'}, ...nodes.slice(1)]);
+  assert.equal(JSON.parse(f.store.snapshot().data).nodes[0].horizontalAlignment, 'leading');
 });

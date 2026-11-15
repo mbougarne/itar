@@ -265,6 +265,12 @@ void collections() {
   const auto revision = itar_engine_snapshot(f.engine, 10).revision;
   CHECK(itar_engine_snapshot(f.engine, 10).collection_dataset == 1);
   CHECK(itar_engine_collections(f.engine, 10, 1, nodes.data(), nodes.size()).code == 1);
+  nodes[0].row_entry = 2;
+  CHECK(itar_engine_collections(f.engine, 10, 2, nodes.data(), nodes.size()).call == ITAR_INVALID);
+  nodes[0].row_entry = 1; // First-entry belongs on an outer column, not a row.
+  CHECK(itar_engine_collections(f.engine, 10, 2, nodes.data(), nodes.size()).code == 2);
+  CHECK(itar_engine_snapshot(f.engine, 10).collection_dataset == 1);
+  nodes[0].row_entry = 0;
   nodes[2].order = 0;
   CHECK(itar_engine_collections(f.engine, 10, 2, nodes.data(), nodes.size()).code == 2);
   CHECK(itar_engine_snapshot(f.engine, 10).revision == revision);
