@@ -53,7 +53,7 @@ function fixture(focus = {kind: 'unknown', occurrenceKey: null}, native = false,
     if (name === './react') { return {Focusable: 'Focusable', FocusScope: 'FocusScope', useFocusState: () => focus}; }
     throw new Error(`Unexpected import ${name}`);
   }});
-  return {render: props => { stateIndex = refIndex = 0; effects.length = 0; return module.exports.FocusVirtualizedRails(props); }, nodes: () => published,
+  return {renderList: props => { stateIndex = refIndex = 0; effects.length = 0; return module.exports.FocusVirtualizedList(props); }, render: props => { stateIndex = refIndex = 0; effects.length = 0; return module.exports.FocusVirtualizedRails(props); }, nodes: () => published,
     commits: () => commits,
     accept: () => { snapshot = {...snapshot, accepted: snapshot.dataset}; },
     flush: () => effects.forEach(callback => callback()), prepare: value => { snapshot.preparation = value; }};
@@ -225,4 +225,63 @@ test('horizontal offsets clamp bounds, partial final cells and RTL without chang
   assert.equal(offset(500,600,700,300,1000,'leading',true),300);
   assert.equal(offset(0,100,0,300,200,'leading'),0);
   assert.equal(offset(900,1000,300,300,1500,'leading'),900); // Appended page changes the clamp, not identity.
+});
+
+test('composed rails render lazily inside the same host and retain the native commit handshake', () => {
+  const calls = [], f = fixture(undefined, true, 'android');
+  const renderItem = (item, index) => { calls.push([item.occurrenceKey, index]); return {type: 'MovieCard', key: item.occurrenceKey}; };
+  const initial = {...options, renderItem};
+  f.render(initial); f.accept(); f.render(initial);
+  const accepted = f.render(initial);
+  const outer = list(accepted).props;
+  const row = outer.renderItem({item: outer.data[0]});
+  const inner = row.props.children.find(child => typeof child?.type === 'function');
+  const flat = inner.type(inner.props).props;
+  assert.equal(calls.length, 0, 'logical publication must not eagerly render the catalogue');
+  const item = flat.data[0], target = flat.renderItem({item, index: 0});
+  assert.equal(target.type, 'Focusable');
+  assert.equal(target.props.occurrenceKey, item.occurrenceKey);
+  assert.deepEqual(calls, [['film', 0]]);
+  assert.equal(target.props.children[0].type, 'MovieCard');
+  const step = {request: '9', effect: '10', step: 0, key: nativeTargetKey('film'), path: [{collection: inner.props.collection}], source: []};
+  f.prepare(step);
+  const cell = flat.CellRendererComponent({children: target, item, style: {width: 300}});
+  assert.equal(f.commits().length, 0);
+  cell.props.children[1].props.onLayout();
+  assert.equal(f.commits()[0].key, nativeTargetKey('film'));
+  const changed = {...initial, renderItem: () => ({type: 'ReplacementVisual'})};
+  f.render(changed); const updated = f.render(changed);
+  assert.equal(updated.props.value, accepted.props.value, 'a renderer update must not publish another logical dataset');
+  const content = tree => {
+    const props = list(tree).props;
+    const row = props.renderItem({item: props.data[0]});
+    const inner = row.props.children.find(child => typeof child?.type === 'function');
+    const flat = inner.type(inner.props).props;
+    return flat.renderItem({item: flat.data[0], index: 0}).props.children[0].type;
+  };
+  assert.equal(content(updated), 'ReplacementVisual');
+  const replacement = {...changed, rails: [{id: 'new-row', items: options.rails[0].items}], renderItem: () => ({type: 'NewDatasetVisual'})};
+  assert.equal(content(f.render(replacement)), 'ReplacementVisual', 'pending data must keep its accepted renderer');
+  f.accept(); f.render(replacement);
+  assert.equal(content(f.render(replacement)), 'NewDatasetVisual');
+});
+
+test('linear list renderer and item children remain content of the collection-owned host', () => {
+  for (const horizontal of [true, false]) {
+    const f = fixture(undefined, true, 'ios');
+    const renderItem = (item, index) => ({type: 'Visual', key: item.occurrenceKey, index});
+    const props = {id: 'items', data: options.rails[0].items, itemExtent: 160, viewportExtent: 640, horizontal, renderItem};
+    f.renderList(props); f.accept(); f.renderList(props);
+    const scope = f.renderList(props).props.children[0];
+    const inner = scope.props.children[0];
+    const flat = inner.type(inner.props).props;
+    const target = flat.renderItem({item: props.data[0], index: 0});
+    assert.equal(target.props.children[0].index, 0);
+    assert.equal(target.props.order, 0);
+    assert.equal(flat.windowSize, 3);
+    assert.equal(flat.getItemLayout(null, 30).offset, 4800);
+    assert.equal(inner.type({...inner.props, renderItem: () => null}).props.renderItem({item: props.data[0], index: 0}).props.children[0], null);
+    const child = {type: 'DefaultVisual'};
+    assert.equal(inner.type({...inner.props, renderItem: undefined}).props.renderItem({item: {...props.data[0], children: child}, index: 0}).props.children[0], child);
+  }
 });

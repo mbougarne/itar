@@ -444,6 +444,10 @@ extension AdapterHostTests {
         let cold = target("cold", x: 400)
         cold.frame.origin.y = 0
         cold.scopeKey = "list"; cold.collectionDataset = "1"
+        for host in [a!, cold] {
+            let label = UILabel(); label.text = "Presentation"
+            host.presentationContent.addSubview(label); host.presentationContentChanged()
+        }
         scroll.addSubview(cold)
         root.addSubview(scope)
         root.commitGeometry()

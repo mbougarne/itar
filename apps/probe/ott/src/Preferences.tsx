@@ -176,7 +176,6 @@ export function Settings({
 
     const rails = values.map(value => ({
       id: value.key,
-      overlayTarget: true,
       itemExtent: viewport,
       itemStyle: {
         width: viewport,
@@ -234,7 +233,7 @@ export function Settings({
     [model.titles, s.virtualHeading],
   );
 
-  const decoration = useCallback(
+  const renderItem = useCallback(
     (item: VirtualizedFocusItem) => {
       const value = model.visuals.get(item.occurrenceKey);
 
@@ -265,7 +264,7 @@ export function Settings({
             headerExtent={48 * u}
             viewportHeight={height}
             renderRailHeader={header}
-            renderDecoration={decoration}
+            renderItem={renderItem}
           />
         )}
       </View>

@@ -48,6 +48,7 @@ export { FocusVirtualizedRails, FocusVirtualizedList } from './rails';
 export type {
   VirtualizedFocusRail,
   VirtualizedFocusItem,
+  VirtualizedFocusItemRenderer,
 } from '../../../packages/itar/src/virtualized';
 
 let engineModule: EngineModule;

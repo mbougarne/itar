@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Button, Platform, StyleSheet, Text, View } from 'react-native';
 import {
   FocusProvider,
@@ -25,6 +31,7 @@ function Screen() {
   const [nested, setNested] = useState(false);
   const [firstEntry, setFirstEntry] = useState(false);
   const [leading, setLeading] = useState(false);
+  const [alternate, setAlternate] = useState(false);
   const [reverse, setReverse] = useState(false);
   const [removed, setRemoved] = useState(false);
   const [active, setActive] = useState(true);
@@ -70,6 +77,18 @@ function Screen() {
         };
       }),
     [reverse, removed],
+  );
+
+  const renderItem = useCallback(
+    (item: VirtualizedFocusItem, index: number) => (
+      <View style={styles.cardContent}>
+        <Text style={styles.cardText}>
+          {alternate ? 'Alternate' : 'Card'} {index + 1}
+        </Text>
+        <Text style={styles.cardText}>{item.accessibilityLabel}</Text>
+      </View>
+    ),
+    [alternate],
   );
 
   const follow = (key: string, cancel = false, stall = false) => {
@@ -128,6 +147,10 @@ function Screen() {
           title={nested ? 'Single list' : 'Nested rails'}
           onPress={() => setNested(!nested)}
         />
+        <Button
+          title="Change card content"
+          onPress={() => setAlternate(!alternate)}
+        />
         <Button title="Reorder dataset" onPress={() => setReverse(!reverse)} />
         {nested &&
           Platform.isTV &&
@@ -162,6 +185,7 @@ function Screen() {
               key="rails"
               id="rails"
               rails={rails}
+              renderItem={renderItem}
               horizontalAlignment={leading ? 'leading' : 'nearest'}
               rowEntry={firstEntry ? 'first' : 'nearest'}
               itemExtent={160}
@@ -176,6 +200,7 @@ function Screen() {
               key="list"
               id="list"
               data={rails[0].items}
+              renderItem={renderItem}
               itemExtent={160}
               viewportExtent={680}
               testID="virtualized-list"
@@ -202,6 +227,8 @@ export default function VirtualizedScreen() {
 }
 
 const styles = StyleSheet.create({
+  cardContent: { flex: 1, justifyContent: 'center', padding: 8 },
+  cardText: { color: '#F4EEE4', fontSize: 12 },
   surface: { flex: 1 },
   content: { gap: 8 },
   controls: { flexDirection: 'row', gap: 12 },

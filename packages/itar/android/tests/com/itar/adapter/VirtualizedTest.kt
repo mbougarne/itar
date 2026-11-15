@@ -147,6 +147,24 @@ class VirtualizedTest : ActivityInstrumentationTestCase2<MainActivity>(MainActiv
         press("Virtualized list preview")
         press("Focus start")
         focused("Rail 1, item 1")
+        lateinit var card: TargetView
+        var dataset = ""
+        instrumentation.runOnMainSync {
+            card = views().filterIsInstance<TargetView>().first { it.hasFocus() }
+            dataset = card.collectionDataset
+            val content = checkNotNull(TargetManager().getChildAt(card, 0))
+            check(content.width == card.width && content.height == card.height)
+            check(card.descendantFocusability == ViewGroup.FOCUS_BLOCK_DESCENDANTS)
+        }
+        press("Change card content")
+        text("Alternate 1")
+        instrumentation.runOnMainSync {
+            check(card.isAttachedToWindow && card.collectionDataset == dataset)
+            check(views().filterIsInstance<TargetView>().first {
+                it.contentDescription?.toString() == "Rail 1, item 1"
+            } === card)
+            check(card.requestFocus())
+        }
         val records = ArrayList<CollectionChecks.Focus>()
         var stop: (() -> Unit)? = null
         instrumentation.runOnMainSync {

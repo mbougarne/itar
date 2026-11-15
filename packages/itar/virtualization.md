@@ -31,9 +31,27 @@ same surface capacity. Keys remain subject to the native 512-byte limit.
 
 `itemExtent` is the complete fixed width of a horizontal cell or height of a
 vertical cell, including any spacing. `viewportExtent` is the list's scrolling
-viewport size. Arbitrary insets, separators, transforms, variable cell sizes, and
-custom renderers are outside this integration. `itemStyle` can decorate a
+viewport size. Arbitrary insets, separators, transforms, and variable cell sizes remain outside
+this integration. `itemStyle` can decorate a
 button while preserving these dimensions. Keep data immutable between updates.
+
+Both components accept `renderItem(item, index)` to return presentation-only
+content inside the collection-owned `Focusable`. The index is within the list or
+current rail; occurrence keys, semantics, activation and native focus styling
+remain owned by the collection. Return null for label mode. Without a callback,
+`item.children` is used. Do not return another focus host or interactive control.
+
+```tsx
+<FocusVirtualizedList id="favorites" data={data} itemExtent={180}
+  viewportExtent={720} renderItem={item => <MovieCard id={item.contentId} />} />
+```
+
+Rendering is lazy for mounted cells. A visual-only callback change keeps the
+logical dataset, pending commit markers and focus identities; membership changes
+still publish a new dataset. Keep callbacks stable and declared extents fixed.
+Legacy `renderDecoration` can supply separate noninteractive notices, but artwork
+no longer needs a transparent focus overlay. Source/target render regions and
+native layout acknowledgments retain their existing cancellation/lifetime rules.
 
 For nested rails, pass `rails={[{id, items}]}` to `FocusVirtualizedRails`, along
 with `itemExtent`, `rowExtent`, `viewportExtent`, and optional `viewportRows`

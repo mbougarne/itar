@@ -12,6 +12,7 @@ import type {
   FocusVirtualizedList as NativeList,
   VirtualizedFocusItem,
   VirtualizedFocusRail,
+  VirtualizedFocusItemRenderer,
 } from '../../../packages/itar/src/virtualized';
 import {
   nativeScopeKey,
@@ -40,6 +41,7 @@ type RowProps = {
   extent: number;
   headerHeight: number;
   renderHeader?: (rail: VirtualizedFocusRail) => React.ReactNode;
+  renderItem?: VirtualizedFocusItemRenderer;
   decoration?: (item: VirtualizedFocusItem) => React.ReactNode;
   forced?: string;
   alignment: 'nearest' | 'leading';
@@ -54,6 +56,7 @@ function Rail({
   headerHeight,
   renderHeader,
   decoration,
+  renderItem,
   forced,
   alignment,
   active,
@@ -194,9 +197,11 @@ function Rail({
                   style={[
                     { width: extent, height: height - headerHeight },
                     rail.itemStyle,
-                    decoration && itemStyles.overlay,
+                    rail.overlayTarget && itemStyles.overlay,
                   ]}
-                />
+                >
+                  {renderItem ? renderItem(item, index) : item.children}
+                </Focusable>
               </View>
             );
           })}
@@ -228,6 +233,7 @@ export function FocusVirtualizedRails({
   onReady,
   onEndReached,
   renderDecoration,
+  renderItem,
   renderRailHeader,
   style,
   testID,
@@ -533,6 +539,7 @@ export function FocusVirtualizedRails({
                   headerHeight={headerExtent}
                   renderHeader={renderRailHeader}
                   decoration={renderDecoration}
+                  renderItem={renderItem}
                   forced={forced}
                   alignment={horizontalAlignment}
                   active={parent.active && active}
@@ -556,6 +563,7 @@ export function FocusVirtualizedList({
   style,
   testID,
   horizontalAlignment = 'nearest',
+  renderItem,
 }: React.ComponentProps<typeof NativeList>) {
   const rails = useMemo(
     () =>
@@ -570,10 +578,25 @@ export function FocusVirtualizedList({
     [horizontal, data, itemExtent, itemStyle],
   );
 
+  const contentRenderer = useMemo(
+    () =>
+      !renderItem || horizontal
+        ? renderItem
+        : (item: VirtualizedFocusItem) =>
+            renderItem(
+              item,
+              data.findIndex(
+                candidate => candidate.occurrenceKey === item.occurrenceKey,
+              ),
+            ),
+    [renderItem, horizontal, data],
+  );
+
   return (
     <FocusVirtualizedRails
       id={id}
       rails={rails}
+      renderItem={contentRenderer}
       horizontalAlignment={horizontalAlignment}
       itemExtent={horizontal ? itemExtent : 240}
       rowExtent={horizontal ? 100 : itemExtent}

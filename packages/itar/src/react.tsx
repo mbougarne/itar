@@ -208,4 +208,4 @@ export function useScreenReaderEnabled(): boolean | null {
   return enabled;
 }
 export {FocusVirtualizedList, FocusVirtualizedRails} from './virtualized';
-export type {VirtualizedFocusItem, VirtualizedFocusRail} from './virtualized';
+export type {VirtualizedFocusItem, VirtualizedFocusRail, VirtualizedFocusItemRenderer} from './virtualized';
