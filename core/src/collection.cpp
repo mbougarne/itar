@@ -33,6 +33,11 @@ CollectionResult Collections::apply(DatasetRevision dataset, std::span<const Col
   };
   for (std::size_t i = 0; i < nodes.size(); ++i) {
     const auto& value = nodes[i];
+    if ((value.rowEntry != CollectionRowEntry::nearest && value.rowEntry != CollectionRowEntry::first) ||
+        (value.rowEntry == CollectionRowEntry::first &&
+         (!value.scope || value.layout != Layout::column || lookup(value.parent)))) {
+      return result(CollectionStatus::invalid);
+    }
     if (!value.key || value.key.value().size() > registry.limits().keyBytes ||
         value.parent.value().size() > registry.limits().keyBytes || value.order < 0 ||
         !std::isfinite(value.extent) ||
@@ -129,18 +134,19 @@ Proposal Collections::propose(Direction direction, const InputContext& input) co
   const auto* target = targetKey ? find(*targetKey) : nullptr;
   const auto* sourceRow = source ? find(source->parent) : nullptr;
   const auto* targetRow = target ? find(target->parent) : nullptr;
-  // This adapter declares column entry by logical index for fixed-size rails.
-  // It is independent of whether any target-row cell happens to be mounted.
+  // Cross-row entry is logical, independent of which target cells are mounted.
   if (!sourceRow || !targetRow || sourceRow == targetRow ||
       sourceRow->layout != Layout::row || targetRow->layout != Layout::row ||
       !sourceRow->parent || sourceRow->parent != targetRow->parent) { return proposal; }
+  const auto* collection = find(targetRow->parent);
+  const auto entryOrder = collection && collection->rowEntry == CollectionRowEntry::first ? 0 : source->order;
   const CollectionNode* best = nullptr;
   for (const auto& item : nodes_) {
     if (item.parent != targetRow->key || item.scope || !find(item.key) ||
         !logicalTarget(state_, registry.find(item.key))) { continue; }
-    const auto distance = std::abs(std::int64_t{item.order} - source->order);
-    if (!best || distance < std::abs(std::int64_t{best->order} - source->order) ||
-        (distance == std::abs(std::int64_t{best->order} - source->order) && item.order < best->order)) { best = &item; }
+    const auto distance = std::abs(std::int64_t{item.order} - entryOrder);
+    if (!best || distance < std::abs(std::int64_t{best->order} - entryOrder) ||
+        (distance == std::abs(std::int64_t{best->order} - entryOrder) && item.order < best->order)) { best = &item; }
   }
   return best ? proposeTarget(state_, registry.find(best->key), input) : proposal;
 }

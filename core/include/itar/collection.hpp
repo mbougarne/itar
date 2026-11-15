@@ -4,6 +4,8 @@
 
 namespace itar {
 
+enum class CollectionRowEntry { nearest, first };
+
 // A bounded logical snapshot for the selected fixed-extent VirtualizedList
 // adapter. Scope entries are lists; a nested row is also an item of its parent.
 // Extents plan scrolling only. They never supply focusable geometry.
@@ -13,6 +15,8 @@ struct CollectionNode {
   bool scope{}, enabled{true};
   Layout layout{Layout::spatial};
   double extent{};
+  // Outer column collections configure vertical entry into their child rails.
+  CollectionRowEntry rowEntry{CollectionRowEntry::nearest};
   bool operator==(const CollectionNode&) const = default;
 };
 
