@@ -7,7 +7,7 @@ import NativeScope from './specs/ItarScopeNativeComponent';
 import NativeTarget from './specs/ItarTargetNativeComponent';
 import {FocusStore} from './api/store';
 import {CollectionStore} from './api/collections';
-import {CollectionContext, CollectionDatasetContext, ScopeContext} from './api/contexts';
+import {CollectionContext, CollectionDatasetContext, ScopeContext, FocusContentContext} from './api/contexts';
 import {nativeScopeKey, nativeTargetKey} from './api/types';
 import type {Activation, FocusChannel} from './api/types';
 export {occurrenceKey} from './api/types';
@@ -75,6 +75,7 @@ export function FocusScope({id, active = true, layout = 'spatial', boundary = 's
   style?: StyleProp<ViewStyle>; testID?: string;
 }) {
   useStore();
+  if (useContext(FocusContentContext)) { throw new Error('Focusable content cannot contain a focus scope'); }
   const parent = useContext(ScopeContext);
   const collectionDataset = useContext(CollectionDatasetContext);
   const context = useMemo(() => {
@@ -94,6 +95,8 @@ export function FocusScope({id, active = true, layout = 'spatial', boundary = 's
 
 export type FocusableProps = {
   occurrenceKey: string;
+  /** Presentation-only content. The owned host remains the sole semantic target. */
+  children?: React.ReactNode;
   contentId?: string;
   displayLabel?: string;
   labelPlacement?: 'center' | 'bottom' | 'bottom-center';
@@ -115,8 +118,9 @@ export type FocusableProps = {
 // Render allocates only an identity. Registration is published at host/effect commit.
 export const Focusable = memo(function FocusableButton({occurrenceKey: key, contentId, accessibilityLabel,
   accessibilityRole, accessibilityState,
-  enabled = true, order = 0, style, focusStyle, baseAccentColor, onPress, onAdjust, testID, displayLabel, labelPlacement = 'center', labelSize = 14, outlineInsetBottom = 0}: FocusableProps) {
+  enabled = true, order = 0, style, focusStyle, baseAccentColor, onPress, onAdjust, testID, children, displayLabel, labelPlacement = 'center', labelSize = 14, outlineInsetBottom = 0}: FocusableProps) {
   const store = useStore();
+  if (useContext(FocusContentContext)) { throw new Error('Focusable content cannot contain another focus host'); }
   const scope = useContext(ScopeContext);
   const collectionDataset = useContext(CollectionDatasetContext);
   const lease = useMemo(() => ({token: {key, scope: scope.key}, registration: store.registrationId()}), [store, key, scope.key]);
@@ -136,7 +140,7 @@ export const Focusable = memo(function FocusableButton({occurrenceKey: key, cont
     throw new Error('Switch targets require a Boolean checked state');
   }
   const radius = StyleSheet.flatten(style)?.borderRadius;
-  if (!supported) { return <View style={style} testID={testID} accessibilityLabel={accessibilityLabel} />; }
+  if (!supported) { return <View style={style} testID={testID} accessibilityLabel={accessibilityLabel}>{children}</View>; }
   return <NativeTarget occurrenceKey={nativeTargetKey(key)} scopeKey={scope.key} registrationId={lease.registration}
     collectionDataset={collectionDataset}
     label={accessibilityLabel} displayLabel={displayLabel ?? accessibilityLabel} labelPlacement={labelPlacement}
@@ -155,7 +159,12 @@ export const Focusable = memo(function FocusableButton({occurrenceKey: key, cont
     onActivate={event => {
       const activation = store.activation(event.nativeEvent, committed.current.key, lease.token);
       if (activation) { committed.current.onPress?.({...activation, contentId: committed.current.contentId}); }
-    }} />;
+    }}>
+    {children == null ? null : <View collapsable={false} pointerEvents="none" accessible={false}
+      importantForAccessibility="no-hide-descendants" style={StyleSheet.absoluteFill}>
+      <FocusContentContext.Provider value>{children}</FocusContentContext.Provider>
+    </View>}
+  </NativeTarget>;
 });
 
 export function useFocusCommands() {

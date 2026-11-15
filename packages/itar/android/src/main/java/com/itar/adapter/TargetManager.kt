@@ -1,11 +1,17 @@
 package com.itar.adapter
 
-import com.facebook.react.uimanager.SimpleViewManager
+import android.view.View
+import com.facebook.react.uimanager.ViewGroupManager
 import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.viewmanagers.ItarTargetManagerDelegate
 import com.facebook.react.viewmanagers.ItarTargetManagerInterface
 
-class TargetManager : SimpleViewManager<TargetView>(), ItarTargetManagerInterface<TargetView> {
+class TargetManager : ViewGroupManager<TargetView>(), ItarTargetManagerInterface<TargetView> {
+    override fun addView(parent: TargetView, child: View, index: Int) { parent.content.addView(child, index); parent.contentChanged() }
+    override fun getChildCount(parent: TargetView) = parent.content.childCount
+    override fun getChildAt(parent: TargetView, index: Int): View? = parent.content.getChildAt(index)
+    override fun removeViewAt(parent: TargetView, index: Int) { parent.content.removeViewAt(index); parent.contentChanged() }
+    override fun removeAllViews(parent: TargetView) { parent.content.removeAllViews(); parent.contentChanged() }
     override fun getName() = "ItarTarget"
     override fun getDelegate() = ItarTargetManagerDelegate(this)
     override fun createViewInstance(context: ThemedReactContext) = TargetView(context).apply {
@@ -44,6 +50,7 @@ class TargetManager : SimpleViewManager<TargetView>(), ItarTargetManagerInterfac
         view.onAdjustment = null
         view.onActivation = null
         view.dropLogical()
+        removeAllViews(view)
         super.onDropViewInstance(view)
     }
 }

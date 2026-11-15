@@ -584,3 +584,33 @@ extension AdapterHostTests {
         XCTAssertEqual(scroll.contentOffset.x, 20)
     }
 }
+
+extension AdapterHostTests {
+    func testPresentationContentKeepsSingleFocusAndActivationOwner() async throws {
+        let image = UIView(frame: b.bounds); image.backgroundColor = .blue
+        b.presentationContent.addSubview(image); b.presentationContentChanged(); b.setNeedsLayout(); b.layoutIfNeeded()
+        root.commitGeometry()
+        let original = try XCTUnwrap(b.registration)
+        root.focus("b")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.b.isFocused }, object: nil)], timeout: 3)
+        XCTAssertEqual(b.presentationContent.frame, b.bounds)
+        XCTAssertNil(b.title(for: .normal))
+        XCTAssertFalse(b.presentationContent.isUserInteractionEnabled)
+        XCTAssertTrue(b.presentationContent.accessibilityElementsHidden)
+        XCTAssertTrue(b.isAccessibilityElement)
+        XCTAssertEqual(b.accessibilityLabel, "Button b")
+        XCTAssertEqual(b.layer.borderWidth, 5)
+        var activations = 0
+        b.onActivate = { _ in activations += 1 }
+        XCTAssertTrue(b.accessibilityActivate()); XCTAssertEqual(activations, 1)
+        b.frame.size.width = 280; b.setNeedsLayout(); b.layoutIfNeeded(); root.commitGeometry()
+        XCTAssertEqual(b.presentationContent.frame, b.bounds)
+        XCTAssertTrue(b.registration === original)
+        image.removeFromSuperview(); b.presentationContentChanged()
+        XCTAssertEqual(b.title(for: .normal), "Button b")
+        b.presentationContent.addSubview(image); b.recycle()
+        XCTAssertTrue(b.presentationContent.subviews.isEmpty)
+        XCTAssertNil(b.registration)
+        XCTAssertFalse(b.accessibilityActivate())
+    }
+}

@@ -11,6 +11,14 @@ public final class ItarTargetHost: UIButton {
     var logicalMount: UInt64 = 0
     var logicalLifetime: UInt64 = 0
     private var sequence: UInt64 = 0
+    @objc public let presentationContent = UIView()
+    @objc public func presentationContentChanged() {
+        let composed = !presentationContent.subviews.isEmpty
+        if composed && presentationContent.superview !== self { addSubview(presentationContent) }
+        if !composed && presentationContent.superview != nil { presentationContent.removeFromSuperview() }
+        let title = composed ? nil : (displayLabel.isEmpty ? label : displayLabel)
+        if self.title(for: .normal) != title { setTitle(title, for: .normal) }
+    }
     @objc public var collectionDataset = "" { didSet { if oldValue != collectionDataset { semanticsChanged() } } }
     @objc public var scopeKey = "" { didSet { if oldValue != scopeKey { semanticsChanged() } } }
     @objc public var registrationId = ""
@@ -26,7 +34,10 @@ public final class ItarTargetHost: UIButton {
     private let focusFill = CAShapeLayer()
     @objc public var focusBackgroundColor: UIColor? { didSet { applyFocusStyle() } }
     private let cardOutline = CAShapeLayer()
-    @objc public var displayLabel = "" { didSet { setTitle(displayLabel, for: .normal) } }
+    @objc public var displayLabel = "" { didSet {
+        if presentationContent.subviews.isEmpty { setTitle(displayLabel, for: .normal) }
+        else { presentationContentChanged() }
+    } }
     @objc public var labelPlacement = "center" { didSet { contentVerticalAlignment = labelPlacement.hasPrefix("bottom") ? .bottom : .center; contentHorizontalAlignment = labelPlacement == "bottom" ? .leading : .center } }
     @objc public var labelSize: CGFloat = 14 { didSet { titleLabel?.font = UIFontMetrics.default.scaledFont(for: .systemFont(ofSize: labelSize > 0 ? labelSize : 14, weight: .semibold)) } }
     @objc public var outlineInsetBottom: CGFloat = 0 { didSet { applyFocusStyle() } }
@@ -34,7 +45,11 @@ public final class ItarTargetHost: UIButton {
         didSet {
             accessibilityLabel = label
             isAccessibilityElement = !label.isEmpty
-            if oldValue != label { setTitle(displayLabel.isEmpty ? label : displayLabel, for: .normal); semanticsChanged() }
+            if oldValue != label {
+                if presentationContent.subviews.isEmpty { setTitle(displayLabel.isEmpty ? label : displayLabel, for: .normal) }
+                else { presentationContentChanged() }
+                semanticsChanged()
+            }
         }
     }
     @objc public var order: Int32 = 0 { didSet { if oldValue != order { semanticsChanged() } } }
@@ -84,6 +99,8 @@ public final class ItarTargetHost: UIButton {
         isAccessibilityElement = false
         accessibilityTraits = .button
         titleLabel?.adjustsFontForContentSizeCategory = true
+        presentationContent.isUserInteractionEnabled = false
+        presentationContent.accessibilityElementsHidden = true
         addTarget(self, action: #selector(selected), for: .primaryActionTriggered)
         applyFocusStyle()
     }
@@ -125,6 +142,10 @@ public final class ItarTargetHost: UIButton {
     }
     public override func layoutSubviews() {
         super.layoutSubviews()
+        if !presentationContent.subviews.isEmpty {
+            if presentationContent.frame != bounds { presentationContent.frame = bounds }
+            if layer.sublayers?.last !== cardOutline { layer.addSublayer(cardOutline) }
+        }
         applyFocusStyle()
         if let owner { owner.targetLayoutChanged(self) } else { nearestSurface()?.geometryChanged() }
     }
@@ -176,6 +197,7 @@ public final class ItarTargetHost: UIButton {
     @objc public func recycle() {
         (logicalOwner ?? owner)?.drop(self)
         clearLogicalIdentity()
+        presentationContent.subviews.forEach { $0.removeFromSuperview() }; presentationContentChanged()
         restoreBaseStyle()
         onActivate = nil
         onAdjust = nil

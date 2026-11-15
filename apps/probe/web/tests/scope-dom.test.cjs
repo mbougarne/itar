@@ -40,14 +40,22 @@ vm.runInNewContext(outputText, {
       return {};
     }
 
+    if (name.endsWith('/api/contexts')) {
+      return require('../../../../packages/itar/lib/api/contexts');
+    }
+
     if (name.endsWith('/api/types')) {
-      return { nativeScopeKey: parts => JSON.stringify(parts) };
+      return require('../../../../packages/itar/lib/api/types');
     }
 
     if (name === './focus-store') {
       // Only engine registration/effects are doubled; React and RNW render real DOM attributes.
       return {
-        WebFocusStore: class {},
+        WebFocusStore: class {
+          mountId() {
+            return 1;
+          }
+        },
         createNode: (key, parent) => ({ key, parent }),
       };
     }
@@ -56,7 +64,7 @@ vm.runInNewContext(outputText, {
   },
 });
 
-const { FocusProvider, FocusScope, initializeFocusEngine } =
+const { FocusProvider, FocusScope, Focusable, initializeFocusEngine } =
   moduleRecord.exports;
 
 before(initializeFocusEngine);
@@ -104,4 +112,29 @@ test('active scopes reopen DOM interaction without hiding or unmounting their co
   assert.doesNotMatch(html, /aria-hidden="true"|inert=/);
   assert.match(html, /<input aria-label="Native editor"\/>/);
   assert.match(html, /<button>Retained content<\/button>/);
+});
+
+test('custom content stays inert and hidden inside one named button', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(
+      FocusProvider,
+      null,
+      React.createElement(
+        Focusable,
+        {
+          occurrenceKey: 'card',
+          accessibilityLabel: 'Movie title',
+          style: { width: 240, height: 140 },
+        },
+        React.createElement('span', null, 'Custom visual title'),
+      ),
+    ),
+  );
+
+  assert.match(html, /aria-label="Movie title"/);
+  assert.match(html, /inert=""/);
+  assert.match(html, /aria-hidden="true"/);
+  assert.match(html, /Custom visual title/);
+  assert.equal((html.match(/role="button"/g) ?? []).length, 1);
+  assert.equal((html.match(/Movie title/g) ?? []).length, 1);
 });

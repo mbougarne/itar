@@ -53,7 +53,7 @@ class RegistrationTest : ActivityInstrumentationTestCase2<MainActivity>(MainActi
         lateinit var target: TargetView
         instrumentation.runOnMainSync {
             root = SurfaceView(host)
-            target = TargetView(host).apply { occurrenceKey = "rail/movie"; text = "Movie"; contentDescription = "Movie" }
+            target = TargetView(host).apply { occurrenceKey = "rail/movie"; actionLabel = "Movie" }
             root.addView(target)
             host.setContentView(root)
         }
