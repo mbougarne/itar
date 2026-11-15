@@ -10,7 +10,7 @@ const {headerScrollOffset} = require('../packages/itar/lib/api/viewport');
 
 // Evaluate the component's real collection/layout calculations with a host-free
 // hook harness. No native view, application, browser, or renderer is started.
-function fixture(focus = {kind: 'unknown', occurrenceKey: null}, native = false) {
+function fixture(focus = {kind: 'unknown', occurrenceKey: null}, native = false, os = native ? 'ios' : 'web') {
   let published;
   const effects = [];
   const commits = [];
@@ -46,7 +46,7 @@ function fixture(focus = {kind: 'unknown', occurrenceKey: null}, native = false)
   const module = {exports: {}};
   vm.runInNewContext(output, {module, exports: module.exports, require: name => {
     if (name === 'react') { return react; }
-    if (name === 'react-native') { return {FlatList: 'FlatList', View: 'View', Platform: {OS: native ? 'ios' : 'web', isTV: native}, StyleSheet: {create: value => value}}; }
+    if (name === 'react-native') { return {FlatList: 'FlatList', View: 'View', Platform: {OS: os, isTV: native}, StyleSheet: {create: value => value}}; }
     if (name === './api/contexts') { return contexts; }
     if (name === './api/types') { return {nativeScopeKey, nativeTargetKey}; }
     if (name === './api/viewport') { return {headerScrollOffset}; }
@@ -64,6 +64,26 @@ const options = {
 };
 const list = tree => tree.props.children[0].props.children[0];
 const plain = value => JSON.parse(JSON.stringify(value));
+
+test('row entry is published on the outer collection and changes the dataset before acceptance', () => {
+  const f = fixture(undefined, true, 'android');
+  const initial = {...options, listHeader: {}, listHeaderExtent: 624,
+    listHeaderScope: 'hero', listHeaderItems: [{occurrenceKey: 'action', accessibilityLabel: 'Action'}]};
+  f.render(initial); f.accept(); f.render(initial); f.render(initial);
+  assert.equal(f.nodes()[0].rowEntry, 0);
+  const first = {...initial, rowEntry: 'first'};
+  const old = f.render(first);
+  assert.equal(f.nodes()[0].rowEntry, 1);
+  assert.ok(f.nodes().slice(1).every(node => node.rowEntry === undefined));
+  assert.equal(old.props.value, '1', 'retain the accepted cells until the new policy is accepted');
+  f.accept(); f.render(first);
+  assert.equal(f.render(first).props.value, '2');
+  assert.throws(() => f.render({...options, rowEntry: 'typo'}), /rowEntry/);
+  for (const os of ['ios', 'web']) {
+    assert.throws(() => fixture(undefined, os === 'ios', os).render(first), /rowEntry.*Android/);
+    fixture(undefined, os === 'ios', os).render({...options, rowEntry: 'nearest'});
+  }
+});
 
 test('readiness does not authorize a replacement from a stale render snapshot', () => {
   const f = fixture(undefined, true);

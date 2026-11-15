@@ -4,6 +4,10 @@ package com.itar.adapter
 import android.test.InstrumentationTestCase
 
 class BoundaryTest : InstrumentationTestCase() {
+    fun testRowEntryPolicy() = rowEntryPolicy()
+    private fun rowEntryPolicy() {
+        instrumentation.runOnMainSync { CollectionChecks.rowEntryPolicy() }
+    }
     fun testLifetimeAndConversions() = lifetimeAndConversions()
     private fun lifetimeAndConversions() {
         instrumentation.runOnMainSync {

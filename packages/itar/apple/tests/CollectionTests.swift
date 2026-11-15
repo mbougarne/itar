@@ -11,6 +11,11 @@ struct CollectionTests {
           {"key":"item","parent":"list","order":0,"scope":false,"enabled":true,"layout":0,"extent":0}]}
         """
         guard let document = CollectionDocument.decode(text) else { preconditionFailure("Valid catalog rejected") }
+        let nearest = text.replacingOccurrences(of: "\"extent\":100", with: "\"extent\":100,\"rowEntry\":0")
+        precondition(CollectionDocument.decode(nearest) != nil)
+        for value in ["1", "2", "0.5", "\"first\""] {
+            precondition(CollectionDocument.decode(nearest.replacingOccurrences(of: "\"rowEntry\":0", with: "\"rowEntry\":\(value)")) == nil)
+        }
         precondition(document.nodes[0].offset(2) == 200)
         let leading = text.replacingOccurrences(of: "\"extent\":100", with: "\"extent\":100,\"leadingExtent\":624")
         guard let withHeader = CollectionDocument.decode(leading) else { preconditionFailure("Leading row rejected") }

@@ -14,11 +14,13 @@ import org.json.JSONObject
 
 internal data class CollectionEntry(val key: String, val parent: String, val order: Int,
     val scope: Boolean, val enabled: Boolean, val layout: Int, val extent: Double,
-    val leadingExtent: Double = 0.0) {
+    val leadingExtent: Double = 0.0, val rowEntry: Int = 0) {
     fun offset(index: Int): Double = if (leadingExtent > 0 && index > 0)
         leadingExtent + (index - 1) * extent else index * extent
 }
 internal data class CollectionDocument(val dataset: Long, val nodes: List<CollectionEntry>) {
+    fun values(): LongArray = nodes.flatMap { listOf(it.order.toLong(), if (it.scope) 1L else 0L,
+        if (it.enabled) 1L else 0L, it.layout.toLong(), java.lang.Double.doubleToRawLongBits(it.extent), it.rowEntry.toLong()) }.toLongArray()
     fun path(key: String): List<CollectionEntry> {
         val path = ArrayList<CollectionEntry>()
         var item = nodes.firstOrNull { it.key == key }
@@ -38,11 +40,13 @@ internal data class CollectionDocument(val dataset: Long, val nodes: List<Collec
             require(dataset > 0 && entries.length() <= 256)
             CollectionDocument(dataset, (0 until entries.length()).map { index ->
                 val node = entries.getJSONObject(index)
+                val rowEntry = if (node.has("rowEntry")) node.get("rowEntry") else 0
+                require(rowEntry is Number && (rowEntry.toDouble() == 0.0 || rowEntry.toDouble() == 1.0))
                 val leadingExtent = if (node.has("leadingExtent")) node.getDouble("leadingExtent") else 0.0
                 require(leadingExtent.isFinite() && leadingExtent >= 0 && leadingExtent <= 1000000 &&
                     (node.getBoolean("scope") || leadingExtent == 0.0))
                 CollectionEntry(node.getString("key"), node.getString("parent"), node.getInt("order"),
-                    node.getBoolean("scope"), node.getBoolean("enabled"), node.getInt("layout"), node.getDouble("extent"), leadingExtent)
+                    node.getBoolean("scope"), node.getBoolean("enabled"), node.getInt("layout"), node.getDouble("extent"), leadingExtent, rowEntry.toInt())
             })
         } catch (_: IllegalArgumentException) { null } catch (_: org.json.JSONException) { null }
     }
@@ -92,7 +96,8 @@ internal class Collections(private val root: SurfaceView) {
         var item = previous.nodes.firstOrNull { it.key == target.occurrenceKey }
         repeat(3) {
             val current = item ?: return@repeat
-            if (next.nodes.firstOrNull { it.key == current.key } != current) return null
+            // Selection policy cancels intent in core; it does not change a live host declaration.
+            if (next.nodes.firstOrNull { it.key == current.key }?.copy(rowEntry = current.rowEntry) != current) return null
             ancestry.add(current)
             item = previous.nodes.firstOrNull { it.key == current.parent }
         }
@@ -117,11 +122,9 @@ internal class Collections(private val root: SurfaceView) {
             root.refreshGeometry()
             val next = CollectionDocument.decode(text)
             if (next == null) { emit(JSONObject().put("state", "rejected")); return@post }
-            val values = next.nodes.flatMap { listOf(it.order.toLong(), if (it.scope) 1L else 0L,
-                if (it.enabled) 1L else 0L, it.layout.toLong(), java.lang.Double.doubleToRawLongBits(it.extent)) }.toLongArray()
             val retained = retainFocused(next)
             val result = root.connection.collections(next.dataset, next.nodes.map { it.key }.toTypedArray(),
-                next.nodes.map { it.parent }.toTypedArray(), values)
+                next.nodes.map { it.parent }.toTypedArray(), next.values())
             if (result < 0) { root.close(); return@post }
             if (result > 1) { emit(JSONObject().put("state", "rejected").put("dataset", next.dataset.toString())); return@post }
             val previousHandles = handles

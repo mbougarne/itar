@@ -132,7 +132,9 @@ const styles = StyleSheet.create({
 /** Two-level row-then-item realization with logical column entry. */
 export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewportExtent, viewportRows = 2,
   style, itemStyle, testID, viewportHeight, headerExtent = 0, listHeader, listHeaderExtent = 0,
-  listHeaderItems, listHeaderScope, renderDecoration, renderRailHeader, active = true, onReady, onEndReached}: Common & {
+  listHeaderItems, listHeaderScope, renderDecoration, renderRailHeader, active = true, onReady, onEndReached, rowEntry = 'nearest'}: Common & {
+    /** Logical Up/Down entry; first is currently supported only on Android TV. */
+    rowEntry?: 'nearest' | 'first';
     active?: boolean; onReady?: () => void; onEndReached?: () => void; rails: readonly VirtualizedFocusRail[]; rowExtent: number; viewportRows?: number; viewportHeight?: number; headerExtent?: number;
     /** A real leading collection row. Render its matching scope and focusable items
      * inside a horizontal ScrollView so offscreen return uses the normal reveal path. */
@@ -149,6 +151,10 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
   const scrollOffset = useRef(0);
   const alignedKey = useRef<string | null>(null);
   const model = useMemo(() => {
+    if (rowEntry !== 'nearest' && rowEntry !== 'first') { throw new Error('rowEntry must be nearest or first'); }
+    if (rowEntry === 'first' && !(Platform.isTV && Platform.OS === 'android')) {
+      throw new Error('rowEntry first is currently supported only on Android TV');
+    }
     extent(itemExtent); extent(rowExtent); extent(viewportExtent);
     if (viewportHeight !== undefined) { extent(viewportHeight); }
     if (!Number.isFinite(headerExtent) || headerExtent < 0 || headerExtent >= rowExtent) { throw new Error('Rail header must fit inside its fixed row extent'); }
@@ -171,12 +177,12 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
       if (rail.itemExtent !== undefined) { extent(rail.itemExtent); }
       return {...rail, key: nativeScopeKey([...path, rail.id])};
     });
-    const nodes = [{...list(key, parent.key, 0, false, rowExtent), leadingExtent: listHeaderExtent}, ...rows.flatMap((row, index) =>
+    const nodes = [{...list(key, parent.key, 0, false, rowExtent), leadingExtent: listHeaderExtent, rowEntry: rowEntry === 'first' ? 1 as const : 0 as const}, ...rows.flatMap((row, index) =>
       [list(row.key, key, index, true, row.itemExtent ?? itemExtent), ...items(row.items, row.key)])];
     return {id, key, rows, nodes, itemExtent, rowExtent, viewportExtent, viewportRows, viewportHeight, headerExtent,
       listHeader, listHeaderExtent, listHeaderScope, renderDecoration, renderRailHeader};
   }, [id, rails, rowExtent, itemExtent, viewportExtent, viewportRows, viewportHeight, headerExtent, listHeader,
-    listHeaderExtent, listHeaderItems, listHeaderScope, renderDecoration, renderRailHeader, parent.path, parent.key]);
+    listHeaderExtent, listHeaderItems, listHeaderScope, renderDecoration, renderRailHeader, parent.path, parent.key, rowEntry]);
   const published = usePublished(model, active);
   React.useEffect(() => {
     // A layout effect may publish a replacement after this render's snapshot.

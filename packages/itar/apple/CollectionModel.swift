@@ -12,6 +12,7 @@ struct CollectionEntry: Decodable {
     let layout: Int32
     let extent: Double
     var leadingExtent: Double? = nil
+    var rowEntry: Int32? = nil
     func offset(_ index: Int32) -> Double {
         let first = leadingExtent ?? 0
         return first > 0 && index > 0 ? first + Double(index - 1) * extent : Double(index) * extent
@@ -27,7 +28,9 @@ struct CollectionDocument: Decodable {
               document.nodes.count <= 256,
               document.nodes.allSatisfy({ node in
                   let first = node.leadingExtent ?? 0
-                  return first.isFinite && first >= 0 && first <= 1_000_000 && (node.scope || first == 0)
+                  // UIKit selects mounted destinations; do not silently accept first-entry policy.
+                  return (node.rowEntry == nil || node.rowEntry == 0) &&
+                      first.isFinite && first >= 0 && first <= 1_000_000 && (node.scope || first == 0)
               }) else { return nil }
         return document
     }

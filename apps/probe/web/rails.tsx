@@ -168,6 +168,7 @@ export function FocusVirtualizedRails({
   listHeaderExtent = 0,
   listHeaderItems = noHeaderItems,
   listHeaderScope = 'hero-actions',
+  rowEntry = 'nearest',
 }: RailsProps) {
   const store = useWebStore();
   const parent = useContext(WebScopeContext);
@@ -180,6 +181,12 @@ export function FocusVirtualizedRails({
   const height = viewportHeight ?? viewportRows * rowExtent;
 
   const model = useMemo(() => {
+    if (rowEntry !== 'nearest') {
+      throw new Error(
+        'Web rowEntry currently supports only nearest; first requires the collection Wasm binding',
+      );
+    }
+
     const path = [...parent.path, id];
     const root = nativeScopeKey(path);
 
@@ -232,6 +239,7 @@ export function FocusVirtualizedRails({
     hasHeader,
     listHeaderScope,
     listHeaderItems,
+    rowEntry,
   ]);
 
   const offset = (index: number) =>

@@ -22,8 +22,8 @@ boundaries and input ownership. Explicit directional overrides retain priority.
 Horizontal moves and explicit keyed/restoration requests keep their own contracts.
 There is no new row-skipping, wrapping or scroll-alignment policy.
 
-This is a **C++ API capability**. React Native configuration, private wire
-forwarding, native/browser host integration and per-runtime acceptance are
-separate work. In particular, this does not establish identical UIKit directional
-selection, screen-reader movement or physical-device support. Visual anchoring
-remains owned by the list/host adapter.
+The [React Native rails option](../packages/itar/virtualization.md) forwards this
+policy on the Android adapter. Browser forwarding remains separate work; Apple
+rejects first-entry while UIKit owns mounted directional selection. Neither the
+C++ capability nor transport validation establishes screen-reader movement or
+physical-device support. Visual anchoring remains owned by the list/host adapter.
