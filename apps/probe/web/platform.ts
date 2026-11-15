@@ -29,7 +29,8 @@ function onBack(event: KeyboardEvent) {
 export const BackHandler = {
   addEventListener(_event: 'hardwareBackPress', listener: BackListener) {
     if (!listeners.size) {
-      document.addEventListener('keydown', onBack);
+      // RNW editors stop bubbling keydown; the latest Back listener still owns it.
+      document.addEventListener('keydown', onBack, true);
     }
 
     listeners.add(listener);
@@ -39,7 +40,7 @@ export const BackHandler = {
         listeners.delete(listener);
 
         if (!listeners.size) {
-          document.removeEventListener('keydown', onBack);
+          document.removeEventListener('keydown', onBack, true);
         }
       },
     };

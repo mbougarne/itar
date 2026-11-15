@@ -28,6 +28,29 @@ test('details keep decorative glyphs visual and accessible names plain', () => {
   assert.equal(details.find('Action', 'My list').props.displayLabel, '＋  My list');
 });
 
+test('web Search recovers only its own focused edit control when the query becomes empty', () => {
+  for (const platform of ['web', 'android']) {
+    for (const action of ['Clear', 'Delete']) {
+      for (const ownsFocus of [true, false]) {
+        const id = 'search';
+        const key = occurrenceKey(id, action.toLowerCase());
+        const f = fixture(ownsFocus ? key : 'unrelated', 'applied', platform);
+        const search = f.component('Search', {id, active: true});
+        search.find('Action', 'A').props.onPress(); search.render();
+        search.find('Action', action).props.onPress(); search.render();
+        assert.equal(search.find('Action', action).props.enabled, false);
+        assert.deepEqual(f.requests, platform === 'web' && ownsFocus ? [occurrenceKey(id, 'key', 'A')] : []);
+      }
+    }
+  }
+  const f = fixture(occurrenceKey('search', 'delete'), 'applied', 'web');
+  const search = f.component('Search', {id: 'search', active: true});
+  for (const letter of ['A', 'B']) { search.find('Action', letter).props.onPress(); search.render(); }
+  search.find('Action', 'Delete').props.onPress(); search.render();
+  assert.equal(search.find('Action', 'Delete').props.enabled, true);
+  assert.deepEqual(f.requests, [], 'ordinary deletion must keep its current focus');
+});
+
 // Run the real component callbacks and effects without rendering native views.
 // The command double records intent; it cannot establish reader-owned focus.
 function fixture(inputKey, outcome = 'applied', platform = 'android') {
