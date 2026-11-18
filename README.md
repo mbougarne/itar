@@ -16,7 +16,7 @@ Itar is a C++20 focus engine for React Native TV apps. It handles the part of re
 
 - **Menus, rails and routes.** Declare a scope for each navigable region. Give it a row, column or spatial layout, a boundary policy and, where needed, a preferred entry target or history-based return.
 - **Cards with a single focus target.** Put artwork and text inside a `Focusable`. The outer host owns the accessible label, activation and focus feedback. The same title can appear in multiple rails with distinct occurrence keys.
-- **Long catalogues.** Fixed-extent lists and nested rails keep logical items in the engine while React mounts a window of cells. A request for a distant item can wait for realization, scroll and native confirmation.
+- **Virtualized catalogues.** Fixed-extent lists and nested rails keep logical items in the engine while React mounts a window of cells. A request for a distant item can wait for realization, scroll and native confirmation.
 - **Interfaces that load or change routes.** Gate entry while data is being committed, cancel obsolete focus requests and observe the outcome. Input focus and accessibility focus have separate channels. Platform readers retain control of speech and exploration.
 
 ## Try it from a checkout
@@ -95,13 +95,9 @@ Here `occurrenceKey('watchlist', 'arrival')` identifies the card the viewer acti
 
 ## How Itar compares
 
-| If your main requirement is… | A library to evaluate |
-| --- | --- |
-| Restore focus to the exact card that opened Details in a virtualized native TV catalogue | **Itar** can reveal an offscreen card and report whether its current native view received focus. If the viewer navigates away, the app can cancel the request and still observe subsequent focus changes. This source beta needs testing on your target hardware. [Architecture](docs/guides/architecture.md) |
-| Add remote navigation to an existing React web app for smart TVs | **Norigin Spatial Navigation** offers a hooks-based API and documents production use on Samsung Tizen and LG webOS. It also has a React Native TV integration. [Norigin project](https://github.com/NoriginMedia/Norigin-Spatial-Navigation) |
-| Describe a shared React navigation tree with rows, grids and virtualized lists | **React TV Space Navigation** provides these components, a published package and a runnable demo. [BAM project](https://github.com/bamlab/react-tv-space-navigation) |
+If your TV app already uses Norigin, you can keep the idea of a stable key for each card. Itar adds a request you can cancel while a rail scrolls or a route changes, and a result that tells you whether the host focused the intended card. Cinema uses the same occurrence keys on Android TV, Apple TV and the web. Its browser adapter lives in the example and targets Chrome 85.
 
-The [full comparison](docs/comparison.md) covers platform maturity, who chooses the next target, virtualization and accessibility. Comparable physical-device latency measurements are still outstanding.
+The comparison follows one rail through a reorder and a return from Details. It covers plain React Native TV, Norigin, BAM and Itar, including who chooses the next card, what each focus call returns, virtualized collection limits and reader support. [Compare TV focus systems](docs/comparison.md)
 
 ## Find your way around
 
