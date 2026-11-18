@@ -10,4 +10,4 @@
 | Run Cinema, try route changes, or use the live catalogue | [Example app](ott-app.md) · [TMDB setup](tmdb-proxy.md) |
 | Try a remote or screen reader, or check known device behavior | [Device overview](devices/README.md) · [Android TV and Fire OS](devices/android-tv.md) · [Apple TV](devices/apple-tv.md) · [browser, Tizen and webOS](devices/web-tv.md) |
 | Choose how your app manages focus | [Compare Itar, plain React Native TV, Norigin and React TV Space Navigation](comparison.md) |
-| Change the implementation and test it | [Contribution guide](../CONTRIBUTING.md) · [CI checks](../.github/README.md) |
+| Change the implementation and test it | [Contribution guide](../CONTRIBUTING.md) · [CI checks](ci.md) |
