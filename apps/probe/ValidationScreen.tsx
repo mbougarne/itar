@@ -1,29 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
+import { blockJavaScript } from './diagnostics/blockJavaScript';
+import { NativeValidationGrid } from './diagnostics/NativeValidationGrid';
+import { ItarValidationGrid } from './diagnostics/ItarValidationGrid';
+import { ComparisonUnavailable } from './diagnostics/ComparisonUnavailable';
 
 // The pinned comparison bundles React 18 JSX internals. Keep an optional probe
 // load failure from preventing the React 19 consumer and other probes starting.
 const ComparisonLibrary = React.lazy(() =>
   import('./ComparisonLibrary').catch(() => ({
-    default: () => (
-      <Text>
-        Comparison library 5.2.0 could not load in this runtime. Native and Itar
-        probes remain available.
-      </Text>
-    ),
+    default: ComparisonUnavailable,
   })),
 );
-
-import {
-  FocusProvider,
-  FocusScope,
-  Focusable,
-  occurrenceKey,
-} from 'itar/react';
-
-const focusStyle = { accentColor: '#ff8800' };
-const rows = [0, 1];
-const columns = [0, 1, 2, 3];
 
 // Mounted-only comparison. Record input/host/visible timing with native tools;
 // JS callbacks cannot timestamp native progress while JS itself is stalled.
@@ -51,58 +39,12 @@ export default function ValidationScreen() {
     timer.current = setTimeout(() => {
       timer.current = null;
 
-      const start = Date.now();
+      const elapsed = blockJavaScript(duration);
 
-      while (Date.now() - start < duration) {
-        /* Bounded synthetic JS load. */
-      }
-
-      console.info(`ItarValidation actual_stall_ms=${Date.now() - start}`);
+      console.info(`ItarValidation actual_stall_ms=${elapsed}`);
       setScheduled(false);
     }, 1000);
   };
-
-  const grid = (
-    <View style={styles.grid}>
-      {rows.map(row =>
-        mode === 'itar' ? (
-          <FocusScope
-            key={row}
-            id={`row-${row}`}
-            layout="row"
-            style={styles.row}
-          >
-            {columns.map(column => (
-              <Focusable
-                key={column}
-                occurrenceKey={occurrenceKey(
-                  'validation',
-                  String(row),
-                  String(column),
-                )}
-                accessibilityLabel={`Target ${row * 4 + column + 1}`}
-                order={column}
-                focusStyle={focusStyle}
-                baseAccentColor="#222222"
-                style={styles.card}
-              />
-            ))}
-          </FocusScope>
-        ) : (
-          <View key={row} style={styles.row}>
-            {columns.map(column => (
-              <View key={column} style={styles.card}>
-                <Button
-                  title={`Target ${row * 4 + column + 1}`}
-                  onPress={() => {}}
-                />
-              </View>
-            ))}
-          </View>
-        ),
-      )}
-    </View>
-  );
 
   return (
     <View style={styles.screen}>
@@ -137,13 +79,9 @@ export default function ValidationScreen() {
           <ComparisonLibrary />
         </React.Suspense>
       ) : mode === 'itar' ? (
-        <FocusProvider key="itar" style={styles.grid}>
-          <FocusScope id="validation" layout="column" style={styles.grid}>
-            {grid}
-          </FocusScope>
-        </FocusProvider>
+        <ItarValidationGrid />
       ) : (
-        grid
+        <NativeValidationGrid />
       )}
       <Text>
         Focus the first target before load. Alternate Right/Left 20 times with
@@ -160,7 +98,4 @@ export default function ValidationScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, gap: 12 },
   controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  grid: { width: 760, height: 180 },
-  row: { height: 80, flexDirection: 'row', gap: 12 },
-  card: { width: 170, height: 72, justifyContent: 'center' },
 });

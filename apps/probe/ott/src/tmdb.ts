@@ -1,10 +1,15 @@
 // Public build-time endpoint only. Provider credentials never enter this module.
-import type { CastMember, Category, Film, Kind, Page, Rail } from './catalog';
+import type {
+  CastMember,
+  Category,
+  Film,
+  Kind,
+  Page,
+  Rail,
+} from './catalog-types';
 
 // Replaced by the bundler; no Node runtime or server environment is loaded.
 declare const process: { env: { ITAR_TMDB_PROXY_URL?: string } };
-
-export type ProviderMode = 'proxy' | 'fixture';
 
 const PROXY = process.env.ITAR_TMDB_PROXY_URL || 'http://127.0.0.1:8787';
 

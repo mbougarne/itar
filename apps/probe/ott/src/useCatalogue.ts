@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
-import type { Category, Kind } from './catalog';
+import type { Category, Kind } from './catalog-types';
 import { fetchPage } from './catalog';
-import { fetchProxyPage, type ProviderMode } from './tmdb';
+import { fetchProxyPage } from './tmdb';
+import type { ProviderMode } from './catalog-types';
 import { CatalogueSession } from './session';
 
 export function useCatalogue(

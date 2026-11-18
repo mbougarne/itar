@@ -34,7 +34,7 @@ vm.runInNewContext(output, {
       return require('react-native-web');
     }
 
-    if (name === './focus') {
+    if (['./focus-context', './focus-hooks', './FocusScope'].includes(name)) {
       return {
         WebScopeContext: scope,
         useWebStore: () => ({}),
@@ -42,6 +42,14 @@ vm.runInNewContext(output, {
         FocusScope: ({ children }) =>
           React.createElement('section', null, children),
       };
+    }
+
+    if (name === './Rail') {
+      return {};
+    }
+
+    if (name === './rail-styles') {
+      return { htmlStyles: {} };
     }
 
     if (name === './focus-store') {

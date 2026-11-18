@@ -5,7 +5,47 @@
 
 using namespace itar;
 
+void enterGridFromFilters() {
+  NavigationFixture f;
+  NodeRecord scope;
+  scope.scope = true;
+  const auto root = f.add("root", scope);
+  scope.navigation.boundary = Boundary::parent;
+  scope.navigation.layout = Layout::row;
+  f.add("filters", scope, "root");
+  const auto all = f.add("all", f.item(0, {0, 0, 60, 30}), "filters");
+  const auto genre = f.add("genre", f.item(1, {100, 0, 60, 30}), "filters");
+  scope.navigation.layout = Layout::column;
+  const auto grid = f.add("grid", scope, "root");
+  scope.navigation.layout = Layout::row;
+  const auto cards = f.add("cards", scope, "grid");
+  scope.order = 1;
+  f.add("pagination", scope, "grid");
+  const auto first = f.add("first", f.item(0, {0, 50, 80, 60}), "cards");
+  const auto second = f.add("second", f.item(1, {100, 50, 80, 60}), "cards");
+  const auto more = f.add("more", f.item(0, {0, 400, 60, 30}), "pagination");
+  const auto footer = f.add("footer", f.item(0, {100, 500, 60, 30}), "root");
+
+  CHECK(resolve(f.state, Direction::down, f.focus(all, root)).target == first);
+  CHECK(resolve(f.state, Direction::down, f.focus(genre, root)).target == second);
+  CHECK(resolve(f.state, Direction::up, f.focus(footer, root)).target == more);
+
+  auto unavailable = *f.state.snapshot().registry.lookup(cards);
+  unavailable.navigation.entryReady = false;
+  f.update(cards, unavailable);
+  CHECK(resolve(f.state, Direction::down, f.focus(all, root)).target == more);
+  unavailable.navigation.entryReady = true;
+  f.update(cards, unavailable);
+
+  auto returning = *f.state.snapshot().registry.lookup(grid);
+  returning.navigation.restoreOnEntry = true;
+  f.update(grid, returning);
+  f.focus(more, root);
+  CHECK(resolve(f.state, Direction::down, f.focus(all, root)).target == more);
+}
+
 int main() {
+  enterGridFromFilters();
   NavigationFixture f;
   NodeRecord scope;
   scope.scope = true;

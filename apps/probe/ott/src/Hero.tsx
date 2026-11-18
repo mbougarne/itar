@@ -1,36 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { FocusScope, occurrenceKey } from 'itar/react';
-import type { Film } from './catalog';
+import type { Film } from './catalog-types';
 import { fetchDetails } from './tmdb';
-import { Action } from './ui';
+import { Action } from './components/Action';
+import { Backdrop } from './components/Backdrop';
 import { useDesign } from './theme';
 
-export function Metadata({ film }: { film: Film }) {
-  const { s } = useDesign();
-
-  const values = [
-    film.year || '',
-    film.kind === 'series' ? 'Series' : 'Movie',
-    film.runtime ? `${film.runtime} min` : '',
-    film.rating !== undefined && film.votes
-      ? `★ ${film.rating.toFixed(1)} / 10`
-      : '',
-    film.certification
-      ? `${film.certification} (${film.certificationRegion})`
-      : 'Age rating unavailable',
-  ];
-
-  return (
-    <View style={s.badges}>
-      {values.filter(Boolean).map(value => (
-        <Text key={value} style={s.badge}>
-          {value}
-        </Text>
-      ))}
-    </View>
-  );
-}
+import { Metadata } from './components/Metadata';
 
 export default function Hero({
   film,
@@ -71,7 +48,8 @@ export default function Hero({
 
   return (
     <View style={s.homeHero}>
-      <View style={s.heroCopy}>
+      <Backdrop film={film} />
+      <View style={[s.heroCopy, s.homeInset]}>
         <Text style={s.eyebrow}>THE WEEK’S SPOTLIGHT</Text>
         <Text numberOfLines={2} style={s.heroTitle}>
           {details.title}

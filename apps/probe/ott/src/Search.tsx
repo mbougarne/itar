@@ -7,10 +7,11 @@ import {
   useFocusState,
 } from 'itar/react';
 import Browse from './Browse';
-import { Action, Header } from './ui';
+import { Action } from './components/Action';
+import { Header } from './components/Header';
 import { useDesign } from './theme';
-import type { ProviderMode } from './tmdb';
-import type { Film } from './catalog';
+import type { ProviderMode } from './catalog-types';
+import type { Film } from './catalog-types';
 
 const letters = ['ABCDEFG', 'HIJKLMN', 'OPQRSTU', 'VWXYZ'];
 

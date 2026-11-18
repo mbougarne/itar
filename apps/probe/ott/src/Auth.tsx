@@ -14,7 +14,7 @@ import {
   useFocusCommands,
   useFocusReady,
 } from 'itar/react';
-import { Action } from './ui';
+import { Action } from './components/Action';
 import { useDesign } from './theme';
 
 export default function Auth({ onSignIn }: { onSignIn: () => void }) {

@@ -8,7 +8,7 @@ const emcmake = path.join(sdk, 'upstream/emscripten/emcmake');
 
 if (!existsSync(emcmake)) {
   throw new Error(
-    'Install Emscripten 6.0.13 first; see docs/probe-web-engine.md. Set EMSDK for a different install path.',
+    'Install Emscripten 6.0.13 first; see docs/devices/web-tv.md#desktop-browser. Set EMSDK for a different install path.',
   );
 }
 

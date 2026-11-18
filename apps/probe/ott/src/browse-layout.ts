@@ -1,4 +1,4 @@
-import type { Rail } from './catalog';
+import type { Rail } from './catalog-types';
 
 // Repack API pages without repeating titles or changing earlier occurrence positions.
 export function layoutRows(

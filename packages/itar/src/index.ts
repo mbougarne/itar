@@ -1,2 +1,2 @@
-// Package identity for the reference consumer; no navigation API is implemented.
+// Retained for workspace and tarball identity checks. The TV components and hooks live in itar/react.
 export const packageStage = 'foundation-shell' as const;

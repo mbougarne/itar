@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from '../ott/App';
+import { BrowserNavigation } from '../ott/src/browser-navigation';
 import {
   initializeFocusEngine,
   setDirectionalNavigationEnabled,
@@ -13,13 +14,18 @@ if (!root) {
   throw new Error('Itar root element is missing');
 }
 
-const navigation = document.querySelector<HTMLInputElement>(
-  '#directional-navigation',
-);
+function BrowserApp() {
+  const [enabled, setEnabled] = useState(true);
 
-if (navigation) {
-  navigation.addEventListener('change', () =>
-    setDirectionalNavigationEnabled(navigation.checked),
+  function toggle() {
+    setDirectionalNavigationEnabled(!enabled);
+    setEnabled(!enabled);
+  }
+
+  return (
+    <BrowserNavigation.Provider value={{ enabled, toggle }}>
+      <App />
+    </BrowserNavigation.Provider>
   );
 }
 
@@ -29,7 +35,7 @@ root.textContent = 'Loading Itar Cinema…';
 initializeFocusEngine().then(
   () => {
     root.removeAttribute('role');
-    createRoot(root).render(<App />);
+    createRoot(root).render(<BrowserApp />);
   },
   () => {
     root.setAttribute('role', 'alert');

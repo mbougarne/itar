@@ -2,11 +2,12 @@ import React, { useCallback, useState } from 'react';
 import { View } from 'react-native';
 import { FocusScope, occurrenceKey } from 'itar/react';
 import Browse from './Browse';
-import { categories, type Category } from './catalog';
-import { Action } from './ui';
+import type { BrowseProps } from './browse-types';
+import { categories, type Category } from './catalog-types';
+import { Action } from './components/Action';
 import { useDesign } from './theme';
 
-export default function Catalogue(props: React.ComponentProps<typeof Browse>) {
+export default function Catalogue(props: BrowseProps) {
   const { s } = useDesign();
   const [category, setCategory] = useState<Category>('All');
   const { id, onReady } = props;

@@ -1,16 +1,12 @@
-# Independent C++20 build (ITAR-0001)
+# Itar C++20 engine
 
-Requires CMake 3.20+ and a C++20 compiler with its standard library. The
-`itar_core` static library (`itar::core` for CMake consumers) exports `include/`
-and the C++20 usage requirement. It has no React, JNI, UIKit, JavaScript, or
-downloaded dependency. The [registry spike](../docs/core-registry-spike.md)
-implements bounded identity, topology, committed geometry and observed focus
-state. The [navigation policy](../docs/core-navigation.md) adds pure destination,
-scope-entry and deletion-recovery proposals. [Portable transactions](../docs/core-transactions.md)
-add validated requests, effects, cancellation, host time and replay; production
-adapters follow.
+[العربية](README.ar.md)
 
-From the repository root:
+The `itar_core` static library exposes the CMake target `itar::core`. It owns surface state, logical identities, committed geometry, navigation policy, transactions and collection membership. A host supplies input, measurements and actual focus observations. The core can be built and tested without React, JavaScript or a TV SDK.
+
+## Build and test
+
+Use CMake 3.20+ and a C++20 compiler. Run from the repository root.
 
 ```sh
 cmake -S core -B build/core -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
@@ -18,30 +14,17 @@ cmake --build build/core --parallel 2
 ctest --test-dir build/core --output-on-failure --no-tests=error --timeout 60
 ```
 
-The harness links the library and compiles a C++20 standard-library facility.
-Checks use exit codes, so Release/NDEBUG cannot disable them. The second CTest
-case expects `--fail` to return failure; a false success fails that test. To
-observe the ordinary failing process directly, run:
+For library development, `cmake --build build/core --target itar_core` builds just the engine. For a CMake consumer, see the [standalone example](../docs/guides/architecture.md). Each build configuration needs its own output directory.
+
+CTest covers registry and mount generations, atomic updates, geometry, navigation, transactions, replay, collections and platform-boundary fixtures. To run a subset while working on a change, list registered tests first, then match their names:
 
 ```sh
-build/core/itar_core_harness --fail
-# Expected: "Intentional harness failure", exit status 1.
+ctest --test-dir build/core -N
+ctest --test-dir build/core -R collection --output-on-failure
 ```
 
-Use `-DBUILD_TESTING=OFF` for a library-only build. Keep build trees under the
-ignored `build/` directory (or outside the checkout). Use a different build
-directory per compiler/configuration. No third-party test framework is needed
-for the harness; behavioral fixtures exercise registry and navigation contracts.
+To exercise sanitizers with Clang, configure a fresh Debug build and pass `-fsanitize=address,undefined -fno-omit-frame-pointer` in `CMAKE_CXX_FLAGS`. The [CI workflow](../.github/workflows/ci.yml) contains the full build flags. Build with `-DITAR_BUILD_BENCHMARKS=ON` to enable `itar_core_costs`. Its results describe the engine workload on the machine running it. End-to-end latency needs measurements on a TV.
 
-For Clang sanitizers, configure a fresh directory with
-`-DCMAKE_BUILD_TYPE=Debug` and
-`-DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer'`.
-Run CTest with `UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`.
-The [existing CI matrix](../.github/README.md) also runs GCC, Clang sanitizers,
-and Apple Clang. These checks do not establish native TV support.
+## Read the core
 
-Local evidence (2026-10-05): CMake 3.31.6 / Apple Clang 21.0.0 passed Release
-and ASan/UBSan (2/2 cases each), an isolated clean source copy, and library-only
-configuration. Compile commands confirmed `-std=c++20` on both targets. Direct
-`--fail` returned 1; an isolated CTest fixture without `WILL_FAIL` returned
-nonzero for that command, verifying ordinary failure propagation.
+Start with the [architecture walkthrough](../docs/guides/architecture.md) for occurrence keys, registration generations, committed geometry, selection and host confirmation. The [collection guide](../docs/guides/collections.md) explains row entry and realization. [Public headers](include/itar/) and [behavioral tests](tests/) show the concrete types and expected outcomes. The [probe](include/itar/probe/) is a separate fixture target.

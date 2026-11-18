@@ -6,9 +6,10 @@ import {
   useFocusCommands,
   useFocusReady,
 } from 'itar/react';
-import { Action } from './ui';
+import { Action } from './components/Action';
 import { useDesign } from './theme';
-import { guideTime, useGuide, type Programme } from './guide';
+import { guideTime, useGuide } from './guide';
+import type { Programme } from './guide-types';
 import { guideWindow } from './guide-data';
 
 export default function Epg({ onClose }: { onClose: () => void }) {

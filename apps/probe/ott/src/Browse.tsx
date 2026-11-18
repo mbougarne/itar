@@ -13,45 +13,19 @@ import {
   useFocusCommands,
 } from 'itar/react';
 import type { VirtualizedFocusItem, VirtualizedFocusRail } from 'itar/react';
-import { hero, type Category, type Film, type Kind } from './catalog';
+import { hero } from './catalog';
 import { useCatalogue } from './useCatalogue';
-import { Backdrop, Picture, filmArtwork } from './ui';
+import { Picture } from './components/Picture';
+import { filmArtwork } from './artwork';
 import Hero from './Hero';
 import { layoutRows } from './browse-layout';
-import { useGuide, guideTime, type Programme } from './guide';
-import type { ProviderMode } from './tmdb';
+import { useGuide } from './guide';
 import { useDesign } from './theme';
 
-function EndObserver({
-  id,
-  active,
-  blocked,
-  onEnd,
-}: {
-  id: string;
-  active: boolean;
-  blocked: boolean;
-  onEnd: () => void;
-}) {
-  const focused = useIsFocused(id);
-
-  useEffect(() => {
-    if (focused && active && !blocked) {
-      onEnd();
-    }
-  }, [focused, active, blocked, onEnd]);
-
-  return null;
-}
-
-type Visual = {
-  film?: Film;
-  poster?: boolean;
-  programme?: Programme;
-  channel?: string;
-  guide?: boolean;
-  feedback?: boolean;
-};
+import { CatalogueFeedback } from './components/CatalogueFeedback';
+import { GuidePreview } from './components/GuidePreview';
+import { EndObserver } from './components/EndObserver';
+import type { BrowseProps, BrowseVisual } from './browse-types';
 
 export default function Browse({
   id,
@@ -70,24 +44,7 @@ export default function Browse({
   onGuide,
   grid = false,
   category = 'All',
-}: {
-  grid?: boolean;
-  category?: Category;
-  onGuide?: (openerKey: string) => void;
-  onReady?: (initialKey?: string) => void;
-  viewportWidth?: number;
-  mode: ProviderMode;
-  id: string;
-  kind: Kind;
-  query?: string;
-  active: boolean;
-  delay: number;
-  failNext: () => boolean;
-  onOpen: (film: Film, openerKey: string) => void;
-  highContrast: boolean;
-  featured?: boolean;
-  searchResults?: boolean;
-}) {
+}: BrowseProps) {
   const { s, u } = useDesign();
   const { width } = useWindowDimensions();
   const { guide } = useGuide(featured);
@@ -144,13 +101,22 @@ export default function Browse({
   );
 
   const columns = grid ? 5 : 4;
-  const landscapeWidth = (viewport - (columns - 1) * 24 * u) / columns;
+  const cardGap = 24 * u;
+  const homeInset = featured ? cardGap : 0;
 
-  const rowExtent = grid
-    ? (landscapeWidth * 9) / 16 + 32 * u
-    : (searchResults ? 280 : 420) * u;
+  const landscapeWidth =
+    (viewport - 2 * homeInset - (columns - 1) * cardGap) / columns;
 
-  const headerExtent = grid ? 0 : 50 * u;
+  const landscapeRowExtent = (landscapeWidth * 9) / 16 + 32 * u;
+
+  // Search feedback takes 116 units above its 56-unit pagination button.
+  const rowExtent = searchResults
+    ? Math.max(landscapeRowExtent, 172 * u)
+    : grid
+    ? landscapeRowExtent
+    : 420 * u;
+
+  const headerExtent = grid || searchResults ? 0 : 58 * u;
 
   const displayedRows = useMemo(
     () =>
@@ -167,7 +133,7 @@ export default function Browse({
     [];
 
   const model = useMemo(() => {
-    const visuals = new Map<string, Visual>();
+    const visuals = new Map<string, BrowseVisual>();
     const accent = { accentColor: highContrast ? '#FFFFFF' : '#26D9F2' };
 
     const make = (
@@ -187,28 +153,19 @@ export default function Browse({
 
     const rails: VirtualizedFocusRail[] = [];
     const titles = new Map<string, string>();
-    const rows = [...displayedRows];
 
-    for (const rail of rows) {
+    for (const rail of displayedRows) {
       const poster = !grid && !searchResults && rail.format === 'poster';
       const cardWidth = poster ? 220 * u : landscapeWidth;
       const imageHeight = poster ? 330 * u : (cardWidth * 9) / 16;
 
-      titles.set(
-        rail.id,
-        searchResults
-          ? rail === rows[0]
-            ? query.trim()
-              ? 'Matching titles'
-              : 'Trending this week'
-            : 'More to explore'
-          : rail.title,
-      );
+      titles.set(rail.id, rail.title);
 
       rails.push({
         id: rail.id,
-        itemExtent: cardWidth + 24 * u,
+        itemExtent: cardWidth + cardGap,
         itemStyle: {
+          marginStart: homeInset,
           width: cardWidth,
           height: imageHeight,
           borderRadius: 8 * u,
@@ -239,8 +196,8 @@ export default function Browse({
 
       rails.push({
         id: 'guide-preview',
-        itemExtent: landscapeWidth + 24 * u,
-        itemStyle: s.primaryCta,
+        itemExtent: landscapeWidth + cardGap,
+        itemStyle: [s.primaryCta, s.homeInset],
         items: (programmes.length ? programmes : [null]).map(channel => {
           const key = occurrenceKey(id, 'guide', channel?.id ?? 'open');
 
@@ -262,30 +219,37 @@ export default function Browse({
 
       visuals.set(key, { feedback: true });
 
+      const action = make(
+        key,
+        state.error
+          ? 'Retry fetch'
+          : pending
+          ? 'Fetching stories…'
+          : state.limitReached
+          ? 'Continue to next titles'
+          : state.ended
+          ? 'Reload catalogue'
+          : 'Load more stories',
+        state.error
+          ? retry
+          : state.limitReached
+          ? nextWindow
+          : state.ended
+          ? reload
+          : loadMore,
+      );
+
       rails.push({
         id: 'pagination',
         itemExtent: viewport,
-        itemStyle: s.pill,
+        itemStyle: [s.pill, featured && s.homeInset],
         items: [
-          make(
-            key,
-            state.error
-              ? 'Retry fetch'
-              : pending
-              ? 'Fetching stories…'
-              : state.limitReached
-              ? 'Continue to next titles'
-              : state.ended
-              ? 'Reload catalogue'
-              : 'Load more stories',
-            state.error
-              ? retry
-              : state.limitReached
-              ? nextWindow
-              : state.ended
-              ? reload
-              : loadMore,
-          ),
+          {
+            ...action,
+            // Keep a filter focused during the first fetch. A focused retry
+            // stays mounted and eligible until its result is ready.
+            enabled: !grid || !initial || !pending || retryFocused,
+          },
         ],
       });
     }
@@ -294,7 +258,8 @@ export default function Browse({
   }, [
     displayedRows,
     grid,
-    query,
+    cardGap,
+    homeInset,
     guide,
     onGuide,
     initial,
@@ -305,6 +270,7 @@ export default function Browse({
     u,
     s.pill,
     s.primaryCta,
+    s.homeInset,
     landscapeWidth,
     state.rows,
     state.error,
@@ -315,6 +281,7 @@ export default function Browse({
     nextWindow,
     loadMore,
     retry,
+    retryFocused,
     searchResults,
     onOpen,
   ]);
@@ -325,78 +292,22 @@ export default function Browse({
 
       if (visual?.guide) {
         return (
-          <View style={s.guidePreview}>
-            <Text style={s.eyebrow}>{visual.channel || 'EPGTALK'}</Text>
-            <Text numberOfLines={2} style={s.heading}>
-              {visual.programme?.title || 'What’s on now and next'}
-            </Text>
-            <Text style={s.muted}>
-              {visual.programme
-                ? `${guideTime(visual.programme.start)}–${guideTime(
-                    visual.programme.stop,
-                  )}`
-                : 'Browse channels and programme times'}
-            </Text>
-          </View>
+          <GuidePreview channel={visual.channel} programme={visual.programme} />
         );
       }
 
       if (visual?.feedback) {
         return (
-          <View
-            style={[s.feedback, { height: (searchResults ? 116 : 270) * u }]}
-          >
-            {!!state.error && Platform.OS !== 'web' && (
-              <>
-                <Text numberOfLines={1} style={s.heading}>
-                  {initial
-                    ? 'Couldn’t load stories'
-                    : 'Couldn’t load more stories'}
-                </Text>
-                <Text numberOfLines={2} style={s.muted}>
-                  {state.error}
-                </Text>
-              </>
-            )}
-            {pending && (
-              <>
-                {!searchResults && (
-                  <View style={s.loadingRow}>
-                    {[0, 1, 2].map(key => (
-                      <View
-                        key={key}
-                        style={[
-                          s.skeleton,
-                          {
-                            width: landscapeWidth,
-                            height: (landscapeWidth * 9) / 16,
-                            borderRadius: 8 * u,
-                          },
-                        ]}
-                      />
-                    ))}
-                  </View>
-                )}
-                <Text style={s.muted}>
-                  {searchResults ? 'Searching stories…' : 'Loading stories…'}
-                </Text>
-              </>
-            )}
-            {!pending && !state.error && initial && (
-              <>
-                <Text style={s.heading}>No matching stories</Text>
-                <Text style={s.muted}>Try a different title or genre.</Text>
-              </>
-            )}
-            {!pending && !state.error && !initial && (
-              <Text style={s.body}>
-                {state.limitReached
-                  ? 'Continue browsing the next selection'
-                  : state.ended
-                  ? 'End of this catalogue'
-                  : 'More stories are available'}
-              </Text>
-            )}
+          <View style={featured && s.homeInset}>
+            <CatalogueFeedback
+              searchResults={searchResults}
+              landscapeWidth={landscapeWidth}
+              error={state.error}
+              ended={state.ended}
+              limitReached={state.limitReached}
+              initial={initial}
+              pending={pending}
+            />
           </View>
         );
       }
@@ -405,8 +316,6 @@ export default function Browse({
     },
     [
       model.visuals,
-      s,
-      u,
       landscapeWidth,
       state.error,
       state.limitReached,
@@ -414,6 +323,8 @@ export default function Browse({
       initial,
       pending,
       searchResults,
+      featured,
+      s.homeInset,
     ],
   );
 
@@ -443,10 +354,19 @@ export default function Browse({
   );
 
   const railHeader = useCallback(
-    (rail: VirtualizedFocusRail) => (
-      <Text style={s.virtualHeading}>{model.titles.get(rail.id) || ''}</Text>
-    ),
-    [model.titles, s.virtualHeading],
+    (rail: VirtualizedFocusRail) => {
+      const title = model.titles.get(rail.id);
+
+      return title ? (
+        <Text
+          accessibilityRole="header"
+          style={[s.virtualHeading, featured && s.homeInset]}
+        >
+          {title}
+        </Text>
+      ) : null;
+    },
+    [model.titles, s.virtualHeading, featured, s.homeInset],
   );
 
   const reportReady = useCallback(() => {
@@ -490,7 +410,6 @@ export default function Browse({
 
   return (
     <View style={s.fill}>
-      {featured && featuredFilm && <Backdrop film={featuredFilm} />}
       {Platform.OS === 'web' && !!state.error && (
         <View accessibilityRole="alert">
           <Text style={s.heading}>
@@ -500,10 +419,10 @@ export default function Browse({
         </View>
       )}
       <View
-        style={featured ? s.homeRails : s.fill}
+        style={s.fill}
         onLayout={event => {
           setHeight(event.nativeEvent.layout.height);
-          setWidth(event.nativeEvent.layout.width - (featured ? 80 * u : 0));
+          setWidth(event.nativeEvent.layout.width);
         }}
       >
         {!featured &&
@@ -523,8 +442,10 @@ export default function Browse({
             onReady={reportReady}
             id="catalogue"
             rails={model.rails}
+            rowEntry={featured ? 'first' : 'nearest'}
+            horizontalAlignment={featured ? 'leading' : 'nearest'}
             rowExtent={rowExtent}
-            itemExtent={landscapeWidth + 24 * u}
+            itemExtent={landscapeWidth + cardGap}
             viewportExtent={viewport}
             viewportRows={1}
             viewportHeight={height}
@@ -562,7 +483,7 @@ export default function Browse({
                 : undefined
             }
             headerExtent={headerExtent}
-            renderRailHeader={grid ? undefined : railHeader}
+            renderRailHeader={headerExtent > 0 ? railHeader : undefined}
             renderDecoration={decoration}
             renderItem={renderItem}
           />

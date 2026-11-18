@@ -34,6 +34,28 @@ bool selectableDestination(const State& state, NodeHandle node,
   return false;
 }
 
+namespace {
+// In a column of rows, enter the adjacent row before matching the source x.
+// Mixed or flat scopes retain their ordinary perpendicular-anchor selection.
+NodeHandle gridEdgeRow(const State& state, NodeHandle column, Direction direction,
+                       const InputContext& input) noexcept {
+  const auto& registry = state.snapshot().registry;
+  NodeHandle edge;
+  for (std::size_t i = 0; i < registry.limits().capacity; ++i) {
+    const auto cell = registry.handleAt(i);
+    if (!entryCandidate(state, cell, column, input)) { continue; }
+    const auto row = registry.lookup(cell)->parent;
+    const auto* record = registry.lookup(row);
+    if (record->parent != column || record->navigation.layout != Layout::row) { return {}; }
+    if (!edge || (direction == Direction::down ? stableBefore(registry, row, edge)
+                                               : stableBefore(registry, edge, row))) {
+      edge = row;
+    }
+  }
+  return edge;
+}
+}  // namespace
+
 Proposal resolveEntry(const State& state, NodeHandle scope,
                       const InputContext& input, EntryContext entry) noexcept {
   const bool restoring = entry.intent == EntryIntent::restoration && entry.reason == EntryReason::returning;
@@ -107,8 +129,11 @@ Proposal resolveEntry(const State& state, NodeHandle scope,
   }
   long double distance = std::numeric_limits<long double>::infinity();
   if (!best) {
+    const auto row = anchored && !horizontal && region->navigation.layout == Layout::column
+        ? gridEdgeRow(state, scope, entry.direction, input) : NodeHandle{};
     for (std::size_t i = 0; i < registry.limits().capacity; ++i) {
       const auto node = registry.handleAt(i);
+      if (row && (!node || registry.lookup(node)->parent != row)) { continue; }
       if (!eligible(node)) { continue; }
       auto rank = std::numeric_limits<long double>::infinity();
       if (anchored && entry.anchor) {

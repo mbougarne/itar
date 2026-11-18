@@ -1,99 +1,91 @@
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Build directories
+# Build trees, compiler products and dependency caches
 build/
 Build/
 build-*/
 .cxx/
 .gradle/
-
-# CMake generated files
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-Makefile
 install_manifest.txt
 compile_commands.json
+Testing/
+.cache/
+vcpkg_installed/
+*.d
+*.slo
+*.lo
+*.o
+*.obj
+*.gch
+*.pch
+*.ilk
+*.pdb
+*.so
+*.so.*
+*.dylib
+*.dll
+*.mod
+*.smod
+*.lai
+*.la
+*.a
+*.lib
+*.exe
+*.out
+*.app
+*.dwo
 
-# Temporary files
+# JavaScript/Ruby dependencies, generated native shells and package staging
+node_modules/
+# Some worktrees use a symlink for this directory.
+/node_modules
+/packages/itar/lib/
+/packages/itar/cpp/
+/packages/itar/LICENSE
+/apps/probe/android/
+/apps/probe/ios/
+.bundle/
+vendor/bundle/
+*.tgz
+
+# Local settings, signing material and packaged apps
+.env
+.env.*
+!.env.example
+local.properties
+xcuserdata/
+DerivedData/
+*.keystore
+*.jks
+*.p12
+*.p8
+*.pfx
+*.pem
+*.mobileprovision
+*.apk
+*.aab
+*.ipa
+*.wgt
+*.ipk
+.DS_Store
+._*
+.vscode/
+.idea/
 *.tmp
 *.log
 *.bak
 *.swp
 
-# vcpkg
-vcpkg_installed/
-
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
-
-tickets
-
-# Local agent conversation and research records
-.agents/
-
-
-# RN probe workspace and reproducible native shells
-node_modules/
-packages/itar/lib/
-apps/probe/android/
-apps/probe/ios/
-.bundle/
-vendor/bundle/
-.vscode
-
-# Local provider credentials (server-side only; never bundle in React Native)
-.env
-.env.*
-!.env.example
-# Mechanically staged npm tarball inputs (prepack)
-packages/itar/cpp/
-packages/itar/LICENSE
-
-# External-storage dependency-directory symlink used by isolated worktrees
-/node_modules
-
-docs/validation
+# Maintainer planning, session records and raw device/browser captures
+/tickets/
+/.agents/
+/docs/next-session-prompt.md
+/docs/ott-next-steps.md
+/docs/validation/
+/docs/history/
+/.playwright-cli/
+/output/
+/test-results/
+/playwright-report/
+/coverage/

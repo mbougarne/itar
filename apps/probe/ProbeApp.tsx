@@ -1,14 +1,7 @@
 import React, { useState } from 'react';
-import {
-  Button,
-  Platform,
-  requireNativeComponent,
-  StyleSheet,
-  Text,
-  View,
-  type ViewProps,
-  type NativeSyntheticEvent,
-} from 'react-native';
+import { Button, Platform, StyleSheet, Text, View } from 'react-native';
+import { AppleHostProbe } from './diagnostics/AppleHostProbe';
+import { blockJavaScript } from './diagnostics/blockJavaScript';
 import { packageStage } from 'itar';
 import AndroidAdapterScreen from './AndroidAdapterScreen';
 import AppleAdapterScreen from './AppleAdapterScreen';
@@ -16,72 +9,32 @@ import ReactApiScreen from './ReactApiScreen';
 import VirtualizedScreen from './VirtualizedScreen';
 import ValidationScreen from './ValidationScreen';
 
-const HostProbe =
-  Platform.OS === 'ios'
-    ? requireNativeComponent<
-        ViewProps & {
-          onNativeActivation: (
-            event: NativeSyntheticEvent<{
-              target: string;
-              targetAlias?: string;
-            }>,
-          ) => void;
-        }
-      >('ItarAppleProbe')
-    : null;
+const screens = {
+  validation: ValidationScreen,
+  virtualized: VirtualizedScreen,
+  reactApi: ReactApiScreen,
+  appleAdapter: AppleAdapterScreen,
+};
 
 export default function ProbeApp() {
   const [showB, setShowB] = useState(true);
   const [activation, setActivation] = useState('None');
-  const [appleAdapter, setAppleAdapter] = useState(false);
-  const [reactApi, setReactApi] = useState(false);
-  const [virtualized, setVirtualized] = useState(false);
-  const [validation, setValidation] = useState(false);
+  const [screen, setScreen] = useState<keyof typeof screens | null>(null);
 
-  if (validation) {
+  if (screen !== null) {
+    const Screen = screens[screen];
+
     return (
       <View style={styles.screen}>
         <Button
-          title="Return to carrier probes"
-          onPress={() => setValidation(false)}
+          title={
+            screen === 'appleAdapter'
+              ? 'Return to host probes'
+              : 'Return to carrier probes'
+          }
+          onPress={() => setScreen(null)}
         />
-        <ValidationScreen />
-      </View>
-    );
-  }
-
-  if (virtualized) {
-    return (
-      <View style={styles.screen}>
-        <Button
-          title="Return to carrier probes"
-          onPress={() => setVirtualized(false)}
-        />
-        <VirtualizedScreen />
-      </View>
-    );
-  }
-
-  if (reactApi) {
-    return (
-      <View style={styles.screen}>
-        <Button
-          title="Return to carrier probes"
-          onPress={() => setReactApi(false)}
-        />
-        <ReactApiScreen />
-      </View>
-    );
-  }
-
-  if (Platform.OS === 'ios' && appleAdapter) {
-    return (
-      <View style={styles.screen}>
-        <Button
-          title="Return to host probes"
-          onPress={() => setAppleAdapter(false)}
-        />
-        <AppleAdapterScreen />
+        <Screen />
       </View>
     );
   }
@@ -96,35 +49,34 @@ export default function ProbeApp() {
         <Text>Native adapter work; unrun acceptance remains explicit.</Text>
       )}
       {Platform.OS === 'android' && <AndroidAdapterScreen />}
-      <Button title="Release validation" onPress={() => setValidation(true)} />
-      <Button title="React API preview" onPress={() => setReactApi(true)} />
+      <Button
+        title="Release validation"
+        onPress={() => setScreen('validation')}
+      />
+      <Button title="React API preview" onPress={() => setScreen('reactApi')} />
       <Button
         title="Virtualized list preview"
-        onPress={() => setVirtualized(true)}
+        onPress={() => setScreen('virtualized')}
       />
       {Platform.OS === 'ios' && (
         <Button
           title="Apple adapter preview"
-          onPress={() => setAppleAdapter(true)}
+          onPress={() => setScreen('appleAdapter')}
         />
       )}
-      {HostProbe && (
+      {AppleHostProbe && (
         <>
           <Button
             title="Busy JS for 2 seconds"
             onPress={() => {
               console.info('ItarProbe JS busy start');
 
-              const end = Date.now() + 2000;
-
-              while (Date.now() < end) {
-                /* Bounded deliberate probe load. */
-              }
+              blockJavaScript(2000);
 
               console.info('ItarProbe JS busy end');
             }}
           />
-          <HostProbe
+          <AppleHostProbe
             style={styles.nativeProbe}
             onNativeActivation={event =>
               setActivation(
@@ -134,7 +86,7 @@ export default function ProbeApp() {
           />
         </>
       )}
-      {!HostProbe && Platform.OS !== 'android' && (
+      {!AppleHostProbe && Platform.OS !== 'android' && (
         <>
           <View style={styles.row}>
             <View style={styles.column}>
