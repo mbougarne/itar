@@ -42,10 +42,18 @@ NodeHandle geometricDestination(const State& state, NodeHandle source,
   if (static_cast<std::size_t>(direction) >= 4) { return {}; }
   const auto& registry = state.snapshot().registry;
   const auto* record = registry.lookup(source);
-  const auto from = regionBounds(state, source, input);
-  if (!record || !from) { return {}; }
+  if (!record) { return {}; }
   const bool horizontal = direction == Direction::left || direction == Direction::right;
   const bool positive = direction == Direction::right || direction == Direction::down;
+  const auto* focused = registry.lookup(input.source.node);
+  const auto* row = focused ? registry.lookup(focused->parent) : nullptr;
+  const auto* column = row ? registry.lookup(row->parent) : nullptr;
+  const bool leavingRail = !wrap && horizontal && record->scope && row && column &&
+      row->navigation.layout == Layout::row && column->navigation.layout == Layout::column;
+  // At a horizontal rail edge, locate outside controls from the focused card.
+  // The union of other mounted rows can extend past the sidebar after scrolling.
+  const auto from = regionBounds(state, leavingRail ? input.source.node : source, input);
+  if (!from) { return {}; }
   // Widen arithmetic where supported; unrepresentable ranks fail closed.
   const auto axes = [horizontal](Rect r) {
     return horizontal ? std::array<long double, 4>{r.x, r.width, r.y, r.height}
@@ -59,6 +67,9 @@ NodeHandle geometricDestination(const State& state, NodeHandle source,
     const auto node = registry.handleAt(i);
     const auto* candidate = registry.lookup(node);
     if (!candidate || candidate->parent != record->parent || node == source) { continue; }
+    // Up and Down move between rows in this column, regardless of scroll offsets.
+    if (leavingRail && record == row && candidate->scope &&
+        candidate->navigation.layout == Layout::row) { continue; }
     if (!candidate->scope && (!logicalTarget(state, node) ||
                              !withinBoundary(state, node, input))) { continue; }
     const auto bounds = regionBounds(state, node, input);

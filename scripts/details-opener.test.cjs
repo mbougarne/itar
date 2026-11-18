@@ -39,6 +39,16 @@ test('the Home backdrop scrolls with its hero and the following rails retain the
   assert.ok(rails.headerExtent > 34, 'the 34-unit heading needs room below it');
 });
 
+test('Home showcases first-card entry and leading alignment while grids keep the source column', () => {
+  for (const featured of [true, false]) {
+    const browse = fixture('').component('Browse', {id: 'browse', mode: 'fixture', active: true, featured, grid: !featured});
+    browse.layout();
+    const rails = browse.find('Rails').props;
+    assert.equal(rails.rowEntry, featured ? 'first' : 'nearest');
+    assert.equal(rails.horizontalAlignment, featured ? 'leading' : 'nearest');
+  }
+});
+
 test('narrow Search rows keep named results and enough room for the pagination control', () => {
   const f = fixture('');
   const browse = f.component('Browse', {id: 'search', active: true, mode: 'fixture', searchResults: true, viewportWidth: 200});

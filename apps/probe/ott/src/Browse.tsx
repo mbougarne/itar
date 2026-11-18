@@ -442,6 +442,8 @@ export default function Browse({
             onReady={reportReady}
             id="catalogue"
             rails={model.rails}
+            rowEntry={featured ? 'first' : 'nearest'}
+            horizontalAlignment={featured ? 'leading' : 'nearest'}
             rowExtent={rowExtent}
             itemExtent={landscapeWidth + cardGap}
             viewportExtent={viewport}
