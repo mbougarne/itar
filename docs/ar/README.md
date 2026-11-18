@@ -12,6 +12,6 @@
 | تشغيل Cinema وتجربة الانتقال بين الشاشات أو تصفّح عناوين حقيقية | [التطبيق النموذجي](ott-app.md) · [إعداد وسيط TMDB](tmdb-proxy.md) |
 | تجربة جهاز التحكّم أو قارئ الشاشة ومعرفة ما اختُبر على كلّ جهاز | [نظرة عامة على الأجهزة](devices/README.md) · [Android TV وFire OS](devices/android-tv.md) · [Apple TV](devices/apple-tv.md) · [المتصفح وTizen وwebOS](devices/web-tv.md) |
 | اختيار طريقة إدارة التركيز في تطبيقك | [مقارنة إطار بتركيز React Native TV المدمج وبمكتبتَي Norigin وReact TV Space Navigation](comparison.md) |
-| تعديل الشيفرة والتحقّق من عمل التغيير | [دليل المساهمة](../../CONTRIBUTING.ar.md) · [فحوص التكامل المستمر](../../.github/README.ar.md) |
+| تعديل الشيفرة والتحقّق من عمل التغيير | [دليل المساهمة](../../CONTRIBUTING.ar.md) · [فحوص التكامل المستمر](ci.md) |
 
 </div>
