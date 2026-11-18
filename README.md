@@ -8,9 +8,9 @@ Itar is a C++20 focus engine for React Native TV apps. It handles the part of re
 
 **Source beta · physical-device testing in progress.** The React API and host behavior can change. You can build the engine, run the example and try a local package in a TV app. The workspace and package are marked private at version `0.0.0`. Install the beta from this checkout or build a local tarball. [Device status and open checks](docs/devices/README.md)
 
-![Itar Cinema running in a browser with the TV guide button focused above a rail of fictional movies.](docs/images/cinema-browser.jpg)
+[![Itar Cinema running in a browser with the TV guide button focused above a rail of fictional movies.](docs/images/cinema-browser.jpg)](docs/images/itar-cinema-preview.mp4)
 
-*Itar Cinema, the example app, running with the bundled catalogue.*
+*Itar Cinema, the example app, running with the bundled catalogue.* [Watch the demo (1 min 7 sec, MP4).](docs/images/itar-cinema-preview.mp4)
 
 ## What you can build with it
 
