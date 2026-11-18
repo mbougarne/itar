@@ -6,6 +6,8 @@ Import the components and hooks below from `itar/react`. The source beta uses Re
 
 ## Declare focus
 
+To migrate a card built with React Native’s `Pressable`, replace its outer `Pressable` with `Focusable`. Keep the artwork and text as children, and put `onPress` and the accessible label on `Focusable`. Props such as `focusable` and `hasTVPreferredFocus` on a plain React Native view belong to the platform focus system. Itar registers a card when its own host mounts. In an Itar virtualized list, the list creates that host for each item and calls `renderItem` for its visual content.
+
 | Component or prop | Contract |
 | --- | --- |
 | `FocusProvider` | Owns a native surface and its command and observation channels. Put scopes, focusable targets and hooks inside it. |
@@ -17,6 +19,8 @@ Import the components and hooks below from `itar/react`. The source beta uses Re
 | `accessibilityRole`, `accessibilityState` | Android and the browser demo expose a switch when supplied with `"switch"` and a Boolean `checked`. An adjustable control uses its native role. The Apple host has no equivalent checked-state mapping in this beta. |
 
 ## Observe and request focus
+
+Set `preferredKey={cardKey}` on `FocusScope` to declare a preferred target for scope entry. To move focus to that card after an action, call `focusByKey(cardKey)` from `useFocusCommands()` once the destination is ready.
 
 `useFocusReady()` reports surface readiness. `useIsFocused(key, channel?)` subscribes to one occurrence. `useFocusState(channel?)` returns the current observation, including its kind and managed occurrence. Specify `'accessibility'` for the reader channel. `useScreenReaderEnabled()` can initially return `null`.
 

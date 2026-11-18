@@ -97,9 +97,9 @@ Here `occurrenceKey('watchlist', 'arrival')` identifies the card the viewer acti
 
 | If your main requirement is… | A library to evaluate |
 | --- | --- |
+| Restore focus to the exact card that opened Details in a virtualized native TV catalogue | **Itar** can reveal an offscreen card and report whether its current native view received focus. If the viewer navigates away, the app can cancel the request and still observe subsequent focus changes. This source beta needs testing on your target hardware. [Architecture](docs/guides/architecture.md) |
 | Add remote navigation to an existing React web app for smart TVs | **Norigin Spatial Navigation** offers a hooks-based API and documents production use on Samsung Tizen and LG webOS. It also has a React Native TV integration. [Norigin project](https://github.com/NoriginMedia/Norigin-Spatial-Navigation) |
 | Describe a shared React navigation tree with rows, grids and virtualized lists | **React TV Space Navigation** provides these components, a published package and a runnable demo. [BAM project](https://github.com/bamlab/react-tv-space-navigation) |
-| Track which occurrence actually regained native focus after a list changed or a request was cancelled | **Itar** gives each occurrence an identity and lets you inspect the outcome reported by its host. Its C++ policy can also be tested independently. The current trade-off is integrating a source beta and validating the target hardware. [Architecture](docs/guides/architecture.md) |
 
 The [full comparison](docs/comparison.md) covers platform maturity, who chooses the next target, virtualization and accessibility. Comparable physical-device latency measurements are still outstanding.
 
