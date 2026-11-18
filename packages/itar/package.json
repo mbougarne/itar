@@ -15,7 +15,9 @@
     "cpp",
     "LICENSE",
     "README.md",
-    "virtualization.md"
+    "README.ar.md",
+    "virtualization.md",
+    "virtualization.ar.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

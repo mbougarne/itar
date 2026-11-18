@@ -2,18 +2,15 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { FocusScope, FocusVirtualizedRails, occurrenceKey } from 'itar/react';
 import type { VirtualizedFocusItem, VirtualizedFocusRail } from 'itar/react';
-import { cast, films, type CastMember, type Film } from './catalog';
-import {
-  Action,
-  IconAction,
-  icons,
-  Backdrop,
-  filmArtwork,
-  portraits,
-  Picture,
-} from './ui';
+import { cast, films } from './catalog';
+import type { CastMember, Film } from './catalog-types';
+import { Action } from './components/Action';
+import { IconAction } from './components/IconAction';
+import { Backdrop } from './components/Backdrop';
+import { Picture } from './components/Picture';
+import { icons, filmArtwork, portraits } from './artwork';
 import { fetchBiography, fetchDetails } from './tmdb';
-import { Metadata } from './Hero';
+import { Metadata } from './components/Metadata';
 import { useDesign } from './theme';
 
 const tabs = ['More like this', 'Cast & crew', 'Information'] as const;

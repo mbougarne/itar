@@ -1923,6 +1923,92 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - SocketRocket
+  - react-native-video (6.19.3):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - react-native-video/Video (= 6.19.3)
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
+  - react-native-video/Fabric (6.19.3):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
+  - react-native-video/Video (6.19.3):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - react-native-video/Fabric
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
   - React-NativeModulesApple (0.83.0-0):
     - boost
     - DoubleConversion
@@ -2531,6 +2617,7 @@ DEPENDENCIES:
   - React-logger (from `../../../node_modules/react-native/ReactCommon/logger`)
   - React-Mapbuffer (from `../../../node_modules/react-native/ReactCommon`)
   - React-microtasksnativemodule (from `../../../node_modules/react-native/ReactCommon/react/nativemodule/microtasks`)
+  - react-native-video (from `../../../node_modules/react-native-video`)
   - React-NativeModulesApple (from `../../../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../../../node_modules/react-native/ReactCommon/react/networking`)
   - React-oscompat (from `../../../node_modules/react-native/ReactCommon/oscompat`)
@@ -2665,6 +2752,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/react-native/ReactCommon"
   React-microtasksnativemodule:
     :path: "../../../node_modules/react-native/ReactCommon/react/nativemodule/microtasks"
+  react-native-video:
+    :path: "../../../node_modules/react-native-video"
   React-NativeModulesApple:
     :path: "../../../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios"
   React-networking:
@@ -2781,6 +2870,7 @@ SPEC CHECKSUMS:
   React-logger: 90befb65139e7de79973d0b392755beac69d21ae
   React-Mapbuffer: 4172cd23034c511aa49ba8b3926ca1f163f0e211
   React-microtasksnativemodule: ca20b73872176429650208f20901c2b7474544d9
+  react-native-video: 61841250a61ed594812b0bd4ce3f03549d574efc
   React-NativeModulesApple: cd87c5a8208424af7e835a3a8782005d67024130
   React-networking: ddedc176b55cdae1f4ea6c7ba9cccbd166cedfc1
   React-oscompat: 081f741ebb7be931893d818c2b99ebbd13e63030
@@ -2812,11 +2902,11 @@ SPEC CHECKSUMS:
   React-utils: bea0e18078e2d9a483fe3aefa84cbdd75a313b24
   React-webperformancenativemodule: 8f78a25e280a0fbdbd46916aab3861282c39b6ae
   ReactAppDependencyProvider: 700ed088168fccb9764fbf2622ad8e0b54af31a0
-  ReactCodegen: c9d1b569dd06dc09fbe303b1d31f7439776b0e5a
+  ReactCodegen: 8f15d5ed439d8266cf59bb2c2978fda7bda7d53c
   ReactCommon: f11d77cd5342419916ccd3b1b77b91ebb418edb4
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 214d4f53966125066c432e63bd203821bed9b58a
 
-PODFILE CHECKSUM: 2007ea62364703f161fb41fdc228ae3d4a7a3931
+PODFILE CHECKSUM: 4b1c84e23b0aba1657a359e38525315e7be95442
 
 COCOAPODS: 1.16.2

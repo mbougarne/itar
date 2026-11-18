@@ -1,20 +1,5 @@
-import {
-  fetchPage,
-  type Kind,
-  type Rail,
-  type DataSource,
-  type Category,
-} from './catalog';
-
-export type CatalogueState = Readonly<{
-  rows: readonly Rail[];
-  cursor: string | null;
-  loading: boolean;
-  error: string;
-  ended: boolean;
-  source: DataSource | null;
-  limitReached: boolean;
-}>;
+import type { CatalogueState, Kind, Category } from './catalog-types';
+import { fetchPage } from './catalog';
 
 const empty = (): CatalogueState => ({
   rows: [],

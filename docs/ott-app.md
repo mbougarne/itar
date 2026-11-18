@@ -1,159 +1,42 @@
-# Itar Cinema TV showcase
+# Run and explore Itar Cinema
 
-Latest focus work: [restoration fixes and native regression results](ott-focus-restoration-2026-10-31.md).
+[العربية](ar/ott-app.md)
 
-Current: [31 October redesign and verification](ott-redesign-2026-10-31.md).
-The sections below retain the earlier checkpoint history.
+Cinema is the example app in [apps/probe](../apps/probe/). It uses the same public components you would import in a TV app. Use it to follow focus from a sidebar into a catalogue, move to a cell that has not mounted yet, open Details and return to the card that opened it.
 
-The existing `apps/probe/App.tsx` opens the OTT source in `apps/probe/ott/`.
-This is one React Native TV app registered as `ItarProbe`, using the workspace
-Itar package and pinned `react-native-tvos`. Android and Apple native projects,
-original `ProbeApp.tsx`, dependency versions and owner design references remain.
-Development Settings can open the original probes. The separate old `itar-ott`
-folder is untouched. No commit, push or PR was created.
+## Start the app
 
-## Lint and formatting
+| Runtime | Entry point |
+| --- | --- |
+| Desktop browser | Follow the [web build instructions](devices/web-tv.md#desktop-browser). Run `npm run web` and open `http://127.0.0.1:8080`. |
+| Android TV / Google TV / Fire OS | Generate the native shell, start Metro, then build for the selected Android target. [Android guide](devices/android-tv.md) |
+| tvOS | Generate the native shell, install pods, then launch the tvOS scheme on the selected simulator or paired TV. [Apple TV guide](devices/apple-tv.md) |
+| Samsung Tizen / LG webOS | Build the platform-specific staging directory, then package and install through that TV's SDK. [Web TV guide](devices/web-tv.md) |
 
-From the repository root:
+On the welcome screen, choose **Sign in**, submit the demo form and select **Explorer** or **Stargazer**. The form works with empty fields. There is no account service. On the web, a local record remembers the profile, demo sign-in and catalogue source across reloads. Sign out to clear it.
 
-```sh
-npm run lint:tv       # ESLint; warnings fail the check
-npm run format:tv     # Apply Prettier and ESLint spacing fixes
-npm run check:tv      # Check lint and formatting without changing files
-npm run lint:fix -w itar-probe # Apply available ESLint fixes
-```
+A new browser session starts with offline fixtures. Native builds initially look for a local metadata proxy. To run on a TV without a backend, open **Settings → Content source → Catalogue** and select **Offline fixtures**. Settings also offers a slow request and a forced failure for testing focus while content changes. For mock or live metadata through the proxy, use the [catalogue proxy guide](tmdb-proxy.md). Every title's Play action opens a credited sample film. [Demo playback](#demo-playback)
 
-These commands cover the app entrypoints, probe screens, OTT screens and app
-configuration. They reuse the pinned workspace ESLint 8.57.1 and Prettier 2.8.8.
-The app's `.prettierrc.cjs` defines formatting; generated Android/iOS projects,
-dependencies, design references and artwork metadata are excluded. CI runs
-`check:tv`. The initial formatting pass is mechanical and is separate from bug
-fixes; use `git diff -w` to help review it.
+## Follow a focus interaction
 
-The TV app's `.eslintrc.cjs` enforces spaces inside object/import braces, after
-commas and colons, and around operators and arrows. Blank lines separate imports
-from code, types, functions, multiline declarations/effects, control-flow blocks
-and returns. Short related declarations and simple state updates can stay grouped;
-at most one empty line is allowed. Prettier runs before ESLint fixes so padding
-rules see the final line wrapping, then runs again to normalize any other fixes.
+| Try this | What to observe | Implementation |
+| --- | --- | --- |
+| From Home, enter the second rail and scroll to a card beyond the initial viewport. | A bounded list of host views represents a larger logical dataset. Watch which card receives the outline as the viewport moves. | [Browse](../apps/probe/ott/src/Browse.tsx) · [collection guide](guides/collections.md) |
+| Open a nonfirst card, then return from Details. | Compare the final highlighted occurrence and scroll position with the card you activated. A repeated movie in another rail gives this check a useful control. | [Cinema route state](../apps/probe/ott/src/Cinema.tsx) · [Details](../apps/probe/ott/src/Details.tsx) |
+| Search with the on-screen keyboard, clear the last character and move again. | Observe the new target when the selected action becomes unavailable. On web, repeat using Tab and a pointer. | [Search](../apps/probe/ott/src/Search.tsx) |
+| Open Settings and change the focus accent. Enable slow requests and queue a failure, then browse again. | Follow focus through loading, error, Retry and successful publication. Compare observations with the reader on and off. | [Settings](../apps/probe/ott/src/Settings.tsx) · [catalogue session](../apps/probe/ott/src/session.ts) |
 
-## Content
+On native development builds, **Settings → Open original Itar probes** opens the smaller adapter, React API, virtualization and release-validation screens. Use those when a two-row reproduction is easier to diagnose than a full Cinema route. **Return to Itar Cinema** remounts the showcase. [Probe entry](../apps/probe/ProbeApp.tsx)
 
-Home, Movies, Series, Search, Profile, Settings, title Details and Cast are
-implemented. The default source is the local HTTP proxy. It returns actual TMDB
-metadata/artwork in explicitly approved live mode, or labelled mock responses
-without credentials. Settings can explicitly select offline fictional fixtures.
-There is no silent substitution of fictional metadata for real titles.
+## Demo playback
 
-See [local proxy setup and credential boundary](tmdb-proxy.md). The ignored real
-root environment file stays server-only. React Native calls loopback port8787
-and public credential-free image URLs; it never reads environment files or keys.
-Metro blocks environment imports. `.env.example` is tracked placeholder guidance.
-No dotenv transform, dependency, key constant, secret resource or account change
-was introduced. Live mode is manually started after owner approval; no service,
-autostart or persistent credential configuration was installed.
+Every **Play demo** action opens *Big Buck Bunny* by the Blender Foundation, licensed under CC BY 3.0. Native builds stream a 480p HLS sample hosted by Mux. The web player uses the 2160p H.264 MP4 on the GARR Kodi mirror. The film is streamed separately from the catalogue and requires a network connection even with offline titles. Select a card, enter the player, adjust the timeline, and press Back to exercise focus restoration. [Film credits](https://peach.blender.org/about/) · [License](https://creativecommons.org/licenses/by/3.0/) · [Native player](../apps/probe/ott/src/Playback.tsx) · [Browser player](../apps/probe/ott/src/Player.web.tsx)
 
-A page contains up to20 titles in four mixed-format rows. Focus on either of the
-last two occurrences triggers another request; the reachable trailing action
-also loads/retries. Responses append without removing earlier identities. A
-48-title viewing window is reported separately from the provider's real end.
-Concurrent end events coalesce. Aborted/stale requests cannot replace a newer
-query. Failed append requests retain the previous rows. Search debounces a
-bounded remote-keyboard query. Profiles and settings are session-only. There is
-no playback entitlement implied by TMDB metadata. Play opens an explicitly labelled
-Big Buck Bunny HLS demo for every title; see [playback and licensing](ott-playback.md).
+## Work on the example
 
-## Focus and design
+- The [app entry](../apps/probe/App.tsx) selects Cinema or the development probes. The [Cinema entry](../apps/probe/ott/App.tsx) provides the design theme. Shared route state lives in [Cinema](../apps/probe/ott/src/Cinema.tsx).
+- Screens and the sidebar live under [ott/src](../apps/probe/ott/src/). Shared controls live in [components](../apps/probe/ott/src/components/). Artwork, shared data types, catalogue sessions, styles and viewport calculations have separate modules.
+- The [web media player](../apps/probe/ott/src/Player.web.tsx) sits beside the [native player](../apps/probe/ott/src/Player.tsx). The [browser adapter](../apps/probe/web/) resolves `itar/react` to the app's DOM host. Native builds use the package's Fabric components.
+- Run `npm run check:tv` to check lint and formatting, `npm run typecheck` for native TypeScript and `npm run typecheck:web` for the browser entry. From a fresh checkout run `npm run build` before `npm test`. [Contributing](../CONTRIBUTING.md)
 
-The owner-selected 11 images in `apps/probe/design` guide the fixed sidebar,
-1920×1080 scale, cinematic hero, mixed artwork rows, keyboard, profiles, settings
-and cast. Local original fixture art, masks and licensed Feather icons retain
-provenance under `apps/probe/ott/assets/cinematic/`; real titles use TMDB art.
-Missing art has a stable fallback frame instead of a fictional replacement.
-
-Catalogue, Settings and Details now use Itar's existing virtualized rails and
-native reveal pipeline. Ordinary mounted ScrollViews had left offscreen actions
-ineligible, reproducing Down traps in catalogue and Cast. The adapter's optional
-fixed cell decorations/headers, per-row extents and measured viewport preserve
-owned native buttons and the existing native/C++ selection boundary.
-
-Only one collection owns a provider at a time. The inactive catalogue retains
-its request/session data but releases collection ownership while Details is
-open. Accepted publication precedes entry; Back uses a stable occurrence bookmark
-and native reveal. Visual-only metadata/callback updates retain the accepted
-logical dataset, avoiding focus jumps on biography selection. Android append
-preserves the exact unchanged focused binding through publication;
-the temporary JavaScript recovery workaround has been removed. Source/target
-retention remains bounded by the existing list integration.
-
-Android theme all-caps, padding and background tint had clipped labels and
-replaced app colors. The host button now preserves supplied case/frame/colors;
-observed native focus drives cyan/white text and a native image border. Display labels
-and accessible labels are separate; card borders exclude the title strip. Native
-Android foregrounds and Apple shape layers follow actual host focus. No per-move
-JavaScript focus ring or second geometry engine was introduced. A separate reproduced C++ region-eligibility
-defect is fixed and explicitly versioned as `itar-linear-v2`; see
-[focus findings](ott-focus-findings.md). The native image outline is now implemented; Android focus/blur/recycle behavior
-is covered by instrumentation. Apple implementation remains runtime-unverified.
-
-## Verification — 28 October 2026
-
-Working branch: `no-ticket/redisign-simple-app`, owner baseline `dffaf17`.
-TypeScript, full ESLint and37 serial JavaScript tests passed. Proxy tests use
-fake credentials and injected responses, including hostile requests, bounded
-concurrency, secret-echo sanitization, identity validation and stale state.
-Collection tests include ownership handoff and rejected stale preparation.
-
-An offline single-worker incremental Android debug build passed with768MiB JVM
-heap,384MiB metaspace and Kotlin in-process. The app targets arm64-v8a; existing
-host-probe tasks also checked their configured ABI outputs. Debug Metro port is
-8096 (`-PreactNativeDevServerPort=8096`). Only the Itar app was reinstalled/restarted;
-the owner's emulator and existing Metro process were preserved.
-
-The owner explicitly permitted the existing Android TV emulator5554 and use of
-the saved key for the live test. Real catalogue, artwork, title/credits and person
-biography responses were observed. Screenshots and focus hierarchy captures
-record the tested navigation; see [design QA and remaining gaps](../design-qa.md).
-Android emulator results do not establish tvOS, physical-device, screen-reader,
-release-build, performance or exhaustive focus acceptance.
-
-## Owner-requested design corrections
-
-The supplied screen PNGs remain unchanged. Newer owner instructions override
-the reference sidebar on Profiles, two-poster Search, card subtitles and the
-old Details return button. Startup now shows a branded JavaScript splash then
-a full-screen profile chooser. Explorer/Stargazer select a session profile;
-the third Add a New Profile button is focusable and intentionally does nothing.
-The bottom current-profile sidebar entry opens that chooser.
-
-Compact shared sizing keeps Settings controls visible. Cards show image/title
-only, rails hide scroll indicators, Search uses a smaller keyboard with three
-complete 16:9 results across, and Home Explore opens its title. Details has Play,
-tighter Cast & crew heading spacing and real TMDB recommendations (similar
-titles fallback); related selection opens another title.
-
-Android debug/test builds and three selected instrumentation tests passed after
-the native styling/player addition. Real HLS decoded frames, pause and Back to
-Details were observed. After the Mac reconnected, live Search H and focus from
-N into M*A*S*H, all five Settings controls, full-screen chooser, current-profile
-switching and the bottom profile entry were rechecked without restarting the
-app/emulator/server. See the dated QA report for remaining verification gaps.
-
-## Review checkpoint
-
-Implementation is paused for review. [Known focus/design issues and planned
-weekend work](ott-next-steps.md) remain open; this is not a release acceptance claim.
-
-## Integration with current main
-
-The feature now includes main's validation/release and CI updates. The OTT
-entry remains default; Development Settings opens the original probe carrier,
-which now retains main's Release validation screen and comparison dependency.
-Metro preserves external dependency realpath resolution and environment-file
-blocking together. Both native-video and comparison-library dependencies remain
-locked. Android mount-command changes and append retention coexist.
-
-After integration, TypeScript, lint and37 serial JavaScript tests pass; a serial
-rebuild and41 host tests (including main's added capture/memory/generated tests)
-pass. Newer integration evidence does not supersede the open focus/design and
-physical-device/tvOS acceptance gaps described above.
+The [design pack](../apps/probe/design/README.md) describes the layouts and credits the original fictional artwork. See the [device guides](devices/README.md) for current hardware observations.

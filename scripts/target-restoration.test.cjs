@@ -31,6 +31,7 @@ function commands(file, store) {
       useContext: value => value === null ? store : value, useMemo: callback => callback()}; }
     if (name === 'react-native') { return {Platform: {OS: 'android', isTV: true}, StyleSheet: {create: value => value}}; }
     if (name.endsWith('/types')) { return types; }
+    if (name === './focus-context') { return {useWebStore: () => store, WebScopeContext: {path: []}}; }
     if (name === './api/contexts') { return {ScopeContext: {path: []}}; }
     if (name === './api/store') { return {FocusStore}; }
     return {};
@@ -76,7 +77,7 @@ test('keyed restoration preserves target eligibility and native unavailability',
 test('web exposes keyed restoration without substituting generic focus for rejection', async () => {
   const calls = [];
   const unavailable = {command: 'web', result: Promise.resolve({status: 'unavailable'}), cancel() {}};
-  const api = commands('apps/probe/web/focus.tsx', {request: (key, restore) => {
+  const api = commands('apps/probe/web/focus-hooks.ts', {request: (key, restore) => {
     calls.push({key, restore}); return unavailable;
   }});
   const request = api.restoreFocusByKey('opener');

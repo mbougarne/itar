@@ -170,8 +170,20 @@ video:focus {
   }
 }
 .itar-web-target:focus {
-  outline: 3px solid var(--itar-accent, #26d9f2);
-  outline-offset: -3px;
+  outline: none;
+}
+/* Paint above edge-to-edge artwork and inside the clipped rail viewport. */
+.itar-web-target:focus::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  border: 3px solid var(--itar-accent, #26d9f2);
+  border-radius: inherit;
+  pointer-events: none;
 }
 .itar-web-target-background:focus {
   background-color: var(--itar-focus-background) !important;
@@ -182,24 +194,4 @@ video:focus {
 }
 .itar-web-scrollport::-webkit-scrollbar {
   display: none;
-}
-
-.itar-navigation-option {
-  align-self: flex-end;
-  flex-shrink: 0;
-  margin: 8px 12px;
-  max-width: calc(100% - 24px);
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  padding: 6px 10px;
-  gap: 3px;
-  background: #0f1e2c;
-  border: 1px solid #4c7583;
-  border-radius: 6px;
-  font: 12px sans-serif;
-  color: #f2f8fc;
-}
-.itar-navigation-option small {
-  font-size: 10px;
 }

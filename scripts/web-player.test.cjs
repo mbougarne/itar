@@ -4,8 +4,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
-const source = fs.readFileSync(path.join(__dirname, '../apps/probe/web/Player.web.tsx'), 'utf8');
-const {outputText} = ts.transpileModule(source, {compilerOptions: {module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true}});
+function compile(file) {
+  const source = fs.readFileSync(path.join(__dirname, '../apps/probe', file), 'utf8');
+  return ts.transpileModule(source, {
+    compilerOptions: {module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React, esModuleInterop: true},
+  }).outputText;
+}
+const outputText = compile('ott/src/Player.web.tsx');
+const playbackTime = {};
+vm.runInNewContext(compile('ott/src/playback-time.ts'), {exports: playbackTime});
 
 // Run the component's real handlers with controlled media events, without network.
 function fixture() {
@@ -27,8 +34,10 @@ function fixture() {
   vm.runInNewContext(outputText, {module, exports: module.exports, Error, document, require: name => {
     if (name === 'react') { return react; }
     if (name === 'react-dom') { return {createPortal: child => child}; }
-    if (name === './focus-store') { return ownership; }
-    if (name === './platform') { return {BackHandler: {addEventListener: (_, fn) => { back = fn; return {remove: () => { back = null; }}; }}}; }
+    if (name === '../../web/PlaybackIcon') { return 'PlaybackIcon'; }
+    if (name === './playback-time') { return playbackTime; }
+    if (name === '../../web/focus-store') { return ownership; }
+    if (name === '../../web/platform') { return {BackHandler: {addEventListener: (_, fn) => { back = fn; return {remove: () => { back = null; }}; }}}; }
     throw new Error(name);
   }});
   const nodes = node => !node?.props ? [] : [node, ...node.props.children.flatMap(nodes)];

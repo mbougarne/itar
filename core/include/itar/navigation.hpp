@@ -16,7 +16,7 @@ enum class ProposalReason {
   entry_not_ready, existing_focus, no_entry, invalid_anchor, origin_present,
   host_reassigned, deletion_neighbor, recovery_fallback, no_recovery
 };
-inline constexpr std::string_view navigationPolicy = "itar-linear-v2";
+inline constexpr std::string_view navigationPolicy = "itar-linear-v3";
 
 struct InputContext {
   SurfaceId surface;

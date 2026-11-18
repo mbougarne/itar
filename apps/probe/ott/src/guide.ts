@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { parseGuide, type Guide } from './guide-data';
+import { parseGuide } from './guide-data';
+import type { Guide } from './guide-types';
 
 export { guideTime } from './guide-data';
-
-export type { Programme } from './guide-data';
 
 let cache: { at: number; data: unknown } | undefined;
 

@@ -18,7 +18,7 @@ const {occurrenceKey} = evaluate('packages/itar/src/api/types.ts');
 const {layoutRows} = evaluate('apps/probe/ott/src/browse-layout.ts');
 const film = {id: 'title-b', title: 'Title B', kind: 'movie', year: 2026, category: 'Drama', synopsis: '', art: 0};
 const recommendation = {...film, id: 'title-c', title: 'Title C'};
-const catalogue = {hero: film, films: [film, recommendation], cast: [], categories: ['All', 'Drama']};
+const catalogue = {hero: film, films: [film, recommendation], cast: []};
 const nodes = node => !node?.props ? [] : [node, ...node.props.children.flatMap(nodes)];
 
 test('details keep decorative glyphs visual and accessible names plain', () => {
@@ -26,6 +26,29 @@ test('details keep decorative glyphs visual and accessible names plain', () => {
   const details = f.component('Details', {film, active: true, onPlay() {}, onOpen() {}, highContrast: false});
   assert.equal(details.find('Action', 'Play demo').props.displayLabel, '▶  Play demo');
   assert.equal(details.find('Action', 'My list').props.displayLabel, '＋  My list');
+});
+
+test('the Home backdrop scrolls with its hero and the following rails retain their headings', () => {
+  const f = fixture('');
+  const home = f.component('Browse', {id: 'home', active: true, featured: true, mode: 'fixture'});
+  home.layout();
+  const rails = home.find('Rails').props;
+  assert.equal(home.find('Backdrop'), undefined);
+  assert.equal(f.component('Hero', rails.listHeader.props).find('Backdrop').props.film.id, film.id);
+  assert.equal(rails.renderRailHeader(rails.rails[0]).props.children[0], 'Popular stories');
+  assert.ok(rails.headerExtent > 34, 'the 34-unit heading needs room below it');
+});
+
+test('narrow Search rows keep named results and enough room for the pagination control', () => {
+  const f = fixture('');
+  const browse = f.component('Browse', {id: 'search', active: true, mode: 'fixture', searchResults: true, viewportWidth: 200});
+  browse.layout();
+  const rails = browse.find('Rails').props;
+  assert.equal(rails.headerExtent, 0);
+  assert.equal(rails.renderRailHeader, undefined);
+  assert.equal(rails.rails[0].items[0].accessibilityLabel, 'Title B, Movie');
+  assert.equal(rails.rails.at(-1).id, 'pagination');
+  assert.ok(rails.rowExtent >= 116 + 56, 'feedback and its button must fit in the same row');
 });
 
 test('web Search recovers only its own focused edit control when the query becomes empty', () => {
@@ -59,12 +82,15 @@ test('initial web retry waits for committed results and respects focus ownership
       Object.assign(f.catalogueState, {rows: [], error: 'failed', ended: false});
       const browse = f.component('Browse', {id, active: true, grid: true, mode: 'fixture', kind: 'movie'});
       browse.layout();
-      const retry = () => browse.find('Rails').props.rails.at(-1).items[0].onPress();
+      const pagination = () => browse.find('Rails').props.rails.at(-1).items[0];
+      const retry = () => pagination().onPress();
       const ready = () => browse.find('Rails').props.onReady();
       retry();
       Object.assign(f.catalogueState, {loading: true, error: ''}); browse.render(); ready();
+      assert.equal(pagination().enabled, ownsFocus, 'the fetching placeholder only keeps existing focus');
       assert.deepEqual(f.requests, [], 'loading cannot focus a speculative result');
       Object.assign(f.catalogueState, {loading: false, error: 'again'}); browse.render(); ready();
+      assert.equal(pagination().enabled, true);
       assert.deepEqual(f.requests, [], 'another failure must preserve usable Retry');
       retry();
       Object.assign(f.catalogueState, {error: '', ended: true, rows: [{id: 'first', entries: [film]}]});
@@ -127,16 +153,27 @@ function fixture(inputKey, outcome = 'applied', platform = 'android') {
         useIsFocused: key => focus.kind === 'managed' && focus.occurrenceKey === key};
     }
     if (name.endsWith('/theme')) { return {DesignTheme: 'Theme', useDesign: () => ({s: {}, u: 1})}; }
-    if (name.endsWith('/ui')) { return {Action: 'Action', Backdrop: 'Backdrop', Header: 'Header', Picture: 'Picture', icons: {}, art: []}; }
+    if (name.startsWith('./components/')) {
+      const component = name.split('/').at(-1);
+      return {[component]: component};
+    }
+    if (name === './artwork') { return {icons: {}, art: []}; }
+    if (name === './navigation' || name === './android-focus-boundary') {
+      return evaluate(`apps/probe/ott/src/${name.slice(2)}.ts`, imports);
+    }
     if (name === './catalog') { return catalogue; }
+    if (name === './catalog-types') { return evaluate('apps/probe/ott/src/catalog-types.ts'); }
     if (name === './browse-layout') { return {layoutRows}; }
     if (name === './guide') { return {useGuide: () => ({guide: null})}; }
     if (name === './useCatalogue') {
       return {useCatalogue: () => ({state: catalogueState, loadMore: () => { loadCalls++; }, reload() {}, nextWindow() {}})};
     }
     if (name === './tmdb') { return {fetchDetails: () => Promise.resolve({film: {...film, id: 'enriched-b', title: 'Enriched B'}})}; }
-    if (name === './src/browser-session') { return {readBrowserSession: () => ({mode: 'fixture', profile: 'Explorer'}), saveBrowserSession() {}}; }
-    if (name === './src/Preferences') { return {Profiles: 'Profiles', Settings: 'Settings'}; }
+    if (name === './browser-session') { return {readBrowserSession: () => ({mode: 'fixture', profile: 'Explorer'}), saveBrowserSession() {}}; }
+    if (['./Profiles', './Settings', './Sidebar'].includes(name)) {
+      const component = name.slice(2);
+      return {[component]: component};
+    }
     if (name.endsWith('.png')) { return 0; }
     if (/^\.\/(src\/)?(Auth|Epg|Browse|Catalogue|Search|Details|Player|Hero)$/.test(name)) {
       return {__esModule: true, default: name.split('/').at(-1), Metadata: 'Metadata'};
@@ -167,14 +204,14 @@ function fixture(inputKey, outcome = 'applied', platform = 'android') {
         render();
       }};
   }
-  const child = instance => instance.tree().props.children[0];
-  const root = mount(load('App'), {});
-  const launch = mount(child(root).type, child(root).props);
-  const tv = mount(launch.tree().type, launch.tree().props);
-  const app = mount(child(tv).type, child(tv).props);
+  const app = mount(load('src/Cinema'), {});
   const component = (name, props) => mount(load(`src/${name}`), props);
   return {app, component, requests, requestKinds, catalogueState, loadCalls: () => loadCalls,
-    navigate: screen => { app.find('Action', screen).props.onPress(); app.render(); },
+    navigate: screen => {
+      const sidebar = mount(evaluate('apps/probe/ott/src/Sidebar.tsx', imports).Sidebar, app.find('Sidebar').props);
+      sidebar.find('Action', screen).props.onPress();
+      app.render();
+    },
     ready: () => { app.find('Details').props.onReady(); app.render(); },
     close: () => { assert.equal(back(), true); app.render(); },
   };

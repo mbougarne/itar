@@ -1,17 +1,4 @@
-export type Programme = Readonly<{
-  start: number;
-  stop: number;
-  title: string;
-  subtitle: string;
-}>;
-
-export type Channel = Readonly<{
-  id: string;
-  name: string;
-  programmes: readonly Programme[];
-}>;
-
-export type Guide = Readonly<{ updated: string; channels: readonly Channel[] }>;
+import type { Programme, Channel, Guide } from './guide-types';
 
 const record = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);

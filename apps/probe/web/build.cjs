@@ -72,12 +72,6 @@ function webPlugins(outdir) {
           path: path.join(__dirname, 'focus.tsx'),
         }));
 
-        build.onResolve({ filter: /(?:^|\/)Player$/ }, args => {
-          if (args.importer === path.join(root, 'apps/probe/ott/App.tsx')) {
-            return { path: path.join(__dirname, 'Player.web.tsx') };
-          }
-        });
-
         build.onLoad({ filter: /\.(?:png|jpe?g|svg)$/ }, args => {
           const bytes = fs.readFileSync(args.path);
 

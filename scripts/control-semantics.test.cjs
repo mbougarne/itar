@@ -43,13 +43,14 @@ function fixture(platform) {
     },
   };
   const contexts = load('packages/itar/src/api/contexts.ts', () => react);
-  const component = load(native ? 'packages/itar/src/react.tsx' : 'apps/probe/web/focus.tsx', name => {
+  const component = load(native ? 'packages/itar/src/react.tsx' : 'apps/probe/web/Focusable.tsx', name => {
     if (name === 'react') { return react; }
     if (name === 'react-native') { return {...web, Platform: {OS: platform, isTV: true}}; }
     if (name.endsWith('/types')) { return types; }
     if (name === './api/store') { return {FocusStore}; }
     if (name.endsWith('/api/contexts')) { return contexts; }
     if (name === './specs/ItarTargetNativeComponent') { return {__esModule: true, default: 'NativeTarget'}; }
+    if (name === './focus-context') { return {useWebStore: () => store, WebScopeContext: {value: {key: '', active: true}}}; }
     if (name === './focus-store') { return {createNode: key => ({key})}; }
     return {};
   }).Focusable;
@@ -112,18 +113,28 @@ test('Apple keeps its existing host semantics and incomplete switches are reject
 
 for (const platform of ['android', 'web', 'ios']) {
   test(`${platform} settings expose truthful Boolean controls without changing commands`, () => {
-    let presses = 0;
-    const Settings = load('apps/probe/ott/src/Preferences.tsx', name => {
-      if (name === 'react') { return {...React, useMemo: callback => callback(), useCallback: callback => callback, useState: () => [800, () => {}]}; }
+    let presses = 0, toggles = 0;
+    const navigation = platform === 'web' ? {enabled: true, toggle: () => toggles++} : null;
+    const Settings = load('apps/probe/ott/src/Settings.tsx', name => {
+      if (name === 'react') { return {...React, useContext: context => context.value, useMemo: callback => callback(), useCallback: callback => callback, useState: () => [800, () => {}]}; }
       if (name === 'react-native') { return {Platform: {OS: platform}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 1920})}; }
       if (name === 'itar/react') { return {occurrenceKey: types.occurrenceKey, FocusVirtualizedRails: 'Rails'}; }
+      if (name === './browser-navigation') { return {BrowserNavigation: {value: navigation}}; }
       if (name === './theme') { return {useDesign: () => ({s: {}, u: 1})}; }
       return {};
     }).Settings;
     const tree = Settings({id: 'settings', contrast: true, slow: false, armed: true, mode: 'fixture',
       onContrast: () => presses++, onSlow() {}, onArm() {}, onMode() {}});
     const items = nodes(tree).find(node => node.type === 'Rails').props.rails.map(row => row.items[0]);
-    assert.equal(items.length, 4);
+    assert.equal(items.length, platform === 'web' ? 5 : 4);
+    if (platform === 'web') {
+      const keyboard = items[4];
+      assert.equal(keyboard.accessibilityLabel, 'TV arrow-key navigation');
+      assert.equal(keyboard.accessibilityRole, 'switch');
+      assert.equal(keyboard.accessibilityState.checked, true);
+      keyboard.onPress();
+      assert.equal(toggles, 1);
+    }
     items[0].onPress(); assert.equal(presses, 1);
     for (let i = 0; i < 3; i++) {
       assert.equal(items[i].accessibilityRole, platform === 'ios' ? undefined : 'switch');

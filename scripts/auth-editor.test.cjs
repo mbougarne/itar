@@ -41,7 +41,7 @@ function fixture(platform) {
         BackHandler: {addEventListener: (_, callback) => { back = callback; return {remove: () => { back = null; }}; }}};
     }
     if (name === 'itar/react') { return {FocusScope: 'FocusScope', occurrenceKey: (...parts) => parts.join('/'), useFocusReady: () => true, useFocusCommands: () => commands}; }
-    if (name === './ui') { return {Action: 'Action'}; }
+    if (name === './components/Action') { return {Action: 'Action'}; }
     if (name === './theme') { return {useDesign: () => ({s: {}, u: 1})}; }
     throw new Error(`Unexpected import ${name}`);
   }});

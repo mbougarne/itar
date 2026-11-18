@@ -8,7 +8,7 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const ts = require('typescript');
 
-function load(filename, imports) {
+function load(filename, resolveImport) {
   const { outputText } = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
@@ -22,7 +22,7 @@ function load(filename, imports) {
   vm.runInNewContext(outputText, {
     module: moduleRecord,
     exports: moduleRecord.exports,
-    require: imports,
+    require: resolveImport,
   });
 
   return moduleRecord.exports;
@@ -38,48 +38,59 @@ const types = load(
   require,
 );
 
-const { FocusProvider, FocusScope, Focusable, initializeFocusEngine } = load(
-  path.join(__dirname, '../focus.tsx'),
-  name => {
-    if (name === 'react') {
-      return React;
-    }
+function imports(name) {
+  if (name === 'react') {
+    return React;
+  }
 
-    if (name === 'react-native') {
-      return require('react-native-web');
-    }
+  if (name === 'react-native') {
+    return require('react-native-web');
+  }
 
-    if (name.endsWith('/itar-web.js')) {
-      return async () => ({ WebEngine: class {} });
-    }
+  if (name.endsWith('/itar-web.js')) {
+    return async () => ({ WebEngine: class {} });
+  }
 
-    if (name.endsWith('/itar-web.wasm') || name === './rails') {
-      return {};
-    }
+  if (name.endsWith('/itar-web.wasm')) {
+    return {};
+  }
 
-    if (name.endsWith('/api/contexts')) {
-      return contexts;
-    }
+  if (name === './focus-context') {
+    return webContexts;
+  }
 
-    if (name.endsWith('/api/types')) {
-      return types;
-    }
+  if (name.endsWith('/api/contexts')) {
+    return contexts;
+  }
 
-    if (name === './focus-store') {
-      // Only engine registration/effects are doubled; React and RNW render real DOM attributes.
-      return {
-        WebFocusStore: class {
-          mountId() {
-            return 1;
-          }
-        },
-        createNode: (key, parent) => ({ key, parent }),
-      };
-    }
+  if (name.endsWith('/api/types')) {
+    return types;
+  }
 
-    throw new Error(`Unexpected import ${name}`);
-  },
+  if (name === './focus-store') {
+    // Only engine registration/effects are doubled; React and RNW render real DOM attributes.
+    return {
+      WebFocusStore: class {
+        mountId() {
+          return 1;
+        }
+      },
+      createNode: (key, parent) => ({ key, parent }),
+    };
+  }
+
+  throw new Error(`Unexpected import ${name}`);
+}
+
+const webContexts = load(path.join(__dirname, '../focus-context.ts'), imports);
+
+const { FocusProvider, initializeFocusEngine } = load(
+  path.join(__dirname, '../FocusProvider.tsx'),
+  imports,
 );
+
+const { FocusScope } = load(path.join(__dirname, '../FocusScope.tsx'), imports);
+const { Focusable } = load(path.join(__dirname, '../Focusable.tsx'), imports);
 
 before(initializeFocusEngine);
 

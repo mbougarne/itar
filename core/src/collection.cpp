@@ -5,17 +5,32 @@
 
 namespace itar {
 
+namespace {
+const CollectionNode* findNode(std::span<const CollectionNode> nodes, const OccurrenceKey& key) noexcept {
+  const auto found = std::find_if(nodes.begin(), nodes.end(), [&](const CollectionNode& node) {
+    return node.key == key;
+  });
+  return found == nodes.end() ? nullptr : &*found;
+}
+
+// A key may have been registered again since this dataset was published.
+const CollectionNode* findRegisteredNode(const Registry& registry, std::span<const CollectionNode> nodes,
+    std::span<const NodeHandle> handles, const OccurrenceKey& key) noexcept {
+  if (handles.size() != nodes.size()) { return nullptr; }
+  const auto* node = findNode(nodes, key);
+  if (!node) { return nullptr; }
+  const auto index = static_cast<std::size_t>(node - nodes.data());
+  return registry.find(key) == handles[index] ? node : nullptr;
+}
+} // namespace
+
 bool validCollectionNodes(std::span<const CollectionNode> nodes, RegistryLimits limits) noexcept {
   if (nodes.size() > limits.capacity) { return false; }
-  const auto lookup = [&](const OccurrenceKey& key) -> const CollectionNode* {
-    const auto found = std::find_if(nodes.begin(), nodes.end(), [&](const auto& value) { return value.key == key; });
-    return found == nodes.end() ? nullptr : &*found;
-  };
   for (std::size_t i = 0; i < nodes.size(); ++i) {
     const auto& value = nodes[i];
     if ((value.rowEntry != CollectionRowEntry::nearest && value.rowEntry != CollectionRowEntry::first) ||
         (value.rowEntry == CollectionRowEntry::first &&
-         (!value.scope || value.layout != Layout::column || lookup(value.parent)))) {
+         (!value.scope || value.layout != Layout::column || findNode(nodes, value.parent)))) {
       return false;
     }
     if (!value.key || value.key.value().size() > limits.keyBytes ||
@@ -27,13 +42,13 @@ bool validCollectionNodes(std::span<const CollectionNode> nodes, RegistryLimits 
     if (std::any_of(nodes.begin(), nodes.begin() + i, [&](const auto& old) { return old.key == value.key; })) {
       return false;
     }
-    const auto* parent = lookup(value.parent);
+    const auto* parent = findNode(nodes, value.parent);
     if ((!value.scope && !parent) || (parent && !parent->scope)) { return false; }
     auto ancestor = parent;
     std::size_t depth = value.scope ? 1 : 0;
     while (ancestor) {
       if (++depth > 2) { return false; }
-      ancestor = lookup(ancestor->parent);
+      ancestor = findNode(nodes, ancestor->parent);
     }
   }
   for (const auto& list : nodes) {
@@ -50,10 +65,7 @@ bool validCollectionNodes(std::span<const CollectionNode> nodes, RegistryLimits 
 }
 
 const CollectionNode* Collections::find(const OccurrenceKey& key) const noexcept {
-  const auto found = std::find_if(nodes_.begin(), nodes_.end(), [&](const auto& value) { return value.key == key; });
-  if (found == nodes_.end()) { return nullptr; }
-  const auto index = static_cast<std::size_t>(found - nodes_.begin());
-  return state_.snapshot().registry.find(key) == handles_[index] ? &*found : nullptr;
+  return findRegisteredNode(state_.snapshot().registry, nodes_, handles_, key);
 }
 
 CollectionResult Collections::apply(DatasetRevision dataset, std::span<const CollectionNode> nodes) {
@@ -72,10 +84,6 @@ CollectionResult Collections::apply(DatasetRevision dataset, std::span<const Col
   const auto& registry = state_.snapshot().registry;
   if (nodes.size() > registry.limits().capacity) { return result(CollectionStatus::capacity); }
   if (!validCollectionNodes(nodes, registry.limits())) { return result(CollectionStatus::invalid); }
-  const auto lookup = [&](const OccurrenceKey& key) -> const CollectionNode* {
-    const auto found = std::find_if(nodes.begin(), nodes.end(), [&](const auto& value) { return value.key == key; });
-    return found == nodes.end() ? nullptr : &*found;
-  };
   for (const auto& value : nodes) {
     if (const auto existing = registry.find(value.key); existing && !find(value.key)) {
       return result(CollectionStatus::conflict);
@@ -91,7 +99,7 @@ CollectionResult Collections::apply(DatasetRevision dataset, std::span<const Col
   mutations.reserve(nodes_.size() + nodes.size());
   for (std::size_t i = 0; i < nodes_.size(); ++i) {
     const auto& old = nodes_[i];
-    if (lookup(old.key)) { continue; }
+    if (findNode(nodes, old.key)) { continue; }
     const auto existing = registry.find(old.key);
     if (existing && existing == handles_[i]) {
       Mutation erase;
@@ -117,7 +125,7 @@ CollectionResult Collections::apply(DatasetRevision dataset, std::span<const Col
   const auto applied = transactions_.apply({state_.surface(), state_.snapshot().revision, mutations});
   if (applied.status != BatchStatus::valid) { return result(CollectionStatus::batch_rejected, applied.status); }
   if (const auto& active = transactions_.active(); active &&
-      (std::find(handles_.begin(), handles_.end(), active->target) != handles_.end() || lookup(active->targetKey))) {
+      (std::find(handles_.begin(), handles_.end(), active->target) != handles_.end() || findNode(nodes, active->targetKey))) {
     transactions_.cancel(active->id);
   }
   for (std::size_t i = 0; i < nodes.size(); ++i) {
@@ -140,16 +148,12 @@ Proposal Collections::propose(Direction direction, const InputContext& input) co
 
 Proposal proposeCollectionEntry(const State& state, std::span<const CollectionNode> nodes,
     std::span<const NodeHandle> handles, Direction direction, const InputContext& input) noexcept {
-  const auto find = [&](const OccurrenceKey& key) -> const CollectionNode* {
-    const auto value = std::find_if(nodes.begin(), nodes.end(), [&](const auto& item) { return item.key == key; });
-    if (value == nodes.end() || nodes.size() != handles.size()) { return nullptr; }
-    return state.snapshot().registry.find(key) == handles[static_cast<std::size_t>(value - nodes.begin())] ? &*value : nullptr;
-  };
   auto proposal = resolve(state, direction, input);
   if ((direction != Direction::up && direction != Direction::down) ||
       (proposal.kind != ProposalKind::ready && proposal.kind != ProposalKind::reveal) ||
       proposal.reason == ProposalReason::override_target) { return proposal; }
   const auto& registry = state.snapshot().registry;
+  const auto find = [&](const OccurrenceKey& key) { return findRegisteredNode(registry, nodes, handles, key); };
   const auto* sourceKey = registry.key(input.source.node);
   const auto* targetKey = registry.key(proposal.target);
   const auto* source = sourceKey ? find(*sourceKey) : nullptr;
@@ -163,12 +167,15 @@ Proposal proposeCollectionEntry(const State& state, std::span<const CollectionNo
   const auto* collection = find(targetRow->parent);
   const auto entryOrder = collection && collection->rowEntry == CollectionRowEntry::first ? 0 : source->order;
   const CollectionNode* best = nullptr;
+  std::int64_t bestDistance = 0;
   for (const auto& item : nodes) {
     if (item.parent != targetRow->key || item.scope || !find(item.key) ||
         !logicalTarget(state, registry.find(item.key))) { continue; }
     const auto distance = std::abs(std::int64_t{item.order} - entryOrder);
-    if (!best || distance < std::abs(std::int64_t{best->order} - entryOrder) ||
-        (distance == std::abs(std::int64_t{best->order} - entryOrder) && item.order < best->order)) { best = &item; }
+    if (!best || distance < bestDistance || (distance == bestDistance && item.order < best->order)) {
+      best = &item;
+      bestDistance = distance;
+    }
   }
   return best ? proposeTarget(state, registry.find(best->key), input) : proposal;
 }

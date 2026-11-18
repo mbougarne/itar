@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import type { ProviderMode } from './tmdb';
+import type { ProviderMode } from './catalog-types';
 
 const key = 'itar.probe.session.v1';
 

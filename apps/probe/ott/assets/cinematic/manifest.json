@@ -1,10 +1,9 @@
 {
-  "sceneCredit": "Original fictional artwork generated with built-in image_gen using the selected design pack as style references; no TMDB images or credentials.",
+  "sceneCredit": "Original generated illustrations of fictional scenes for Itar Cinema.",
   "portraitCredit": "Four generated fictional people; no real-person identities claimed.",
   "icons": "Feather glyphs from react-native-vector-icons10.3.0, rasterized locally; MIT notices retained in icons/. No runtime font dependency.",
   "processing": "Scenes resized to1280px/JPEG82; portraits512px/JPEG85 sequentially with sips. Posters use center crops. Static alpha scrim is a readability mask.",
-  "prompts": "prompts.json",
-  "reference": "apps/probe/design/SPEC.md and screens/",
+  "reference": "apps/probe/design/screens/",
   "files": [
     {
       "file": "atlas.jpg",

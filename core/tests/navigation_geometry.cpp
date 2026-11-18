@@ -22,7 +22,7 @@ int main() {
     auto input = f.focus(source);
     CHECK(resolve(f.state, Direction::right, input).target == a);
     CHECK(resolve(f.state, Direction::right, input).reason == ProposalReason::geometric);
-    CHECK(resolve(f.state, Direction::right, input).policy == "itar-linear-v2");
+    CHECK(resolve(f.state, Direction::right, input).policy == "itar-linear-v3");
     CHECK(f.state.observeAvailability({f.state.surface(), a, MountGeneration{1},
                                       AvailabilityKind::geometry_dirty, LayoutRevision{1}})
           == ObservationStatus::changed);

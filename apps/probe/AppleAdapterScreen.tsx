@@ -1,8 +1,13 @@
 import React, { useRef, useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { AppleCommands, AppleSurface, AppleTarget } from 'itar/apple';
 
-// Carrier-level consumer. The later cross-platform provider/hooks are separate.
+import { BusyJsButton } from './diagnostics/BusyJsButton';
+import { CarrierControls } from './diagnostics/CarrierControls';
+
+import { carrierCards, carrierDestination } from './diagnostics/carrier-data';
+
+// Exercise the Apple native carrier directly, including commands and mount replacement.
 export default function AppleAdapterScreen() {
   const surface = useRef<React.ElementRef<typeof AppleSurface>>(null);
   const [mounted, setMounted] = useState(true);
@@ -12,72 +17,32 @@ export default function AppleAdapterScreen() {
   const [request, setRequest] = useState({ lifetime: '0', request: '0' });
   const [outcome, setOutcome] = useState('None');
   const [activation, setActivation] = useState('None');
-  const [busy, setBusy] = useState(false);
-
-  const cards = [
-    'rail-a/entry-1',
-    'rail-a/entry-2',
-    'rail-b/entry-1',
-    'rail-b/entry-2',
-  ];
 
   return (
     <View style={styles.screen}>
-      <View style={styles.controls}>
-        <Button
-          title="Focus rail B"
-          onPress={() =>
-            surface.current &&
-            AppleCommands.focus(surface.current, 'rail-b/entry-1')
-          }
-        />
-        <Button
-          title="Cancel request"
-          onPress={() =>
-            surface.current &&
-            AppleCommands.cancel(
-              surface.current,
-              request.lifetime,
-              request.request,
-            )
-          }
-        />
-        <Button
-          title="Owned dialog"
-          onPress={() =>
-            surface.current && AppleCommands.showDialog(surface.current)
-          }
-        />
-        <Button
-          title={mounted ? 'Unmount B' : 'Mount B'}
-          onPress={() => setMounted(value => !value)}
-        />
-        <Button
-          title={active ? 'Cover route' : 'Return route'}
-          onPress={() => setActive(value => !value)}
-        />
-        <Button
-          title="Fresh surface"
-          onPress={() => setGeneration(value => value + 1)}
-        />
-      </View>
-      <Button
-        title={busy ? 'JS block scheduled' : 'Block JS after 1 second'}
-        disabled={busy}
-        onPress={() => {
-          setBusy(true);
-
-          setTimeout(() => {
-            const end = Date.now() + 2000;
-
-            while (Date.now() < end) {
-              /* Bounded native-feedback fixture. */
-            }
-
-            setBusy(false);
-          }, 1000);
-        }}
+      <CarrierControls
+        active={active}
+        mountLabel={mounted ? 'Unmount B' : 'Mount B'}
+        onFocus={() =>
+          surface.current &&
+          AppleCommands.focus(surface.current, carrierDestination)
+        }
+        onCancel={() =>
+          surface.current &&
+          AppleCommands.cancel(
+            surface.current,
+            request.lifetime,
+            request.request,
+          )
+        }
+        onShowDialog={() =>
+          surface.current && AppleCommands.showDialog(surface.current)
+        }
+        onToggleMount={() => setMounted(value => !value)}
+        onToggleActive={() => setActive(value => !value)}
+        onReset={() => setGeneration(value => value + 1)}
       />
+      <BusyJsButton />
       <AppleSurface
         key={generation}
         ref={surface}
@@ -86,25 +51,24 @@ export default function AppleAdapterScreen() {
         onFocusRecord={event => {
           const record = event.nativeEvent;
 
-          if (record.channel === 'input')
+          if (record.channel === 'input') {
             setFocus(
               `${record.kind}: ${record.occurrenceKey} [${record.lifetime}/${record.mount}]`,
             );
+          }
         }}
         onRequestRecord={event => {
           setRequest(event.nativeEvent);
           setOutcome(event.nativeEvent.status);
         }}
       >
-        {cards.map(
-          (key, index) =>
-            (mounted || index !== 2) && (
+        {carrierCards.map(
+          (card, index) =>
+            (mounted || card.key !== carrierDestination) && (
               <AppleTarget
-                key={key}
-                occurrenceKey={key}
-                label={`Movie ${(index % 2) + 1}, rail ${
-                  index < 2 ? 'A' : 'B'
-                }`}
+                key={card.key}
+                occurrenceKey={card.key}
+                label={card.label}
                 order={index}
                 baseColor="#222222"
                 focusColor="#ff8800"
@@ -128,7 +92,6 @@ export default function AppleAdapterScreen() {
 
 const styles = StyleSheet.create({
   screen: { gap: 12 },
-  controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   first: { left: 0, top: 0 },
   second: { left: 310, top: 0 },
   third: { left: 0, top: 110 },
