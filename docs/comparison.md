@@ -4,26 +4,26 @@
 
 ## What Itar adds
 
-Itar gives React Native TV apps and compatible TV browsers the same way to address a card, request focus and observe the result.
+Itar tells a React Native TV app which card the host actually focused. The app names a card by a stable key, requests focus and receives a result it can act on or cancel. The Cinema example runs the same engine in a browser through a DOM/Wasm adapter.
 
 Suppose a viewer opens a film from *Watch again*. The same film appears in *Featured*. While Details is open, *Watch again* changes order and its old card view is reused. On Back, the app needs to answer two questions. Which appearance opened Details? Did the host actually focus the view that now represents it?
 
 - **Address the same appearance after a reorder.** Give the two cards distinct occurrence keys. Itar can reveal the requested occurrence and rejects a measurement or focus confirmation from an earlier mount. [Identity tests](../core/tests/identity.cpp) · [Reveal and remount tests](../core/tests/transaction_reveal.cpp)
-- **Know when focus lands and cancel a move in flight.** `focusByKey` returns a request with `result` and `cancel()`. Host acceptance leaves it pending. An observed input-focus change on the matching target completes it as `applied`. A late host event can update observed focus while the cancelled request stays cancelled. Of the four public APIs below, Itar alone exposes this combination in one request. [Outcome tests](../core/tests/transaction_outcome.cpp) · [Cancellation tests](../core/tests/transaction_cancel.cpp) · [React API tests](../scripts/react-api.test.cjs)
+- **Know when focus lands and cancel a move in flight.** `focusByKey` returns a request with `result` and `cancel()`. Host acceptance leaves it pending. An observed input-focus change on the matching target completes it as `applied`. A late host event can update observed focus while the cancelled request stays cancelled. Of the four systems compared below, Itar is the only one whose focus call reports whether native focus landed, and the only one that returns a cancellable request. [Outcome tests](../core/tests/transaction_outcome.cpp) · [Cancellation tests](../core/tests/transaction_cancel.cpp) · [React API tests](../scripts/react-api.test.cjs)
 - **Keep remote focus and reader focus distinct.** A reader can activate a card independently of the remote’s input focus. An accessibility-focus event cannot complete a pending input-focus request. The browser adapter reports reader focus as unknown. [Core channel tests](../core/tests/transaction_outcome.cpp) · [DOM focus and activation tests](../apps/probe/web/tests/focus.test.cjs)
-- **Run mounted navigation on the native host.** On Android, supported directional moves and card highlights run outside React’s JS thread. On tvOS, UIKit handles ordinary moves between mounted views. Revealing a new React cell can still require JS. The web adapter runs the C++ policy as Wasm on the browser thread and observes DOM focus. The project has no published device latency comparison. [Android directional tests](../packages/itar/android/tests/support/OrderedFocusChecks.kt) · [Highlight tests](../packages/itar/android/tests/support/StyleChecks.kt) · [Who owns a move](guides/architecture.md#who-owns-a-move)
+- **Run mounted navigation on the native host.** On Android, supported directional moves and card highlights run outside React’s JS thread. On tvOS, UIKit handles ordinary moves between mounted views. The web adapter runs the C++ policy as Wasm on the browser thread and observes DOM focus. [Android directional tests](../packages/itar/android/tests/support/OrderedFocusChecks.kt) · [Highlight tests](../packages/itar/android/tests/support/StyleChecks.kt) · [Who owns a move](guides/architecture.md#who-owns-a-move)
 - **Reproduce a focus race on a laptop.** Feed the C++ core the same sequence of collection changes and host events and assert the resulting state without starting React or a TV simulator. [Transaction replay test](../core/tests/transaction_replay.cpp)
 
 ## Beta limits
 
-- **Installation and browsers.** The native npm package is marked private at `0.0.0` and ships from source. You can pack it locally. Cinema shares screens across native TV and web through a DOM/Wasm adapter in the example. A second web app must integrate that adapter itself. The JS and Wasm builds target Chrome 85. Older engines are outside that target. Norigin’s JavaScript approach avoids the Wasm requirement and its published device matrix gives no numerical Chrome minimum. [Install Itar](guides/integration.md) · [Web adapter](devices/web-tv.md) · [Wasm build](../apps/probe/web/engine/CMakeLists.txt) · [Norigin device matrix][n-devices]
+- **Installation and browsers.** The native npm package is marked private at `0.0.0` and ships from source. You can pack it locally. Cinema shares screens across native TV and web through a DOM/Wasm adapter in the example. A second web app must integrate that adapter itself. The JS and Wasm builds target Chrome 85. Older engines are outside that target. [Install Itar](guides/integration.md) · [Web adapter](devices/web-tv.md) · [Wasm build](../apps/probe/web/engine/CMakeLists.txt)
 - **Collection size.** Each provider supports one active collection, with fixed-size cells and up to two levels. Its 256 logical nodes include unmounted items and their scopes. Twelve rails of twenty cards use `1 + 12 + 240 = 253` nodes. A thirteenth full rail brings the total to 274. Size the active collection independently of the catalogue on your server. [Collection limits](guides/collections.md)
 - **Return from Details.** Ordinary `focusByKey` works on Android, tvOS and the browser example. The dedicated `restoreFocusByKey` command is implemented on Android. Under TalkBack ownership its target must already be mounted, visible and eligible. Apple and the browser return `unavailable` for this command, so Cinema uses ordinary keyed focus once the rail is ready. [Route handling](../apps/probe/ott/src/Cinema.tsx) · [Integration guide](guides/integration.md)
 - **Device testing.** Testing on Chromecast HD found TalkBack focus jumps during downward navigation and loading. Cinema has run on Apple TV HD, with physical VoiceOver checks outstanding. Chromium has exercised the browser adapter. Tizen and webOS builds produce staging directories and still need tests on TVs. [Device results](devices/README.md)
 
 ## Capability matrix
 
-The native baseline is `react-native-tvos` 0.83.0-0. The BAM API column uses 5.2.0, the version in Cinema’s comparison screen.
+The native baseline is `react-native-tvos` 0.83.0-0. The BAM API column uses 5.2.0, the version in Cinema’s comparison screen. Its note about virtualized rows comes from the project’s newer `main` README of 23 October 2025.
 
 | Capability | Itar | Plain React Native TV | Norigin Spatial Navigation | BAM React TV Space Navigation 5.2.0 |
 | --- | --- | --- | --- | --- |
@@ -34,19 +34,61 @@ The native baseline is `react-native-tvos` 0.83.0-0. The BAM API column uses 5.2
 | Virtualized catalogues | Fixed-extent lists and rails, offscreen reveal by key, 256 logical nodes per active collection. | TV-optimized `VirtualizedList` and focus guides. [List handling][rn-guides] | App-managed windowing and registration. [Performance guide][n-virtual] | Lists and grids, variable item sizes and start-aligned scrolling. Upstream flags a problem with hundreds of virtualized **rows**. [List options][b-options] · [Known limits][b-limits] |
 | Screen readers | Separate input and accessibility observations. Device-specific coverage above. | Platform accessibility APIs plus native focus events. [TV accessibility][rn-a11y] | Accessibility labels and an optional speech callback. [Accessibility guide][n-a11y] | Experimental Android TalkBack integration. With reader focus on a card, Enter gives it logical focus. A second Enter selects it. [Reader controls][b-reader] |
 | Targets and evidence | Chromecast HD, Apple TV HD and Chromium exercised. Tizen and webOS staging. | Native Android TV and Apple TV. [Platforms][rn-platforms] | Upstream reports production use on Tizen and webOS and lists Android TV and Apple TV support. [Platforms][n-devices] | Upstream lists Android TV, tvOS and web TV. [Platforms][b-design] |
-| Distribution | Local source package. The web adapter lives in Cinema. | Published `react-native-tvos` package. | Published core, React and React Native TV packages. | Published `react-tv-space-navigation` package. |
+| Distribution | Local source package. The web adapter lives in Cinema. | Published `react-native-tvos` package. | Published core, React and React Native TV packages. Plain JavaScript, with no Wasm requirement and no stated Chrome minimum. [Device matrix][n-devices] | Published `react-tv-space-navigation` package. |
 
-## Migrating one screen from Norigin
+## Choosing a starting point
 
-Start with a rail whose remote behavior you know. Norigin’s visual debugger can show which candidates the current app considers on each arrow press. [Norigin debugger][n-debug]
+- **Itar** suits a native TV catalogue whose rails refresh or reorder, where the app must return to an exact card, know whether focus landed and cancel a move the viewer abandoned. Check the beta limits above against your screens first.
+- **Plain React Native TV** suits screens where the platform focus engine and focus guides already put the viewer in the right place, and the app has no need to track individual focus requests.
+- **Norigin Spatial Navigation** suits a React web app headed for smart TVs, or a team that wants one JavaScript focus engine with reported production use on Tizen and webOS.
+- **BAM React TV Space Navigation** suits a team that wants one declarative React navigation tree shared by native TV and web, from a published package.
 
-Map its existing `focusKey` values to stable occurrence keys, including the rail identity if a title can appear twice. Wrap the screen in a `FocusProvider`. For a mounted rail, use a `FocusScope` with `layout="row"` and put each card’s label, activation and focus style on its outer `Focusable`. For windowed rails, use `FocusVirtualizedRails`, which creates the focusable hosts for its items. Norigin’s hook lets you keep your existing host. [Integration walkthrough](guides/integration.md) · [Cinema examples](ott-app.md)
+## Trying Itar on one screen
 
-Open Details, reorder the rail, and press Back. Compare the saved occurrence with the card that receives focus and the title Select opens. Repeat after removing the opener, and after navigating away during a delayed reveal. These cases show whether a confirmed result and cancellation simplify the code your app already owns. [Collection example](guides/collections.md) · [Route implementation](../apps/probe/ott/src/Cinema.tsx)
+Start with a rail whose remote behavior you know. Each card needs a stable occurrence key that includes the rail identity, so a title that appears twice gets two keys.
+
+| What the screen uses today | What it becomes in Itar |
+| --- | --- |
+| Plain React Native TV: a ref and `requestTVFocus()`, with `onFocus` to learn what happened | `focusByKey(occurrenceKey)` and the request’s `result` |
+| Norigin: `focusKey` and `setFocus(focusKey)` | The same key as an occurrence key, and `focusByKey` |
+| BAM: a saved ID mapped to its current index for `focus(index)` | `focusByKey(occurrenceKey)`, with no index lookup |
+
+Wrap the screen in a `FocusProvider`. For a mounted rail, use a `FocusScope` with `layout="row"` and put each card’s label, activation and focus style on its outer `Focusable`. For windowed rails, use `FocusVirtualizedRails`, which creates the focusable hosts for its items. [Integration walkthrough](guides/integration.md) · [Cinema examples](ott-app.md)
+
+The return from Details shows the difference. With Norigin, the app checks that the opener is registered and awaits a promise that carries no host-confirmed outcome:
+
+```tsx
+if (doesFocusableExist(openerKey)) {
+  await setFocus(openerKey);
+}
+```
+
+With Itar, the same return reports what happened and can be withdrawn:
+
+```tsx
+const {focusByKey} = useFocusCommands();
+const pending = useRef<ReturnType<typeof focusByKey> | null>(null);
+
+// Call this when the rail reports onReady after Back.
+async function returnToOpener(openerKey: string) {
+  const request = focusByKey(openerKey);
+  pending.current = request;
+  const outcome = await request.result;
+  if (outcome.status === 'unavailable') {
+    // The opener left the catalogue. Choose where the viewer goes.
+    focusByKey(occurrenceKey('home', 'featured', 'featured-a'));
+  }
+}
+
+// If the viewer leaves before the request settles:
+pending.current?.cancel();
+```
+
+Then test it. Open Details, reorder the rail and press Back. Compare the saved occurrence with the card that receives focus and the title Select opens. Repeat after removing the opener, and after navigating away during a delayed reveal. In each case the outcome tells the app what the host did, so the app does not have to infer it from focus events. If the screen comes from Norigin, its visual debugger shows which candidates the old implementation considered on each arrow press. [Collection example](guides/collections.md) · [Route implementation](../apps/probe/ott/src/Cinema.tsx) · [Norigin debugger][n-debug]
 
 ## Measuring responsiveness
 
-Cinema’s native validation screen offers eight mounted targets in three modes. The native baseline uses platform controls. Itar uses its own focusable hosts. The BAM fixture keeps native focus on one trapped anchor and draws a JS highlight for the logical target. Under React 19 the optional BAM module can fail to load and show a placeholder. Skip that run. Norigin has no mode in this screen. The fixture can occupy JS briefly to exercise the mounted path. A latency or memory ranking would require comparable device measurements. [Validation screen](../apps/probe/ValidationScreen.tsx) · [BAM fixture](../apps/probe/ComparisonLibrary.tsx)
+Cinema’s native validation screen offers eight mounted targets in three modes. The native baseline uses platform controls. Itar uses its own focusable hosts. The BAM fixture keeps native focus on one trapped anchor and draws a JS highlight for the logical target. Under React 19 the optional BAM module can fail to load and show a placeholder. Skip that run. Norigin has no mode in this screen. The fixture can occupy JS briefly to exercise the mounted path. Revealing a cell that React has yet to mount can still require JS, so that case falls outside this screen. The project has not published device measurements, and a latency or memory ranking would require comparable ones. [Validation screen](../apps/probe/ValidationScreen.tsx) · [BAM fixture](../apps/probe/ComparisonLibrary.tsx)
 
 Upstream sources checked on 18 November 2026. The links point to the reviewed revisions.
 
