@@ -99,6 +99,89 @@ import UIKit
         XCTAssertFalse(a.canBecomeFocused)
         XCTAssertFalse(a.accessibilityActivate())
     }
+    func testTranslatedParentUsesVisualCoordinatesAndClipsAtViewport() throws {
+        let viewport = UIView(frame: CGRect(x: 300, y: 80, width: 250, height: 80))
+        viewport.clipsToBounds = true
+        let panel = UIView(frame: viewport.bounds.offsetBy(dx: 700, dy: 0))
+        panel.transform = CGAffineTransform(translationX: -700, y: 0)
+        b.frame = panel.bounds
+        panel.addSubview(b)
+        viewport.addSubview(panel)
+        root.addSubview(viewport)
+        root.commitGeometry()
+        let registration = try XCTUnwrap(b.registration)
+        XCTAssertEqual(registration.bounds, viewport.frame)
+        XCTAssertTrue(b.canBecomeFocused)
+        panel.transform = CGAffineTransform(translationX: -699, y: 0)
+        XCTAssertNil(root.measured(b))
+        XCTAssertNil(root.live(registration))
+    }
+
+    func testParentMovementRestoresEligibilityWithoutTargetLayout() async throws {
+        let panel = UIView(frame: CGRect(x: 800, y: 80, width: 250, height: 80))
+        b.frame = panel.bounds
+        panel.addSubview(b)
+        root.addSubview(panel)
+        root.commitGeometry()
+        // Let the refresh posted by mounting finish before moving the parent.
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+        let registration = try XCTUnwrap(b.registration)
+        XCTAssertFalse(b.canBecomeFocused)
+
+        let expected = CGRect(x: 300, y: 80, width: 250, height: 80)
+        func waitForVisibleBounds() async {
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                registration.bounds == expected && self.b.canBecomeFocused
+            }, object: nil)
+            await fulfillment(of: [ready], timeout: 3)
+        }
+        panel.center.x = expected.midX
+        await waitForVisibleBounds()
+        panel.transform = CGAffineTransform(scaleX: 1.2, y: 1.2)
+        XCTAssertFalse(b.canBecomeFocused)
+        let unavailable = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            registration.bounds == nil
+        }, object: nil)
+        await fulfillment(of: [unavailable], timeout: 3)
+        UIView.animate(withDuration: 0.1) { panel.transform = .identity }
+        await waitForVisibleBounds()
+        XCTAssertTrue(registration === b.registration)
+    }
+    func testAnimationCannotExposeTargetBeforePresentationArrives() async throws {
+        let panel = UIView(frame: b.frame)
+        b.frame = panel.bounds
+        panel.addSubview(b)
+        root.addSubview(panel)
+        root.commitGeometry()
+        let registration = try XCTUnwrap(b.registration)
+        XCTAssertTrue(b.canBecomeFocused)
+
+        // Pause the parent outside the surface with its model position already onscreen.
+        panel.layer.speed = 0
+        panel.layer.timeOffset = 2
+        let slide = CABasicAnimation(keyPath: "transform.translation.x")
+        slide.fromValue = 1000
+        slide.toValue = 0
+        slide.beginTime = 1
+        slide.duration = 10
+        panel.layer.add(slide, forKey: "slide")
+        let inFlight = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            (panel.layer.presentation()?.transform.m41 ?? 0) > self.root.bounds.width
+        }, object: nil)
+        await fulfillment(of: [inFlight], timeout: 3)
+        XCTAssertNil(root.live(registration))
+        root.commitGeometry()
+        XCTAssertNil(registration.bounds)
+        XCTAssertFalse(b.canBecomeFocused)
+
+        panel.layer.removeAnimation(forKey: "slide")
+        let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            registration.bounds == panel.frame && self.b.canBecomeFocused
+        }, object: nil)
+        await fulfillment(of: [settled], timeout: 3)
+    }
     func testSemanticActivationDoesNotTransferInputFocus() throws {
         root.focus("a")
         let before = try root.dispatcher?.connection.snapshot().input

@@ -45,14 +45,13 @@ NodeHandle geometricDestination(const State& state, NodeHandle source,
   if (!record) { return {}; }
   const bool horizontal = direction == Direction::left || direction == Direction::right;
   const bool positive = direction == Direction::right || direction == Direction::down;
-  const auto* focused = registry.lookup(input.source.node);
-  const auto* row = focused ? registry.lookup(focused->parent) : nullptr;
-  const auto* column = row ? registry.lookup(row->parent) : nullptr;
-  const bool leavingRail = !wrap && horizontal && record->scope && row && column &&
-      row->navigation.layout == Layout::row && column->navigation.layout == Layout::column;
-  // At a horizontal rail edge, locate outside controls from the focused card.
-  // The union of other mounted rows can extend past the sidebar after scrolling.
-  const auto from = regionBounds(state, leavingRail ? input.source.node : source, input);
+  // A parent continuation starts at the observed focus. Other descendants of
+  // the scope can move or be clipped independently of that target.
+  const bool continuing = !wrap && source != input.source.node;
+  const auto from = regionBounds(state, wrap ? source : input.source.node, input);
+  const auto* parent = registry.lookup(record->parent);
+  const bool parallelSiblings = continuing && record->scope && orderedAxis(*record, direction) &&
+      parent && parent->navigation.layout != Layout::spatial && !orderedAxis(*parent, direction);
   if (!from) { return {}; }
   // Widen arithmetic where supported; unrepresentable ranks fail closed.
   const auto axes = [horizontal](Rect r) {
@@ -67,9 +66,10 @@ NodeHandle geometricDestination(const State& state, NodeHandle source,
     const auto node = registry.handleAt(i);
     const auto* candidate = registry.lookup(node);
     if (!candidate || candidate->parent != record->parent || node == source) { continue; }
-    // Up and Down move between rows in this column, regardless of scroll offsets.
-    if (leavingRail && record == row && candidate->scope &&
-        candidate->navigation.layout == Layout::row) { continue; }
+    // The parent orders these peers on the perpendicular axis. Their
+    // positions along the child's own axis do not change that order.
+    if (parallelSiblings && candidate->scope &&
+        candidate->navigation.layout == record->navigation.layout) { continue; }
     if (!candidate->scope && (!logicalTarget(state, node) ||
                              !withinBoundary(state, node, input))) { continue; }
     const auto bounds = regionBounds(state, node, input);

@@ -39,8 +39,9 @@ class RowEntryHostChecks(context: Context) {
         root.layout(0, 0, 800, 600); outer.layout(0, 0, 600, 400); row.layout(0, 0, 600, 200)
         scroll.measure(android.view.View.MeasureSpec.makeMeasureSpec(300, android.view.View.MeasureSpec.EXACTLY), android.view.View.MeasureSpec.makeMeasureSpec(100, android.view.View.MeasureSpec.EXACTLY))
         scroll.layout(0, 0, 300, 100); content.layout(0, 0, 1000, 100); target.layout(300, 0, 400, 80)
+        // Focus a fully visible card away from the leading edge before changing its alignment policy.
+        scroll.scrollTo(200, 0)
         target.commitProps(); root.refreshGeometry(); check(target.requestFocus()); root.observe()
-        scroll.scrollTo(0, 0)
         root.collectionData = root.collectionData.replace("\"dataset\":\"1\"", "\"dataset\":\"2\"")
             .replace("\"extent\":100", "\"extent\":100,\"horizontalAlignment\":\"leading\"")
     }

@@ -80,7 +80,7 @@ function renderer<T>(store: CollectionStore, collection: string, key: (item: T) 
     </View>;
   };
 }
-const ItemList = memo(function ItemListView({data, collection, horizontal, itemExtent, viewportExtent, itemStyle, testID, crossExtent = 100, renderDecoration, renderItem, overlayTarget = false}: {
+const ItemList = memo(function ItemListView({data, collection, horizontal, itemExtent, viewportExtent, itemStyle, testID, crossExtent, renderDecoration, renderItem, overlayTarget = false}: {
   data: readonly VirtualizedFocusItem[]; collection: string; horizontal: boolean; itemExtent: number;
   viewportExtent: number; itemStyle?: StyleProp<ViewStyle>; testID?: string; crossExtent?: number;
   renderItem?: VirtualizedFocusItemRenderer; overlayTarget?: boolean; renderDecoration?: (item: VirtualizedFocusItem) => React.ReactNode;
@@ -88,8 +88,9 @@ const ItemList = memo(function ItemListView({data, collection, horizontal, itemE
   const store = useCollection();
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
   const Cell = useMemo(() => renderer<VirtualizedFocusItem>(store, collection, item => nativeTargetKey(item.occurrenceKey)), [store, collection]);
+  const crossDimension = crossExtent === undefined ? undefined : horizontal ? {height: crossExtent} : {width: crossExtent};
   return <FlatList data={data} horizontal={horizontal} testID={testID}
-    style={horizontal ? [styles.horizontalViewport, {width: viewportExtent, height: crossExtent}] : [styles.verticalViewport, {height: viewportExtent}]}
+    style={horizontal ? [styles.horizontalViewport, {width: viewportExtent}, crossDimension] : [styles.verticalViewport, {height: viewportExtent}, crossDimension]}
     showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false}
     keyExtractor={item => item.occurrenceKey} CellRendererComponent={Cell} extraData={snapshot.preparation}
     additionalRenderRegions={store.regions(collection)} initialNumToRender={2} maxToRenderPerBatch={2} windowSize={3}
@@ -108,24 +109,25 @@ const ItemList = memo(function ItemListView({data, collection, horizontal, itemE
 });
 
 /** Fixed-extent owned buttons using the pinned react-native-tvos FlatList. */
-export function FocusVirtualizedList({id, data, horizontal = true, itemExtent, viewportExtent, style, itemStyle, testID, renderItem, horizontalAlignment = 'nearest'}: Common & {
-  data: readonly VirtualizedFocusItem[]; horizontal?: boolean;
+export function FocusVirtualizedList({id, data, horizontal = true, itemExtent, viewportExtent, style, itemStyle, testID, renderItem, crossExtent, horizontalAlignment = 'nearest'}: Common & {
+  data: readonly VirtualizedFocusItem[]; horizontal?: boolean; crossExtent?: number;
 }) {
   const parent = useContext(ScopeContext);
   const model = useMemo(() => {
     extent(itemExtent); extent(viewportExtent); alignment(horizontalAlignment);
+    if (crossExtent !== undefined) { extent(crossExtent); }
     if (!id) { throw new Error('A virtualized list requires a stable id'); }
     const key = nativeScopeKey([...parent.path, id]);
-    return {id, key, data, horizontal, itemExtent, viewportExtent, renderItem,
+    return {id, key, data, horizontal, itemExtent, viewportExtent, crossExtent, renderItem,
       nodes: [{...list(key, parent.key, 0, horizontal, itemExtent), ...(horizontal ? {horizontalAlignment} : {})}, ...items(data, key)]};
-  }, [id, data, horizontal, itemExtent, viewportExtent, parent.path, parent.key, horizontalAlignment, renderItem]);
+  }, [id, data, horizontal, itemExtent, viewportExtent, crossExtent, parent.path, parent.key, horizontalAlignment, renderItem]);
   const published = usePublished(model);
   if (!published) { return <View style={style} testID={testID} />; }
   const value = published.model;
   return <CollectionDatasetContext.Provider value={published.dataset}>
     <FocusScope id={value.id} layout={value.horizontal ? 'row' : 'column'} boundary="parent" style={style}>
       <ItemList data={value.data} collection={value.key} horizontal={value.horizontal} itemExtent={value.itemExtent}
-        viewportExtent={value.viewportExtent} itemStyle={itemStyle} testID={testID} renderItem={value.renderItem} />
+        viewportExtent={value.viewportExtent} crossExtent={value.crossExtent} itemStyle={itemStyle} testID={testID} renderItem={value.renderItem} />
     </FocusScope>
   </CollectionDatasetContext.Provider>;
 }

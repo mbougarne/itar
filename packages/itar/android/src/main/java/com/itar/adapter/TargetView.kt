@@ -95,6 +95,7 @@ class TargetView(context: Context) : FrameLayout(context) {
         super.onDraw(canvas)
     }
     internal var mount: Mount? = null
+    internal val committedBounds = Rect()
     internal var committedOrder = 0
     internal var committedEnabled = false
     private var engineFocusRequest = false
@@ -193,6 +194,10 @@ class TargetView(context: Context) : FrameLayout(context) {
         collectionAccessibility = null
     }
     override fun onFocusChanged(gain: Boolean, direction: Int, previous: Rect?) {
+        // clearFocus() searches for a new target before it publishes a global focus change.
+        if (!gain && isFocusable && committedBounds.isEmpty && surface?.collections?.retained(mount) == false) {
+            isFocusable = false
+        }
         super.onFocusChanged(gain, direction, previous)
         applyFocusStyle()
     }

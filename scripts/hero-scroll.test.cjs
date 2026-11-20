@@ -285,3 +285,28 @@ test('linear list renderer and item children remain content of the collection-ow
     assert.equal(inner.type({...inner.props, renderItem: undefined}).props.renderItem({item: {...props.data[0], children: child}, index: 0}).props.children[0], child);
   }
 });
+
+test('a standalone list sizes its viewport and its items independently on either axis', () => {
+  for (const horizontal of [true, false]) {
+    const mainAxis = horizontal ? 'width' : 'height';
+    const crossAxis = horizontal ? 'height' : 'width';
+    const f = fixture(undefined, true, 'android');
+    const props = {id: 'items', data: options.rails[0].items, horizontal, viewportExtent: 640,
+      crossExtent: 210, itemExtent: 160, itemStyle: {[crossAxis]: 140}};
+    f.renderList(props); f.accept(); f.renderList(props);
+    const inner = list(f.renderList(props));
+    const flat = inner.type(inner.props).props;
+    assert.deepEqual(Object.assign({}, ...flat.style), {[mainAxis]: 640, [crossAxis]: 210});
+    const target = flat.renderItem({item: props.data[0], index: 0});
+    assert.deepEqual(Object.assign({}, ...target.props.style), {[mainAxis]: 160, [crossAxis]: 140});
+  }
+});
+
+test('a standalone list rejects invalid cross extents before publishing its data', () => {
+  const f = fixture();
+  const props = {id: 'items', data: options.rails[0].items, itemExtent: 160, viewportExtent: 640};
+  for (const crossExtent of [0, -1, NaN, Infinity, 1000001]) {
+    assert.throws(() => f.renderList({...props, crossExtent}), /List extents/);
+  }
+  assert.equal(f.nodes(), undefined);
+});

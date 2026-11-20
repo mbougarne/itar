@@ -121,6 +121,8 @@ export function FocusFirstTitle() {
 
 The promise resolves to `applied` after confirmed native focus, `cancelled` for a cancelled request, `unavailable` when the operation cannot complete, or `unsupported` for an unsupported runtime or transport. Check `outcome.reason` for details. A request does not activate the target. Activation arrives on `onPress` with the occurrence key, optional content ID and source. This matters for readers, which can activate a semantic target independently of input focus.
 
+On Android, a mounted target can be scrolled into view before it receives D-pad focus. Place the native scroll view inside its owning `FocusScope` and match the axis, using `layout="row"` for horizontal scrolling or `layout="column"` for vertical scrolling. For nested viewports, the adapter starts at the nearest scroll view shared by the focused and destination targets, then reveals the destination from the outside in. The destination must fit fully inside each applicable viewport. This path runs while the app owns directional input. For unmounted items use the [collection integration](collections.md).
+
 ## Route changes and accessibility
 
 - **Returning to a menu.** Use `restoreOnEntry` for remembered directional entry to a scope. To restore explicitly, commit its active state first, then request `restoreScope(['home', 'menu'])` with the actual nested scope IDs. The engine tries valid scope history and then the declared entry policy, including `preferredKey`. Unmounting the scope discards its history.

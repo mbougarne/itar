@@ -6,6 +6,19 @@ import android.view.View
 import com.itarprobe.MainActivity
 
 class RegistrationTest : ActivityInstrumentationTestCase2<MainActivity>(MainActivity::class.java) {
+    fun testAncestorMovementAndTranslatedGeometry() {
+        instrumentation.setInTouchMode(false)
+        val host = activity
+        lateinit var fixture: GeometryChecks
+        instrumentation.runOnMainSync { fixture = GeometryChecks(host); host.setContentView(fixture.root) }
+        instrumentation.waitForIdleSync()
+        var failure: Throwable? = null
+        instrumentation.runOnMainSync {
+            try { fixture.run() } catch (error: Throwable) { failure = error }
+            finally { fixture.root.close() }
+        }
+        failure?.let { throw it }
+    }
     fun testHorizontalAlignment() {
         instrumentation.setInTouchMode(false)
         val host = activity
