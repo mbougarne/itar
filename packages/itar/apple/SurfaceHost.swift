@@ -20,10 +20,13 @@ public final class ItarSurfaceHost: UIView {
     var scopes: [String: AppleScopeRegistration] = [:]
     private var mountSequence: UInt64 = 0
     private var epoch: UInt64 = 1
+    private var invalidatedEpoch: UInt64 = 0
     private var posted = false
     private var refreshing = false
     private var observers: [NSObjectProtocol] = []
-    private var scrollObservers: [ObjectIdentifier: NSKeyValueObservation] = [:]
+    private var geometryObservers: [ObjectIdentifier: [NSKeyValueObservation]] = [:]
+    private var movingViews = Set<UIView>()
+    private var motionCheck: DispatchWorkItem?
     private var lastBounds = CGRect.null
     lazy var collections = AppleCollections(self)
     private lazy var collectionInput = CollectionInput(self)
@@ -129,7 +132,10 @@ public final class ItarSurfaceHost: UIView {
         scopes.values.forEach { $0.view?.owner = nil; $0.view?.registeredKey = "" }
         scopes.removeAll()
         commandRequests.removeAll()
-        scrollObservers.removeAll()
+        geometryObservers.removeAll()
+        motionCheck?.cancel()
+        motionCheck = nil
+        movingViews.removeAll()
     }
 
     func beginCollectionDirection(_ direction: Int32) {
@@ -202,14 +208,17 @@ public final class ItarSurfaceHost: UIView {
 
     func geometryChanged() {
         guard !refreshing, let dispatcher, !dispatcher.closed else { return }
-        // Invalidate native resolution first; the core fact follows the ordered inbox.
-        var invalidations: [(ItarNode, UInt64, Int32, UInt64)] = []
-        for registration in registrations.values where registration.available {
-            registration.available = false
-            invalidations.append((registration.node, registration.mount, 1, epoch))
+        // A single layout pass can move many ancestors before the next commit.
+        if invalidatedEpoch != epoch {
+            invalidatedEpoch = epoch
+            var invalidations: [(ItarNode, UInt64, Int32, UInt64)] = []
+            for registration in registrations.values where registration.available {
+                registration.available = false
+                invalidations.append((registration.node, registration.mount, 1, epoch))
+            }
+            if !invalidations.isEmpty { dispatcher.enqueue(.invalidations(invalidations)) }
+            preferred = nil
         }
-        if !invalidations.isEmpty { dispatcher.enqueue(.invalidations(invalidations)) }
-        preferred = nil
         guard !posted else { return }
         posted = true
         DispatchQueue.main.async { [weak self] in
@@ -219,15 +228,24 @@ public final class ItarSurfaceHost: UIView {
         }
     }
 
-    // Navigation bounds are in this surface's coordinates. Unsupported transforms
-    // or partial clipping make geometry unavailable instead of retaining old bounds.
+    // UIKit converts planar translations into surface coordinates. Other transforms
+    // and partially clipped rectangles cannot be published as navigation bounds.
     func measured(_ target: ItarTargetHost) -> CGRect? {
         guard target.window === window, window != nil, target.targetEnabled,
               !target.label.isEmpty, !target.occurrenceKey.isEmpty else { return nil }
         var ancestor: UIView? = target
         while let view = ancestor {
-            guard !view.isHidden, view.alpha > 0.01, view.transform.isIdentity,
-                  CATransform3DIsIdentity(view.layer.transform) else { return nil }
+            let transform = view.layer.transform
+            guard !view.isHidden, view.alpha > 0.01, transform.m41.isFinite, transform.m42.isFinite,
+                  CATransform3DEqualToTransform(transform, CATransform3DMakeTranslation(transform.m41, transform.m42, 0)),
+                  (view === target || CATransform3DIsIdentity(view.layer.sublayerTransform)) else { return nil }
+            if geometryIsMoving(view.layer) {
+                if acceptsInput {
+                    movingViews.insert(view)
+                    scheduleMotionCheck()
+                }
+                return nil
+            }
             // RN TV can leave painting unclipped. The scroll viewport still
             // bounds focus eligibility, independently of that drawing setting.
             if (view.clipsToBounds || view is UIScrollView) &&
@@ -242,6 +260,34 @@ public final class ItarSurfaceHost: UIView {
         return rect
     }
 
+    // UIKit writes the destination to the model layer when an animation starts.
+    // A focus request must wait until the rendered geometry reaches that position.
+    private func geometryIsMoving(_ layer: CALayer) -> Bool {
+        guard layer.animationKeys()?.isEmpty == false else { return false }
+        guard let drawn = layer.presentation() else { return true }
+        return drawn.position != layer.position || drawn.bounds != layer.bounds ||
+            drawn.anchorPoint != layer.anchorPoint ||
+            !CATransform3DEqualToTransform(drawn.transform, layer.transform) ||
+            !CATransform3DEqualToTransform(drawn.sublayerTransform, layer.sublayerTransform)
+    }
+
+    // Finishing an animation does not write the model a second time. Check only
+    // views with outstanding motion and stop as soon as their geometry settles.
+    private func scheduleMotionCheck() {
+        guard motionCheck == nil else { return }
+        let check = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.motionCheck = nil
+            guard self.acceptsInput, let window = self.window else { self.movingViews.removeAll(); return }
+            let count = self.movingViews.count
+            self.movingViews = self.movingViews.filter { $0.window === window && self.geometryIsMoving($0.layer) }
+            if self.movingViews.count != count { self.geometryChanged() }
+            if !self.movingViews.isEmpty { self.scheduleMotionCheck() }
+        }
+        motionCheck = check
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 30, execute: check)
+    }
+
     func live(_ registration: AppleRegistration) -> ItarTargetHost? {
         guard acceptsInput, registration.available, registration.node.slot != 0,
               registrations[registration.key] === registration, let target = registration.target,
@@ -250,7 +296,7 @@ public final class ItarSurfaceHost: UIView {
               target.occurrenceKey == registration.key,
               collections.accepts(registration.key, dataset: target.collectionDataset, scope: false),
               collections.entry(registration.key)?.enabled != false,
-              measured(target) != nil else { return nil }
+              let bounds = registration.bounds, measured(target) == bounds else { return nil }
         return target
     }
 
@@ -290,11 +336,11 @@ public final class ItarSurfaceHost: UIView {
                 parent: view.parentKey, expected: scope.node, record: record,
                 preferred: scope.preferred == view.preferred || (scope.preferred == nil && view.preferred.isEmpty) ? nil : view.preferred))
         }
-        var scrolls: [ObjectIdentifier: UIScrollView] = [:]
+        var geometryViews: [ObjectIdentifier: UIView] = [:]
         for target in content.targets {
-            var ancestor = target.superview
-            while let view = ancestor {
-                if let scroll = view as? UIScrollView { scrolls[ObjectIdentifier(scroll)] = scroll }
+            var ancestor: UIView? = target
+            while let view = ancestor, geometryViews[ObjectIdentifier(view)] == nil {
+                geometryViews[ObjectIdentifier(view)] = view
                 if view === self { break }
                 ancestor = view.superview
             }
@@ -346,11 +392,9 @@ public final class ItarSurfaceHost: UIView {
             mutations.append(EngineMutation(kind: registration.node.slot == 0 ? 0 : 1, key: registration.key,
                                              parent: target.scopeKey, expected: registration.node, record: record))
         }
-        scrollObservers = scrollObservers.filter { scrolls[$0.key] != nil }
-        for (id, scroll) in scrolls where scrollObservers[id] == nil {
-            scrollObservers[id] = scroll.observe(\.contentOffset, options: [.new]) { [weak self] _, _ in
-                self?.geometryChanged()
-            }
+        geometryObservers = geometryObservers.filter { geometryViews[$0.key] != nil }
+        for (id, view) in geometryViews where geometryObservers[id] == nil {
+            geometryObservers[id] = observeGeometry(of: view)
         }
         if !mutations.isEmpty { dispatcher.enqueue(.apply(mutations)) }
         guard !dispatcher.closed else { return }
@@ -376,6 +420,30 @@ public final class ItarSurfaceHost: UIView {
         }
         observeCurrent()
         DispatchQueue.main.async { [weak self] in self?.collections.advance() }
+    }
+
+    // Moving a container does not lay out a child whose local bounds stayed the
+    // same. Observe each shared ancestor once and use the usual batched refresh.
+    private func observeGeometry(of view: UIView) -> [NSKeyValueObservation] {
+        func observe<Value>(_ path: KeyPath<CALayer, Value>, equal: @escaping (Value, Value) -> Bool) -> NSKeyValueObservation {
+            view.layer.observe(path, options: [.old, .new]) { [weak self] _, change in
+                guard let old = change.oldValue, let new = change.newValue, !equal(old, new) else { return }
+                self?.geometryChanged()
+            }
+        }
+        var observations = [
+            observe(\.position, equal: ==), observe(\.bounds, equal: ==), observe(\.anchorPoint, equal: ==),
+            observe(\.transform, equal: CATransform3DEqualToTransform),
+            observe(\.sublayerTransform, equal: CATransform3DEqualToTransform),
+            observe(\.isHidden, equal: ==), observe(\.masksToBounds, equal: ==),
+            observe(\.opacity, equal: { ($0 > 0.01) == ($1 > 0.01) })
+        ]
+        if let scroll = view as? UIScrollView {
+            observations.append(scroll.observe(\.contentOffset, options: [.old, .new]) { [weak self] _, change in
+                if change.oldValue != change.newValue { self?.geometryChanged() }
+            })
+        }
+        return observations
     }
 
     func detach(_ target: ItarTargetHost) {
