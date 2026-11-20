@@ -34,7 +34,7 @@ A row walks its declared order for horizontal moves, and a column does the same 
 
 For a spatial move, both edges of a candidate must advance along the requested axis. For instance, a row underneath a Search keyboard can extend farther to the right while starting farther left. Pressing Right in the keyboard should not select that row solely because its center is farther right. Among eligible rectangles, the engine ranks the forward gap, perpendicular separation and center offset. It requires fresh, visible geometry to issue a mounted move. [Geometry policy](../../core/src/navigation_geometry.cpp) · [Region regression tests](../../core/tests/navigation_regions.cpp)
 
-In a column of horizontal rails, Up and Down move between rows. When a row allows focus to leave at its left or right edge, the engine uses the focused card’s position to find an outside control. Scrolling another row does not move the sidebar relative to that card.
+When a move continues into a parent scope, its spatial search starts at the focused target. Moving another child within the scope leaves that starting point unchanged. In a column of rows, the column orders the rows vertically. Transposing the layout gives the same behavior for columns ordered horizontally.
 
 When you press Down from the genre filters above a grid, Itar enters the first eligible row, then chooses the card whose center is closest to the filter’s horizontal position. Pressing Up into the same grid from below enters its last eligible row. A scope configured to restore focus on entry can return to a remembered card. [Scope entry and regression test](../../core/tests/navigation_entry.cpp)
 

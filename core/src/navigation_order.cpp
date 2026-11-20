@@ -45,7 +45,7 @@ Proposal resolve(const State& state, Direction direction,
     auto reason = ProposalReason::ordered;
     const auto* scope = registry.lookup(record->parent);
     if (!target && (!scope || !orderedAxis(*scope, direction))) {
-      if (!regionBounds(state, source, input)) {
+      if (!regionBounds(state, input.source.node, input)) {
         result.kind = ProposalKind::unavailable;
         result.reason = ProposalReason::stale_geometry;
         return result;
