@@ -7,6 +7,7 @@
 | Setting | Usage |
 | --- | --- |
 | `itemExtent`, `rowExtent`, `viewportExtent` | Supply fixed sizes in layout units including spacing. A horizontal item uses width, a vertical item uses height. Each rail may override its item extent. Variable-size cells, separate insets and arbitrary virtualizers require another integration. |
+| `crossExtent` on a standalone list | Sets the viewport height for a horizontal list or its width for a vertical list, in layout units. Use `itemStyle` to size the cards inside it. |
 | `renderItem(item, index)` | Provide presentation inside the single focus host. The index is local to a rail or list. Return `null` to use the text label. Without this callback the list uses `item.children`. Keep keys, semantics and activation on the collection item. |
 | `rowEntry` | `nearest` (default) chooses an eligible item near the previous logical column. `first` enters at the first eligible item in the destination rail. Both can require mounting an offscreen cell. |
 | `horizontalAlignment` | `nearest` scrolls enough to reveal a target. `leading` aligns the confirmed target with the start of the viewport, left in LTR and right in RTL, as far as the content bounds permit. Applies to horizontal rows. |
