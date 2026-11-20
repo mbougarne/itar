@@ -31,7 +31,7 @@ internal class Input(private val root: SurfaceView) {
         else -> -1L
     }
     fun owns(view: View?) = !root.closed && root.hasWindowFocus() && !reader.isEnabled &&
-        view is TargetView && view.surface === root && root.live(view.mount) === view
+        view is TargetView && view.surface === root && root.live(view.mount, allowFocusedSource = true) === view
     fun query(focused: View?, direction: Int): View? {
         if (!owns(focused)) return null
         val value = nativeDirection(direction)
@@ -58,7 +58,7 @@ internal class Input(private val root: SurfaceView) {
             if (event.action != KeyEvent.ACTION_DOWN || !owns(target)) return false
             if (event.repeatCount == 0) target?.mount?.let {
                 selectKey = event.keyCode
-                activation = Activation(event.keyCode, root.connection.lifetime, it)
+                activation = if (root.live(it) === target) Activation(event.keyCode, root.connection.lifetime, it) else null
             }
             return true
         }

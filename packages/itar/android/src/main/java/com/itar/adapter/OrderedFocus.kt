@@ -1,6 +1,5 @@
 package com.itar.adapter
 
-import android.graphics.Rect
 import android.view.View
 import android.view.ViewGroup
 import java.lang.ref.WeakReference
@@ -58,9 +57,7 @@ internal class OrderedFocus(private val root: SurfaceView) {
                     mount.key != view.occurrenceKey || root.targets[mount]?.get() !== view ||
                     view.order != view.committedOrder || !orders.add(view.committedOrder) ||
                     view.id <= 0 || root.rootView.findViewById<View>(view.id) !== view) return null
-                val visible = Rect()
-                if (view.committedEnabled && root.live(mount) === view && view.width > 0 && view.height > 0 &&
-                    view.getGlobalVisibleRect(visible) && visible.width() == view.width && visible.height() == view.height) {
+                if (view.committedEnabled && root.live(mount) === view) {
                     targets.add(view)
                 }
             } else if (view.isFocusable || view.isClickable) return null

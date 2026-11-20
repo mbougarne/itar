@@ -63,7 +63,9 @@ internal class Collections(private val root: SurfaceView) {
     var document: CollectionDocument? = null
         private set
     private var configuration = ""
+    private val mountedTarget = MountedTargetReveal(root)
     private var pending: LongArray? = null
+    val awaitingReveal get() = pending != null
     private var steps: List<CollectionEntry> = emptyList()
     private var step = 0
     private var prepared = false
@@ -98,7 +100,7 @@ internal class Collections(private val root: SurfaceView) {
         val previous = document ?: return null
         val target = root.rootView.findFocus() as? TargetView ?: return null
         val mount = target.mount ?: return null
-        if (target.surface !== root || root.live(mount) !== target ||
+        if (target.surface !== root || root.live(mount, allowFocusedSource = true) !== target ||
             !accepts(target.occurrenceKey, target.collectionDataset, false, target)) return null
         val ancestry = ArrayList<CollectionEntry>()
         var item = previous.nodes.firstOrNull { it.key == target.occurrenceKey }
@@ -118,7 +120,8 @@ internal class Collections(private val root: SurfaceView) {
         return PublicationLease(WeakReference(target), mount, root.connection.lifetime, target.collectionDataset, scopes)
     }
     val dataset get() = document?.dataset ?: 0
-    fun retained(mount: Mount?) = pending != null && source == mount && mount != null && root.rootView.findFocus() === root.targets[mount]?.get()
+    fun retained(mount: Mount?) = mountedTarget.retains(mount) || (pending != null && source == mount &&
+        mount != null && root.rootView.findFocus() === root.targets[mount]?.get())
     private fun emit(value: JSONObject) = root.publishPublic("topCollectionRecord", mapOf(
         "lifetime" to root.connection.lifetime.toString(), "payload" to value.toString()))
     fun configure(text: String) {
@@ -169,7 +172,7 @@ internal class Collections(private val root: SurfaceView) {
         val work = Runnable {
             alignment = null
             if (root.closed || !root.acceptsInput || root.readerOwnsInput || pending != null || this.dataset != dataset ||
-                root.live(mount) !== target || root.rootView.findFocus() !== target) return@Runnable
+                root.live(mount, allowFocusedSource = true) !== target || root.rootView.findFocus() !== target) return@Runnable
             val item = entry(mount.key) ?: return@Runnable
             val list = entry(item.parent) ?: return@Runnable
             if (list.horizontalAlignment != "leading") return@Runnable
@@ -178,7 +181,9 @@ internal class Collections(private val root: SurfaceView) {
             while (parent is View && parent !== scope) {
                 if (parent is HorizontalScrollView) {
                     val scroll = parent
-                    val bounds = Rect(); target.getDrawingRect(bounds); scroll.offsetDescendantRectToMyCoords(target, bounds)
+                    val bounds = Rect()
+                    root.targetGeometry.boundsIn(target, scroll, bounds)
+                    bounds.offset(scroll.scrollX, 0)
                     val content = scroll.getChildAt(0)?.width ?: return@Runnable
                     scroll.scrollTo(list.horizontalOffset(bounds.left.toDouble(), bounds.right.toDouble(),
                         scroll.scrollX.toDouble(), scroll.width.toDouble(), content.toDouble(), scroll.layoutDirection == View.LAYOUT_DIRECTION_RTL), scroll.scrollY)
@@ -190,6 +195,7 @@ internal class Collections(private val root: SurfaceView) {
         alignment = work; root.postOnAnimation(work)
     }
     fun invoke(effect: LongArray): Boolean {
+        if (effect[12] == 0L && effect[8] != 0L) return mountedTarget.start(effect)
         val document = document ?: return false
         val reader = root.context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
         if (!root.acceptsInput || reader.isEnabled || effect[11] != document.dataset) return false
@@ -283,15 +289,19 @@ internal class Collections(private val root: SurfaceView) {
         root.dispatcher.submit(24, effect.copyOfRange(2, 6) + longArrayOf(mount.slot, mount.generation, mount.serial, dataset))
     }
     fun cancel(effect: LongArray): Boolean {
+        if (mountedTarget.cancel(effect)) return true
         val pending = pending ?: return false
         if (pending[3] != effect[9] || pending[4] != effect[10] || effect[13] != 0L) return false
         release(); return true
     }
-    fun reconcile(request: Long) { if (pending?.get(3)?.let { it != request } == true) release() }
+    fun reconcile(request: Long) {
+        mountedTarget.reconcile(request)
+        if (pending?.get(3)?.let { it != request } == true) release()
+    }
     fun release() {
         val effect = pending
         pending = null; steps = emptyList(); source = null; prepared = false; scrolled = false; realized = false
         effect?.let { emit(JSONObject().put("state", "release").put("request", it[3].toString()).put("effect", it[4].toString())) }
     }
-    fun close() { alignment?.let { root.removeCallbacks(it) }; alignment = null; release(); publicationLease = null; document = null; handles = emptyMap() }
+    fun close() { mountedTarget.clear(); alignment?.let { root.removeCallbacks(it) }; alignment = null; release(); publicationLease = null; document = null; handles = emptyMap() }
 }
