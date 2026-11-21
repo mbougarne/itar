@@ -72,7 +72,7 @@ function webPlugins(outdir) {
           path: path.join(__dirname, 'focus.tsx'),
         }));
 
-        build.onLoad({ filter: /\.(?:png|jpe?g|svg)$/ }, args => {
+        build.onLoad({ filter: /\.(?:png|jpe?g|svg|mp4)$/ }, args => {
           const bytes = fs.readFileSync(args.path);
 
           const name =

@@ -48,6 +48,13 @@ video:focus {
   object-fit: contain;
   background: black;
 }
+.itar-web-player[data-controls-hidden] {
+  outline: none;
+  cursor: none;
+}
+.itar-web-player[data-controls-hidden] > [data-player-row] {
+  display: none;
+}
 .itar-web-player button {
   min-height: 48px;
   min-width: 64px;
@@ -81,6 +88,10 @@ video:focus {
 }
 .itar-player-header h1 {
   font-size: clamp(20px, 2.5vw, 36px);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .itar-web-player .itar-player-close {
   min-width: 48px;
@@ -102,52 +113,64 @@ video:focus {
   width: 100%;
   margin: 0 0 16px;
 }
-.itar-player-controls input {
+.itar-web-player input[type='range'] {
   height: 24px;
   accent-color: #26d9f2;
   cursor: pointer;
 }
-.itar-player-buttons {
+.itar-player-utilities,
+.itar-player-transport,
+.itar-player-meta {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 12px;
 }
-.itar-player-buttons input {
-  width: 120px;
+.itar-player-utilities input {
+  width: clamp(64px, 10vw, 120px);
 }
-.itar-player-buttons button {
+.itar-player-transport {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.itar-player-utilities button,
+.itar-player-transport button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
 }
-.itar-player-buttons svg {
+.itar-player-transport button {
+  border-radius: 50%;
+  width: clamp(56px, 5.5vw, 80px);
+  height: clamp(56px, 5.5vw, 80px);
+  min-width: 0;
+  padding: 0;
+}
+.itar-player-transport [data-player-entry] {
+  width: clamp(68px, 6.5vw, 96px);
+  height: clamp(68px, 6.5vw, 96px);
+}
+.itar-web-player svg {
   flex-shrink: 0;
   pointer-events: none;
 }
-.itar-player-buttons button span {
+.itar-player-transport button span {
   font-size: 12px;
+}
+.itar-player-meta {
+  justify-content: space-between;
+  margin-block-end: 12px;
 }
 .itar-player-time {
   font-variant-numeric: tabular-nums;
-  margin-right: auto;
+  white-space: nowrap;
 }
 .itar-web-player .itar-player-credit {
   font-size: 12px;
   color: #bdc8d3;
   margin-top: 16px;
-}
-.itar-web-player .itar-player-status {
-  position: absolute;
-  top: 40%;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 80%;
-  padding: 16px 24px;
-  background: #0f1e2cee;
-  border-radius: 8px;
-  text-align: center;
 }
 @media (max-width: 600px) {
   .itar-player-header {
@@ -156,7 +179,8 @@ video:focus {
   .itar-player-controls {
     padding: 40px 16px 16px;
   }
-  .itar-player-buttons {
+  .itar-player-utilities,
+  .itar-player-transport {
     gap: 8px;
   }
   .itar-web-player button {

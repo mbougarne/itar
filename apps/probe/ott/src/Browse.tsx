@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -19,13 +20,19 @@ import { Picture } from './components/Picture';
 import { filmArtwork } from './artwork';
 import Hero from './Hero';
 import { layoutRows } from './browse-layout';
-import { useGuide } from './guide';
 import { useDesign } from './theme';
 
 import { CatalogueFeedback } from './components/CatalogueFeedback';
 import { GuidePreview } from './components/GuidePreview';
 import { EndObserver } from './components/EndObserver';
+import { ContentBelowCue } from './components/ContentBelowCue';
+import { ContinueWatchingCard } from './components/ContinueWatchingCard';
+import {
+  HomePreviewProvider,
+  HomePreviewCard,
+} from './components/HomePreviewCard';
 import type { BrowseProps, BrowseVisual } from './browse-types';
+import type { Rail } from './catalog-types';
 
 export default function Browse({
   id,
@@ -37,9 +44,11 @@ export default function Browse({
   onOpen,
   highContrast,
   featured = false,
+  continueWatching,
   searchResults = false,
   mode,
   onReady,
+  onHomeLoading,
   viewportWidth,
   onGuide,
   grid = false,
@@ -47,9 +56,9 @@ export default function Browse({
 }: BrowseProps) {
   const { s, u } = useDesign();
   const { width } = useWindowDimensions();
-  const { guide } = useGuide(featured);
   const [measuredWidth, setWidth] = useState(0);
   const [height, setHeight] = useState(0);
+  const [homePresented, setHomePresented] = useState(false);
 
   const { state, loadMore, reload, nextWindow } = useCatalogue(
     kind,
@@ -61,39 +70,44 @@ export default function Browse({
     category,
   );
 
+  // Home shows four rails of up to fifteen distinct titles. Publish the first
+  // catalogue once so successive pages cannot recycle the hero during entry.
+  const needsHomePage =
+    featured &&
+    !state.ended &&
+    !state.error &&
+    new Set(state.rows.flatMap(row => row.entries.map(film => film.id))).size <
+      60;
+
   useEffect(() => {
-    if (
-      featured &&
-      active &&
-      !state.loading &&
-      !state.ended &&
-      !state.error &&
-      new Set(state.rows.flatMap(row => row.entries.map(film => film.id)))
-        .size < 60
-    ) {
+    if (active && needsHomePage && !state.loading) {
       loadMore();
     }
-  }, [
-    featured,
-    active,
-    state.rows,
-    state.loading,
-    state.ended,
-    state.error,
-    loadMore,
-  ]);
+  }, [active, needsHomePage, state.loading, state.rows, loadMore]);
 
-  const featuredFilm = mode === 'fixture' ? hero : state.rows[0]?.entries[0];
   const initial = state.rows.length === 0;
   const pending = state.loading || (initial && !state.error && !state.ended);
+
+  const loadingHome =
+    (featured && initial && pending) || (!homePresented && needsHomePage);
+
+  const featuredFilm =
+    !initial && mode === 'fixture' ? hero : state.rows[0]?.entries[0];
+
+  useLayoutEffect(() => {
+    if (active && loadingHome) onHomeLoading?.();
+  }, [active, loadingHome, onHomeLoading]);
+
   const retryInitial = useRef(false);
   const commands = useFocusCommands();
   const retryFocused = useIsFocused(occurrenceKey(id, 'load-more'));
 
   const retry = useCallback(() => {
-    retryInitial.current = Platform.OS === 'web' && initial && retryFocused;
+    retryInitial.current =
+      !featured && Platform.OS === 'web' && initial && retryFocused;
+
     loadMore();
-  }, [initial, retryFocused, loadMore]);
+  }, [featured, initial, retryFocused, loadMore]);
 
   const viewport = Math.max(
     200 * u,
@@ -102,10 +116,12 @@ export default function Browse({
 
   const columns = grid ? 5 : 4;
   const cardGap = 24 * u;
-  const homeInset = featured ? cardGap : 0;
+  // Each grid cell owns its gutter. Two half gutters leave the grid flush
+  // with its viewport instead of giving a fixed row horizontal scroll range.
+  const cardInset = grid ? cardGap / 2 : featured ? cardGap : 0;
 
   const landscapeWidth =
-    (viewport - 2 * homeInset - (columns - 1) * cardGap) / columns;
+    (viewport - 2 * cardInset - (columns - 1) * cardGap) / columns;
 
   const landscapeRowExtent = (landscapeWidth * 9) / 16 + 32 * u;
 
@@ -118,13 +134,42 @@ export default function Browse({
 
   const headerExtent = grid || searchResults ? 0 : 58 * u;
 
-  const displayedRows = useMemo(
-    () =>
-      featured || grid
-        ? layoutRows(state.rows, featured ? 'home' : 'grid')
-        : state.rows,
-    [state.rows, featured, grid],
+  const previewWidth = Math.min(landscapeWidth * 2, viewport - cardInset * 2);
+
+  const previewHeight = Math.min(
+    (previewWidth * 9) / 16,
+    rowExtent - headerExtent - 16 * u,
   );
+
+  const displayedRows = useMemo(() => {
+    if (!featured) return grid ? layoutRows(state.rows, 'grid') : state.rows;
+
+    const home = layoutRows(state.rows, 'home');
+
+    if (!home.length) return home;
+
+    const rows: Rail[] = [];
+
+    if (continueWatching?.length) {
+      rows.push({
+        id: 'continue-watching',
+        title: 'Continue watching',
+        format: 'landscape',
+        entries: continueWatching.slice(0, 15).map(entry => entry.film),
+      });
+    }
+
+    rows.push(...home);
+
+    rows.push({
+      id: 'home-previews',
+      title: 'Preview picks',
+      format: 'landscape',
+      entries: home[0].entries.slice(0, 6),
+    });
+
+    return rows;
+  }, [state.rows, featured, grid, continueWatching]);
 
   const last = displayedRows[displayedRows.length - 1];
 
@@ -155,9 +200,20 @@ export default function Browse({
     const titles = new Map<string, string>();
 
     for (const rail of displayedRows) {
+      const preview = featured && rail.id === 'home-previews';
       const poster = !grid && !searchResults && rail.format === 'poster';
-      const cardWidth = poster ? 220 * u : landscapeWidth;
-      const imageHeight = poster ? 330 * u : (cardWidth * 9) / 16;
+
+      const cardWidth = preview
+        ? previewWidth
+        : poster
+        ? 220 * u
+        : landscapeWidth;
+
+      const imageHeight = preview
+        ? previewHeight
+        : poster
+        ? 330 * u
+        : (cardWidth * 9) / 16;
 
       titles.set(rail.id, rail.title);
 
@@ -165,21 +221,33 @@ export default function Browse({
         id: rail.id,
         itemExtent: cardWidth + cardGap,
         itemStyle: {
-          marginStart: homeInset,
+          marginStart: cardInset,
           width: cardWidth,
           height: imageHeight,
           borderRadius: 8 * u,
           backgroundColor: 'transparent',
         },
-        items: rail.entries.map(film => {
-          const key = occurrenceKey(id, rail.id, film.id);
+        items: rail.entries.map((film, index) => {
+          const watching =
+            rail.id === 'continue-watching'
+              ? continueWatching?.[index]
+              : undefined;
 
-          visuals.set(key, { film, poster });
+          const key = watching
+            ? occurrenceKey(id, rail.id, film.source ?? 'fixture', film.id)
+            : occurrenceKey(id, rail.id, film.id);
+
+          visuals.set(key, { film, poster, preview, watching });
 
           return {
             ...make(
               key,
-              `${film.title}, ${film.kind === 'movie' ? 'Movie' : 'Series'}`,
+              `${film.title}, ${film.kind === 'movie' ? 'Movie' : 'Series'}` +
+                (watching && watching.duration > 0
+                  ? `, ${Math.round(
+                      (watching.position / watching.duration) * 100,
+                    )}% watched`
+                  : ''),
               () => onOpen(film, key),
               film.id,
             ),
@@ -190,27 +258,16 @@ export default function Browse({
     }
 
     if (featured && state.rows.length && onGuide) {
-      const programmes = guide?.channels.slice(0, 3) ?? [];
+      const key = occurrenceKey(id, 'guide', 'open');
 
       titles.set('guide-preview', 'On TV · Explore the programme guide');
+      visuals.set(key, { guide: true });
 
       rails.push({
         id: 'guide-preview',
-        itemExtent: landscapeWidth + cardGap,
+        itemExtent: viewport,
         itemStyle: [s.primaryCta, s.homeInset],
-        items: (programmes.length ? programmes : [null]).map(channel => {
-          const key = occurrenceKey(id, 'guide', channel?.id ?? 'open');
-
-          visuals.set(key, {
-            guide: true,
-            channel: channel?.name,
-            programme: channel?.programmes.find(
-              p => p.stop > Date.now() / 1000,
-            ),
-          });
-
-          return make(key, 'Open TV guide', () => onGuide(key));
-        }),
+        items: [make(key, 'Open TV guide', () => onGuide(key))],
       });
     }
 
@@ -259,8 +316,7 @@ export default function Browse({
     displayedRows,
     grid,
     cardGap,
-    homeInset,
-    guide,
+    cardInset,
     onGuide,
     initial,
     id,
@@ -272,6 +328,9 @@ export default function Browse({
     s.primaryCta,
     s.homeInset,
     landscapeWidth,
+    previewWidth,
+    previewHeight,
+    continueWatching,
     state.rows,
     state.error,
     state.ended,
@@ -291,9 +350,7 @@ export default function Browse({
       const visual = model.visuals.get(item.occurrenceKey);
 
       if (visual?.guide) {
-        return (
-          <GuidePreview channel={visual.channel} programme={visual.programme} />
-        );
+        return <GuidePreview />;
       }
 
       if (visual?.feedback) {
@@ -336,6 +393,27 @@ export default function Browse({
         return null;
       }
 
+      if (visual.preview) {
+        return (
+          <HomePreviewCard
+            film={visual.film}
+            occurrence={item.occurrenceKey}
+            width={previewWidth}
+            height={previewHeight}
+          />
+        );
+      }
+
+      if (visual.watching) {
+        return (
+          <ContinueWatchingCard
+            entry={visual.watching}
+            width={landscapeWidth}
+            height={(landscapeWidth * 9) / 16}
+          />
+        );
+      }
+
       const cardWidth = visual.poster ? 220 * u : landscapeWidth;
 
       return (
@@ -350,7 +428,7 @@ export default function Browse({
         />
       );
     },
-    [model.visuals, u, landscapeWidth],
+    [model.visuals, u, landscapeWidth, previewWidth, previewHeight],
   );
 
   const railHeader = useCallback(
@@ -370,9 +448,7 @@ export default function Browse({
   );
 
   const reportReady = useCallback(() => {
-    if (featured && !featuredFilm && state.loading) {
-      return;
-    }
+    if (featured && !initial) setHomePresented(true);
 
     if (retryInitial.current && !pending) {
       retryInitial.current = false;
@@ -381,11 +457,7 @@ export default function Browse({
       const first = row?.entries[0];
 
       if (active && retryFocused && !state.error && row && first) {
-        commands.focusByKey(
-          featured && featuredFilm
-            ? occurrenceKey(id, 'hero', featuredFilm.id)
-            : occurrenceKey(id, row.id, first.id),
-        );
+        commands.focusByKey(occurrenceKey(id, row.id, first.id));
       }
     }
 
@@ -396,8 +468,8 @@ export default function Browse({
     );
   }, [
     featured,
+    initial,
     featuredFilm,
-    state.loading,
     onReady,
     id,
     pending,
@@ -408,7 +480,7 @@ export default function Browse({
     commands,
   ]);
 
-  return (
+  const content = (
     <View style={s.fill}>
       {Platform.OS === 'web' && !!state.error && (
         <View accessibilityRole="alert">
@@ -421,8 +493,13 @@ export default function Browse({
       <View
         style={s.fill}
         onLayout={event => {
-          setHeight(event.nativeEvent.layout.height);
-          setWidth(event.nativeEvent.layout.width);
+          const layout = event.nativeEvent.layout;
+
+          // Keep the scroll window mounted while a hidden page has no size.
+          if (layout.width > 0 && layout.height > 0) {
+            setHeight(layout.height);
+            setWidth(layout.width);
+          }
         }}
       >
         {!featured &&
@@ -435,20 +512,20 @@ export default function Browse({
               onEnd={loadMore}
             />
           ))}
-        {height > 0 && (
+        {height > 0 && !loadingHome && (
           <FocusVirtualizedRails
             active={active}
             onEndReached={!featured && !state.error ? loadMore : undefined}
             onReady={reportReady}
             id="catalogue"
             rails={model.rails}
-            rowEntry={featured ? 'first' : 'nearest'}
-            horizontalAlignment={featured ? 'leading' : 'nearest'}
+            rowEntry={featured ? 'remembered' : 'nearest'}
+            horizontalAlignment={featured ? 'pinned' : 'nearest'}
             rowExtent={rowExtent}
             itemExtent={landscapeWidth + cardGap}
             viewportExtent={viewport}
             viewportRows={1}
-            viewportHeight={height}
+            viewportHeight={featured ? Math.max(1, height - 56 * u) : height}
             listHeader={
               featured && featuredFilm ? (
                 <Hero
@@ -488,7 +565,40 @@ export default function Browse({
             renderItem={renderItem}
           />
         )}
+        {height > 0 &&
+          !loadingHome &&
+          !initial &&
+          (displayedRows.length * rowExtent > height ||
+            featured ||
+            !state.ended ||
+            state.limitReached) && (
+            <ContentBelowCue
+              rails={model.rails}
+              active={active}
+              hasNextPage={
+                !featured &&
+                !state.error &&
+                (!state.ended || state.limitReached)
+              }
+              heroKey={
+                featured && featuredFilm
+                  ? occurrenceKey(id, 'hero', featuredFilm.id)
+                  : undefined
+              }
+              guideKey={
+                featured && onGuide
+                  ? occurrenceKey(id, 'hero-guide')
+                  : undefined
+              }
+            />
+          )}
       </View>
     </View>
+  );
+
+  return featured ? (
+    <HomePreviewProvider active={active}>{content}</HomePreviewProvider>
+  ) : (
+    content
   );
 }

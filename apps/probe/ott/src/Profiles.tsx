@@ -24,7 +24,7 @@ export function Profiles({
     <View style={s.profilePage}>
       <Text style={s.chooserTitle}>Who’s exploring?</Text>
       <Text style={[s.subtitle, s.centered]}>
-        Choose a local profile. Session only.
+        Choose a profile for your saved titles and watch history.
       </Text>
       <FocusScope id="choices" layout="row" boundary="stop" style={s.profiles}>
         {[...names, 'Add a New Profile'].map((name, index) => (

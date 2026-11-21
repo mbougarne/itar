@@ -54,3 +54,20 @@ test('metadata accepts real rating and territory but rejects nonfinite and overs
   for (const rating of [NaN, Infinity, -1, 11, '8']) { assert.throws(() => api.parseFilm({...film, rating}), /metadata/); }
   assert.throws(() => api.parseFilm({...film, tagline: 'x'.repeat(501)}), /metadata/);
 });
+
+test('details keeps earlier valid artwork for missing fields and prefers newly supplied artwork per field', async t => {
+  const fromCatalogue = {
+    ...film, backdropUrl: 'https://image.tmdb.org/t/p/w1280/catalogue.jpg',
+    titleLogoUrl: 'https://image.tmdb.org/t/p/w500/logo.png',
+  };
+  const details = {...film, posterUrl: 'https://image.tmdb.org/t/p/w500/new.jpg', backdropUrl: null};
+  t.mock.method(global, 'fetch', async () => new Response(JSON.stringify({film: details, cast: [], related: []})));
+  const read = initial => api.fetchDetails(initial, new AbortController().signal);
+  const enriched = (await read(fromCatalogue)).film;
+  assert.equal(enriched.posterUrl, details.posterUrl);
+  assert.equal(enriched.backdropUrl, fromCatalogue.backdropUrl);
+  assert.equal(enriched.titleLogoUrl, fromCatalogue.titleLogoUrl);
+  details.posterUrl = null;
+  assert.equal((await read(fromCatalogue)).film.posterUrl, fromCatalogue.posterUrl);
+  await assert.rejects(read({...fromCatalogue, titleLogoUrl: 'https://example.invalid/untrusted.png'}), /artwork/);
+});

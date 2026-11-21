@@ -10,7 +10,7 @@ import android.widget.ScrollView
 internal class MountedTargetReveal(private val root: SurfaceView) {
     private data class Request(val effect: LongArray, val source: Mount, val target: Mount)
     private data class Level(val scope: ScopeView, val scroll: ViewGroup?)
-    private data class Path(val target: TargetView, val outerToInner: List<ViewGroup>)
+    private data class Path(val source: TargetView, val target: TargetView, val outerToInner: List<ViewGroup>)
     private var pending: Request? = null
     private val work = Runnable { pending?.let { scrollAndRealize(it) } }
 
@@ -29,6 +29,7 @@ internal class MountedTargetReveal(private val root: SurfaceView) {
     // A scope can own one standard viewport on its declared order axis. Stop at
     // an unknown or ambiguous owner; an enclosing app scroll must stay untouched.
     private fun levels(target: TargetView) = sequence {
+        val dataset = target.collectionDataset
         var key = target.scopeKey
         var scroll: ViewGroup? = null
         var ancestor = target.parent
@@ -41,7 +42,8 @@ internal class MountedTargetReveal(private val root: SurfaceView) {
                 is ScopeView -> {
                     if (root.scopes[key]?.get() !== ancestor || ancestor.owner !== root ||
                         ancestor.committedKey != key || ancestor.parentScopeKey != ancestor.committedParent ||
-                        !ancestor.active || ancestor.collectionDataset.isNotEmpty()) break
+                        !ancestor.active || ancestor.collectionDataset != dataset) break
+                    if (dataset.isNotEmpty() && root.collections.entry(key)?.parent != ancestor.committedParent) break
                     if ((scroll is HorizontalScrollView && ancestor.layout != "row") ||
                         (scroll is ScrollView && ancestor.layout != "column")) break
                     yield(Level(ancestor, scroll))
@@ -60,8 +62,14 @@ internal class MountedTargetReveal(private val root: SurfaceView) {
         val target = root.targets[request.target]?.get() ?: return null
         if (root.rootView.findFocus() !== source || target === source || target.mount != request.target ||
             target.surface !== root || !target.isAttachedToWindow || !target.isShown || !target.isEnabled ||
-            target.width <= 0 || target.height <= 0 || target.collectionDataset.isNotEmpty() ||
+            target.width <= 0 || target.height <= 0 ||
             !root.targetGeometry.supports(target, root)) return null
+        if (request.effect[12] != 0L) {
+            val dataset = root.collections.dataset
+            if (dataset != request.effect[11] || target.collectionDataset != dataset.toString() ||
+                source.collectionDataset != target.collectionDataset ||
+                root.collections.entry(request.target.key)?.parent != target.scopeKey) return null
+        } else if (target.collectionDataset.isNotEmpty()) return null
         val sourceLevels = levels(source).associateBy { it.scope }
         val viewports = ArrayList<ViewGroup>()
         for ((scope, scroll) in levels(target)) {
@@ -71,7 +79,7 @@ internal class MountedTargetReveal(private val root: SurfaceView) {
             if ((scroll is HorizontalScrollView && target.width > scroll.width) ||
                 (scroll is ScrollView && target.height > scroll.height)) return null
             viewports.add(scroll)
-            if (shared != null) return Path(target, viewports.asReversed())
+            if (shared != null) return Path(source, target, viewports.asReversed())
         }
         return null
     }
@@ -130,10 +138,16 @@ internal class MountedTargetReveal(private val root: SurfaceView) {
         if (path != null) root.dispatcher.hostCall {
             // Reveal each outer viewport before measuring the next inner viewport.
             for (view in path.outerToInner) {
-                if (pending !== request || root.rootView.findFocus() !== root.targets[request.source]?.get()) return@hostCall
+                // Scrolling the outer list can synchronously detach or recycle an inner cell.
+                if (pending !== request || root.rootView.findFocus() !== path.source || path.source.mount != request.source ||
+                    path.target.mount != request.target || !path.target.isAttachedToWindow) return@hostCall
                 val horizontal = view is HorizontalScrollView
-                val delta = displacement(path.target, view, horizontal) ?: return@hostCall
+                val nearest = displacement(path.target, view, horizontal) ?: return@hostCall
+                val delta = if (view is HorizontalScrollView) {
+                    root.collections.pinnedOffset(path.target, view)?.minus(view.scrollX) ?: nearest
+                } else nearest
                 if (delta != 0) {
+                    captureFocus { it.effectRecord(root, request.effect, "host", "scroll requested") }
                     if (horizontal) view.scrollBy(delta, 0) else view.scrollBy(0, delta)
                 }
             }

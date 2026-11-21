@@ -66,13 +66,18 @@ export function FocusVirtualizedRails({
   const model = useMemo(() => {
     if (
       horizontalAlignment !== 'nearest' &&
-      horizontalAlignment !== 'leading'
+      horizontalAlignment !== 'leading' &&
+      horizontalAlignment !== 'pinned'
     ) {
-      throw new Error('horizontalAlignment must be nearest or leading');
+      throw new Error('horizontalAlignment must be nearest, leading or pinned');
     }
 
-    if (rowEntry !== 'nearest' && rowEntry !== 'first') {
-      throw new Error('rowEntry must be nearest or first');
+    if (
+      rowEntry !== 'nearest' &&
+      rowEntry !== 'first' &&
+      rowEntry !== 'remembered'
+    ) {
+      throw new Error('rowEntry must be nearest, first or remembered');
     }
 
     const path = [...parent.path, id];
@@ -90,7 +95,7 @@ export function FocusVirtualizedRails({
         layout: 2,
         collection: true,
         extent: rowExtent,
-        rowEntry: rowEntry === 'first' ? 1 : 0,
+        rowEntry: rowEntry === 'remembered' ? 2 : rowEntry === 'first' ? 1 : 0,
         active: parent.active && active,
       },
     ];
@@ -103,7 +108,12 @@ export function FocusVirtualizedRails({
         layout: 1,
         collection: true,
         extent: rail.itemExtent ?? itemExtent,
-        horizontalAlignment: horizontalAlignment === 'leading' ? 1 : 0,
+        horizontalAlignment:
+          horizontalAlignment === 'pinned'
+            ? 2
+            : horizontalAlignment === 'leading'
+            ? 1
+            : 0,
         order,
         active: parent.active && active,
       });
@@ -198,7 +208,7 @@ export function FocusVirtualizedRails({
       !active ||
       !hasHeader ||
       focusedRow !== 0 ||
-      horizontalAlignment !== 'leading' ||
+      horizontalAlignment === 'nearest' ||
       !store.canAlign()
     ) {
       return;

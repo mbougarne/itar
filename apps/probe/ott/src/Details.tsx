@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { Platform, Text, View, type ImageSourcePropType } from 'react-native';
 import { FocusScope, FocusVirtualizedRails, occurrenceKey } from 'itar/react';
 import type { VirtualizedFocusItem, VirtualizedFocusRail } from 'itar/react';
 import { cast, films } from './catalog';
@@ -9,44 +9,64 @@ import { IconAction } from './components/IconAction';
 import { Backdrop } from './components/Backdrop';
 import { Picture } from './components/Picture';
 import { icons, filmArtwork, portraits } from './artwork';
-import { fetchBiography, fetchDetails } from './tmdb';
+import { fetchBiography } from './tmdb';
+import { cachedDetails, loadDetails } from './detail-data';
+import { detailTabs as tabs } from './navigation';
 import { Metadata } from './components/Metadata';
+import { RecommendationsPlaceholder } from './components/RecommendationsPlaceholder';
 import { useDesign } from './theme';
 
-const tabs = ['More like this', 'Cast & crew', 'Information'] as const;
+const emptyCast: readonly CastMember[] = [];
 
 export default function Details({
   film,
   active,
   onPlay,
+  saved,
+  listReady,
+  listError,
+  onToggleSaved,
+  resumeAvailable,
   onOpen,
   highContrast,
   onReady,
+  waitForRecommendations = false,
 }: {
   film: Film;
   active: boolean;
-  onPlay: () => void;
+  onPlay: (film: Film) => void;
+  saved: boolean;
+  listReady: boolean;
+  listError: string;
+  onToggleSaved: (film: Film) => void;
+  resumeAvailable: boolean;
   onOpen: (film: Film, openerKey: string) => void;
   highContrast: boolean;
   onReady?: () => void;
+  waitForRecommendations?: boolean;
 }) {
   const { s, u } = useDesign();
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
-  const [info, setInfo] = useState(film);
+  const [data, setData] = useState(() => cachedDetails(film));
+  const info = data?.film ?? film;
 
-  const [people, setPeople] = useState<readonly CastMember[]>(
-    film.source ? [] : cast,
-  );
+  const people: readonly CastMember[] =
+    data?.cast ?? (film.source ? emptyCast : cast);
 
-  const [related, setRelated] = useState<readonly Film[]>(
-    film.source ? [] : films.filter(value => value.id !== film.id).slice(0, 8),
+  const related = useMemo(
+    () =>
+      data?.related ??
+      (film.source
+        ? []
+        : films.filter(value => value.id !== film.id).slice(0, 8)),
+    [data, film],
   );
 
   const [tab, setTab] = useState<(typeof tabs)[number]>('More like this');
   const [person, setPerson] = useState<CastMember | null>(null);
   const [bio, setBio] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(!!film.source);
+  const loading = !!film.source && !data && !error;
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -56,16 +76,10 @@ export default function Details({
 
     const request = new AbortController();
 
-    setLoading(true);
-    setError('');
-
-    fetchDetails(film, request.signal).then(
+    loadDetails(film, request.signal).then(
       result => {
         if (!request.signal.aborted) {
-          setInfo(result.film);
-          setPeople(result.cast);
-          setRelated(result.related);
-          setLoading(false);
+          setData(result);
         }
       },
       reason => {
@@ -75,8 +89,6 @@ export default function Details({
               ? reason.message
               : 'Details could not load.',
           );
-
-          setLoading(false);
         }
       },
     );
@@ -115,16 +127,34 @@ export default function Details({
     return () => request.abort();
   }, [person, film.source]);
 
-  useEffect(() => {
-    if (active && tab === 'Information') {
-      onReady?.();
-    }
-  }, [active, tab, onReady]);
+  // The static controls can receive focus as soon as the screen has layout.
+  // Only restoring a recommendation needs the virtualized rail's acceptance.
+  const laidOut = viewport.width > 0 && viewport.height > 0;
 
-  const cardWidth = Math.max(160 * u, (viewport.width - 72 * u) / 4);
+  useEffect(() => {
+    if (active && laidOut && !waitForRecommendations) onReady?.();
+  }, [active, laidOut, waitForRecommendations, onReady]);
+
+  const castTab = tab === 'Cast & crew';
+
+  const loadingRecommendations =
+    tab === 'More like this' && loading && related.length === 0;
+
+  const cardGap = 24 * u;
+
+  const cardWidth = castTab
+    ? 180 * u
+    : Math.max(160 * u, (viewport.width - 3 * cardGap) / 4);
+
+  const imageHeight = castTab ? cardWidth : (cardWidth * 9) / 16;
+  const captionHeight = 48 * u;
+  const cardHeight = imageHeight + captionHeight;
 
   const model = useMemo(() => {
-    const visuals = new Map<string, { film?: Film; person?: CastMember }>();
+    const visuals = new Map<
+      string,
+      { title: string; source?: ImageSourcePropType }
+    >();
 
     const make = (
       key: string,
@@ -134,33 +164,33 @@ export default function Details({
       occurrenceKey: key,
       accessibilityLabel: label,
       displayLabel: '',
-      labelSize: 22 * u,
+      outlineInsetBottom: captionHeight,
       baseAccentColor: '#F4EEE4',
       focusStyle: { accentColor: highContrast ? '#FFFFFF' : '#26D9F2' },
       onPress,
     });
 
-    const castTab = tab === 'Cast & crew';
-
     const items = castTab
       ? people.map(member => {
           const key = occurrenceKey('details', film.id, 'cast', member.id);
 
-          visuals.set(key, { person: member });
+          visuals.set(key, {
+            title: member.name,
+            source: member.portraitUrl
+              ? { uri: member.portraitUrl }
+              : film.source
+              ? undefined
+              : portraits[member.id],
+          });
 
-          return {
-            ...make(key, `${member.name}, ${member.role}`, () =>
-              setPerson(member),
-            ),
-            displayLabel: member.name,
-            labelPlacement: 'bottom' as const,
-            outlineInsetBottom: 40 * u,
-          };
+          return make(key, `${member.name}, ${member.role}`, () =>
+            setPerson(member),
+          );
         })
       : related.map(value => {
           const key = occurrenceKey('details', film.id, 'related', value.id);
 
-          visuals.set(key, { film: value });
+          visuals.set(key, { title: value.title, source: filmArtwork(value) });
 
           return make(key, value.title, () => onOpen(value, key));
         });
@@ -168,10 +198,12 @@ export default function Details({
     const rails: VirtualizedFocusRail[] = [
       {
         id: tab,
-        itemExtent: castTab ? 204 * u : cardWidth + 24 * u,
+        itemExtent: cardWidth + cardGap,
         itemStyle: {
-          width: castTab ? 180 * u : cardWidth,
-          height: castTab ? 220 * u : (cardWidth * 9) / 16,
+          width: cardWidth,
+          height: cardHeight,
+          marginEnd: cardGap,
+          borderRadius: 8 * u,
           backgroundColor: 'transparent',
         },
         items,
@@ -179,61 +211,69 @@ export default function Details({
     ];
 
     return { rails, visuals };
-  }, [tab, people, related, film.id, cardWidth, onOpen, highContrast, u]);
+  }, [
+    tab,
+    castTab,
+    people,
+    related,
+    film.id,
+    film.source,
+    cardWidth,
+    cardGap,
+    cardHeight,
+    captionHeight,
+    onOpen,
+    highContrast,
+    u,
+  ]);
 
   const renderItem = useCallback(
     (item: VirtualizedFocusItem) => {
       const visual = model.visuals.get(item.occurrenceKey);
 
-      if (visual?.person) {
-        const member = visual.person;
+      if (!visual) return null;
 
-        return (
-          <View>
-            <Picture
-              source={
-                film.source
-                  ? member.portraitUrl
-                    ? { uri: member.portraitUrl }
-                    : undefined
-                  : portraits[member.id]
-              }
-              style={{ width: 180 * u, height: 180 * u, borderRadius: 8 * u }}
-              fallback="Portrait unavailable"
-            />
-            <Text
-              numberOfLines={1}
-              style={[s.body, { height: 40 * u, fontSize: 22 * u }]}
-            >
-              {member.name}
-            </Text>
-          </View>
-        );
-      }
-
-      return visual?.film ? (
-        <Picture
-          source={filmArtwork(visual.film)}
-          style={{
-            width: cardWidth,
-            height: (cardWidth * 9) / 16,
-            borderRadius: 8 * u,
-          }}
-          fallback="Artwork unavailable"
-        />
-      ) : null;
+      return (
+        <View>
+          <Picture
+            source={visual.source}
+            style={{
+              width: cardWidth,
+              height: imageHeight,
+              borderRadius: 8 * u,
+            }}
+            fallback={castTab ? 'Portrait unavailable' : 'Artwork unavailable'}
+          />
+          <Text numberOfLines={1} style={[s.detailCardCaption, s.detailText]}>
+            {visual.title}
+          </Text>
+        </View>
+      );
     },
-    [model.visuals, film.source, u, cardWidth, s.body],
+    [
+      model.visuals,
+      castTab,
+      u,
+      cardWidth,
+      imageHeight,
+      s.detailCardCaption,
+      s.detailText,
+    ],
   );
 
   return (
-    <View style={s.fill}>
+    <View style={s.detailContent}>
       <View style={s.pageBackdrop} pointerEvents="none">
-        <Backdrop film={info} details />
+        <Backdrop
+          film={info}
+          catalogueFilm={film}
+          details
+          highContrast={highContrast}
+        />
       </View>
       <View style={s.detailTop}>
         <View style={s.heroCopy}>
-          <Text numberOfLines={2} style={s.heroTitle}>
+          <Text numberOfLines={2} style={[s.heroTitle, s.detailText]}>
             {info.title}
           </Text>
           <Metadata film={info} />
@@ -241,7 +281,7 @@ export default function Details({
             {info.category}
             {info.tagline ? ` · ${info.tagline}` : ''}
           </Text>
-          <Text numberOfLines={3} style={s.body}>
+          <Text numberOfLines={3} style={[s.body, s.detailText]}>
             {info.synopsis}
           </Text>
           <FocusScope
@@ -252,18 +292,19 @@ export default function Details({
           >
             <Action
               id={occurrenceKey('details', 'play')}
-              label="Play demo"
-              displayLabel="▶  Play demo"
-              onPress={onPlay}
+              label={resumeAvailable ? 'Resume demo' : 'Play demo'}
+              displayLabel={resumeAvailable ? '▶  Resume demo' : '▶  Play demo'}
+              onPress={() => onPlay(info)}
               highContrast={highContrast}
               style={s.primaryCta}
             />
             <Action
               order={1}
               id={occurrenceKey('details', 'list')}
-              label="My list"
-              displayLabel="＋  My list"
-              onPress={() => {}}
+              label={saved ? 'Remove from My List' : 'Add to My List'}
+              displayLabel={saved ? '✓  In My List' : '＋  My List'}
+              enabled={listReady}
+              onPress={() => onToggleSaved(info)}
               highContrast={highContrast}
               style={s.primaryCta}
             />
@@ -278,8 +319,13 @@ export default function Details({
           </FocusScope>
           <Text style={s.footer}>
             Big Buck Bunny{Platform.OS === 'web' ? ' 4K UHD' : ''} demo playback
-            · My list and Like are focus-only controls
+            · Like is a focus-only control
           </Text>
+          {!!listError && (
+            <Text accessibilityLiveRegion="polite" style={s.muted}>
+              {listError}
+            </Text>
+          )}
         </View>
       </View>
       <FocusScope
@@ -310,11 +356,17 @@ export default function Details({
           <Action
             id={occurrenceKey('details', 'retry')}
             label="Retry details"
-            onPress={() => setAttempt(value => value + 1)}
+            onPress={() => {
+              setError('');
+              setAttempt(value => value + 1);
+            }}
           />
         </View>
       ) : (
-        loading && <Text style={s.muted}>Loading title information…</Text>
+        loading &&
+        !loadingRecommendations && (
+          <Text style={s.muted}>Loading title information…</Text>
+        )
       )}
       <View
         style={s.fill}
@@ -355,20 +407,30 @@ export default function Details({
             </Text>
           </View>
         ) : (
-          <>
+          <View
+            style={
+              tab === 'More like this' && {
+                marginTop: Math.max(0, (viewport.height - cardHeight) / 2),
+              }
+            }
+          >
             {viewport.width > 0 && viewport.height > 0 && (
               <FocusVirtualizedRails
                 id="title-content"
                 active={active}
                 rails={model.rails}
-                onReady={onReady}
-                rowExtent={240 * u}
-                itemExtent={cardWidth + 24 * u}
+                horizontalAlignment={castTab ? 'nearest' : 'leading'}
+                onReady={
+                  waitForRecommendations && !loading ? onReady : undefined
+                }
+                rowExtent={cardHeight}
+                itemExtent={cardWidth + cardGap}
                 viewportExtent={viewport.width}
-                viewportHeight={Math.min(viewport.height, 250 * u)}
+                viewportHeight={Math.min(viewport.height, cardHeight)}
                 renderItem={renderItem}
               />
             )}
+            {loadingRecommendations && <RecommendationsPlaceholder />}
             {!loading && !error && !model.rails[0].items.length && (
               <Text style={s.muted}>
                 No {tab.toLowerCase()} available for this title.
@@ -384,7 +446,7 @@ export default function Details({
                 </Text>
               </View>
             )}
-          </>
+          </View>
         )}
       </View>
     </View>

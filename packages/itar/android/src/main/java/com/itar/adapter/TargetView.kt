@@ -184,7 +184,9 @@ class TargetView(context: Context) : FrameLayout(context) {
         } else { setTextColor(baseColors); foreground = null }
     }
     internal fun resetStyle() { styling = false; setTextColor(baseColors); foreground = null; invalidate() }
-    internal fun resumeStyle() { styling = true; applyFocusStyle() }
+    internal fun resumeStyle() {
+        if (!styling) { styling = true; applyFocusStyle() }
+    }
     internal fun maskCollectionAccessibility() {
         if (collectionAccessibility == null) collectionAccessibility = importantForAccessibility
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
@@ -233,7 +235,7 @@ class TargetView(context: Context) : FrameLayout(context) {
     }
     override fun sendAccessibilityEvent(eventType: Int) {
         if (eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED ||
-            eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED) surface?.accessibilityObserved(this)
+            eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED) surface?.accessibilityObserved(this, eventType, direct = true)
         super.sendAccessibilityEvent(eventType)
     }
     fun commitProps() {

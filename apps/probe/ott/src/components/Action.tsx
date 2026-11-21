@@ -18,8 +18,10 @@ export function Action({
   style,
   order = 0,
   displayLabel,
+  children,
 }: {
   displayLabel?: string;
+  children?: React.ReactNode;
   order?: number;
   id: string;
   label: string;
@@ -44,6 +46,8 @@ export function Action({
       baseAccentColor="#BDC8D3"
       focusStyle={highContrast ? accents.white : accents.cyan}
       style={[s.action, style]}
-    />
+    >
+      {children}
+    </Focusable>
   );
 }

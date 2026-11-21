@@ -231,6 +231,47 @@ void configurableRowEntry() {
   }
 }
 
+void rememberedRowEntry() {
+  Fixture f;
+  std::vector<CollectionNode> nodes{
+      {OccurrenceKey{"outer"}, {}, 0, true, true, Layout::column, 120, CollectionRowEntry::remembered},
+      {OccurrenceKey{"upper"}, OccurrenceKey{"outer"}, 0, true, true, Layout::row, 80},
+      {OccurrenceKey{"lower"}, OccurrenceKey{"outer"}, 1, true, true, Layout::row, 80},
+      {OccurrenceKey{"u0"}, OccurrenceKey{"upper"}, 0}, {OccurrenceKey{"u1"}, OccurrenceKey{"upper"}, 1},
+      {OccurrenceKey{"l0"}, OccurrenceKey{"lower"}, 0}, {OccurrenceKey{"l1"}, OccurrenceKey{"lower"}, 1}};
+  CHECK(f.collections.apply(DatasetRevision{2}, nodes).status == CollectionStatus::applied);
+  f.mount("u1", 1); f.mount("l0", 2); f.mount("l1", 3);
+  const auto focus = [&](const char* key, std::uint64_t mount, FocusChannel channel = FocusChannel::input) {
+    CHECK(f.state.observeFocus({f.state.surface(), channel,
+        {FocusKind::managed, f.node(key), MountGeneration{mount}}}) == ObservationStatus::changed);
+  };
+  focus("u1", 1);
+  focus("l1", 3, FocusChannel::accessibility);
+  CHECK(f.collections.propose(Direction::down, f.input()).target == f.node("l0")); // First input visit.
+  focus("l1", 3);
+  CHECK(f.collections.propose(Direction::up, f.input()).target == f.node("u1"));
+  focus("u1", 1);
+  const auto below = [&] { return f.collections.propose(Direction::down, f.input()); };
+  CHECK(below().target == f.node("l1"));
+  std::swap(nodes[5].order, nodes[6].order);
+  CHECK(f.collections.apply(DatasetRevision{3}, nodes).status == CollectionStatus::applied);
+  Mutation detach;
+  detach.kind = MutationKind::update; detach.expected = f.node("l1");
+  detach.key = OccurrenceKey{"l1"}; detach.parent = OccurrenceKey{"lower"};
+  detach.record = *f.state.snapshot().registry.lookup(detach.expected);
+  detach.record.mounted = false; detach.record.geometry = {};
+  CHECK(f.tx.apply({f.state.surface(), f.state.snapshot().revision, std::span{&detach, 1}}).status == BatchStatus::valid);
+  CHECK(below().target == f.node("l1") && below().kind == ProposalKind::reveal);
+  f.mount("l1", 4); // Recycled native view. Remember the occurrence, not its previous mount.
+  CHECK(below().target == f.node("l1"));
+  nodes[6].enabled = false;
+  CHECK(f.collections.apply(DatasetRevision{4}, nodes).status == CollectionStatus::applied);
+  CHECK(below().target == f.node("l0"));
+  nodes.pop_back(); nodes[5].order = 0;
+  CHECK(f.collections.apply(DatasetRevision{5}, nodes).status == CollectionStatus::applied);
+  CHECK(below().target == f.node("l0"));
+}
+
 int main() {
   membershipAndAtomicity();
   realizationAndRevision();
@@ -239,4 +280,5 @@ int main() {
   nestedColumnAndSupersession();
   foreignReplacementSurvivesRetirement();
   configurableRowEntry();
+  rememberedRowEntry();
 }

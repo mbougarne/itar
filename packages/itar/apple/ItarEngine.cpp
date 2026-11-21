@@ -330,7 +330,7 @@ extern "C" ItarBatchResult itar_engine_collections(ItarEngine *engine, uint64_t 
     for (size_t i = 0; i < count; ++i) {
       const auto& value = values[i];
       require(value.layout >= 0 && value.layout <= 2);
-      require(value.row_entry >= 0 && value.row_entry <= 1);
+      require(value.row_entry >= 0 && value.row_entry <= 2);
       nodes.push_back({key(value.key), key(value.parent), value.order, flag(value.scope),
           flag(value.enabled), static_cast<Layout>(value.layout), value.extent,
           static_cast<CollectionRowEntry>(value.row_entry)});

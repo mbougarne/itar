@@ -1,9 +1,10 @@
 import React from 'react';
 import { FocusProvider } from 'itar/react';
 import Playback from './Playback';
+import type { PlayerProps } from './playback-history';
 import { useDesign } from './theme';
 
-export default function Player(props: { title: string; onClose: () => void }) {
+export default function Player(props: PlayerProps) {
   const { s } = useDesign();
 
   return (

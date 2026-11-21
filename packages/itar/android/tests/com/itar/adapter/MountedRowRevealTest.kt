@@ -23,19 +23,39 @@ class MountedRowRevealTest : ActivityInstrumentationTestCase2<MainActivity>(Main
         } finally { main { checks.root.close() } }
     }
 
-    fun testUpRevealsThePreviousRowAndItsClippedCard() {
+    fun testUpRevealsThePreviousRowAndItsClippedCard() = columnScenario()
+    fun testMountedCollectionCardRevealsWithoutRenderWindow() = columnScenario(collection = true)
+    fun testNewVisibleMountCompletesPendingCollectionReveal() = columnScenario(collection = true, mountAfterInput = true)
+    fun testOuterScrollRecyclingCannotScrollTheReplacementCell() = columnScenario(collection = true, recycleOnScroll = true)
+
+    private fun columnScenario(collection: Boolean = false, mountAfterInput: Boolean = false, recycleOnScroll: Boolean = false) {
         instrumentation.setInTouchMode(false)
         val host = activity
         lateinit var checks: MountedColumnRevealChecks
         var failure: Throwable? = null
-        instrumentation.runOnMainSync { checks = MountedColumnRevealChecks(host); host.setContentView(checks.root) }
+        instrumentation.runOnMainSync {
+            checks = MountedColumnRevealChecks(host, collection)
+            host.setContentView(checks.root)
+            if (collection) checks.publish()
+        }
         try {
             instrumentation.waitForIdleSync()
-            instrumentation.runOnMainSync { try { checks.start() } catch (error: Throwable) { failure = error } }
+            instrumentation.runOnMainSync {
+                try {
+                    checks.start(mountAfterInput)
+                    if (recycleOnScroll) checks.recycleOnNextScroll()
+                } catch (error: Throwable) { failure = error }
+            }
             failure?.let { throw it }
             instrumentation.waitForIdleSync()
             instrumentation.runOnMainSync {
-                try { checks.finish(); checks.reflowAtViewportEdge() } catch (error: Throwable) { failure = error }
+                try {
+                    if (recycleOnScroll) checks.checkRecycled()
+                    else {
+                        checks.finish()
+                        if (!collection) checks.reflowAtViewportEdge()
+                    }
+                } catch (error: Throwable) { failure = error }
             }
             failure?.let { throw it }
         } finally { instrumentation.runOnMainSync { checks.root.close() } }

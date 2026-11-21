@@ -162,6 +162,10 @@ public final class ItarSurfaceHost: UIView {
         if let target = context.nextFocusedView as? ItarTargetHost, target.owner === self,
            let registration = target.registration {
             let dataset = collections.dataset, mount = registration.mount
+            // A pinned row must place the card before UIKit draws its focus animation.
+            if let item = collections.entry(registration.key), collections.entry(item.parent)?.horizontalAlignment == "pinned" {
+                collections.align(target, dataset: dataset)
+            }
             coordinator.addCoordinatedAnimations({}, completion: { [weak self, weak target] in
                 guard let self, let target, target.registration === registration, registration.mount == mount else { return }
                 self.collections.align(target, dataset: dataset)

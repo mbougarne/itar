@@ -1,0 +1,155 @@
+{
+  "format": "occo",
+  "version": 1,
+  "state": "frozen",
+  "capacity": 1024,
+  "dropped": 0,
+  "device": { "model": "Synthetic fixture", "android": "fixture", "api": 0 },
+  "events": [
+    {
+      "seq": 1,
+      "ms": 0,
+      "kind": "mount",
+      "surface": "3",
+      "target": "card-a",
+      "mount": "21"
+    },
+    {
+      "seq": 2,
+      "ms": 1,
+      "kind": "observation",
+      "surface": "3",
+      "target": "card-a",
+      "mount": "21",
+      "channel": "input",
+      "detail": "managed"
+    },
+    {
+      "seq": 3,
+      "ms": 2,
+      "kind": "input",
+      "move": "1",
+      "direction": "down",
+      "detail": "window"
+    },
+    {
+      "seq": 4,
+      "ms": 2,
+      "kind": "input",
+      "surface": "3",
+      "move": "1",
+      "direction": "down",
+      "owner": "engine",
+      "detail": "down"
+    },
+    {
+      "seq": 5,
+      "ms": 3,
+      "kind": "request",
+      "surface": "3",
+      "request": "12",
+      "move": "1",
+      "detail": "started"
+    },
+    {
+      "seq": 6,
+      "ms": 3,
+      "kind": "effect",
+      "surface": "3",
+      "request": "12",
+      "effect": "14",
+      "target": "card-b",
+      "detail": "reveal collection"
+    },
+    {
+      "seq": 7,
+      "ms": 7,
+      "kind": "unmount",
+      "surface": "3",
+      "target": "card-b",
+      "mount": "19"
+    },
+    {
+      "seq": 8,
+      "ms": 9,
+      "kind": "mount",
+      "surface": "3",
+      "target": "card-b",
+      "mount": "22"
+    },
+    {
+      "seq": 9,
+      "ms": 10,
+      "kind": "effect",
+      "surface": "3",
+      "request": "12",
+      "effect": "15",
+      "target": "card-b",
+      "mount": "22",
+      "detail": "focus"
+    },
+    {
+      "seq": 10,
+      "ms": 11,
+      "kind": "host",
+      "surface": "3",
+      "request": "12",
+      "effect": "15",
+      "target": "card-b",
+      "mount": "22",
+      "detail": "accepted"
+    },
+    {
+      "seq": 11,
+      "ms": 12,
+      "kind": "request",
+      "surface": "3",
+      "request": "12",
+      "detail": "cancelled"
+    },
+    {
+      "seq": 12,
+      "ms": 16,
+      "kind": "observation",
+      "surface": "3",
+      "target": "card-b",
+      "mount": "22",
+      "channel": "input",
+      "detail": "managed"
+    },
+    {
+      "seq": 13,
+      "ms": 24,
+      "kind": "observation",
+      "surface": "3",
+      "target": "menu",
+      "mount": "23",
+      "channel": "accessibility",
+      "detail": "managed"
+    },
+    { "seq": 14, "ms": 28, "kind": "marker", "detail": "incident" },
+    {
+      "seq": 15,
+      "ms": 48,
+      "kind": "input",
+      "surface": "3",
+      "move": "2",
+      "direction": "down",
+      "owner": "accessibility",
+      "detail": "surface down"
+    },
+    {
+      "seq": 16,
+      "ms": 52,
+      "kind": "observation",
+      "surface": "3",
+      "channel": "input",
+      "detail": "callback: unmanaged",
+      "nativeDestination": {
+        "role": "horizontal scroll view",
+        "bounds": { "left": 96, "top": 300, "right": 1824, "bottom": 628 }
+      }
+    },
+    { "seq": 17, "ms": 60, "kind": "marker", "detail": "incident" }
+  ]
+}

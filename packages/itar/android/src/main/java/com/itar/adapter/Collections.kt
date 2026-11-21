@@ -11,12 +11,13 @@ import java.lang.ref.WeakReference
 import android.view.accessibility.AccessibilityManager
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.roundToInt
 
 internal data class CollectionEntry(val key: String, val parent: String, val order: Int,
     val scope: Boolean, val enabled: Boolean, val layout: Int, val extent: Double,
     val leadingExtent: Double = 0.0, val rowEntry: Int = 0, val horizontalAlignment: String = "nearest") {
     fun horizontalOffset(start: Double, end: Double, current: Double, viewport: Double, content: Double, rtl: Boolean): Int {
-        val desired = if (horizontalAlignment == "leading" || end - start > viewport) { if (rtl) end - viewport else start }
+        val desired = if (horizontalAlignment != "nearest" || end - start > viewport) { if (rtl) end - viewport else start }
             else if (start < current) start else if (end > current + viewport) end - viewport else current
         return desired.coerceIn(0.0, (content - viewport).coerceAtLeast(0.0)).toInt()
     }
@@ -24,14 +25,17 @@ internal data class CollectionEntry(val key: String, val parent: String, val ord
         leadingExtent + (index - 1) * extent else index * extent
 }
 internal data class CollectionDocument(val dataset: Long, val nodes: List<CollectionEntry>) {
+    private val byKey = nodes.associateBy { it.key }
+    fun entry(key: String): CollectionEntry? = byKey[key]
+
     fun values(): LongArray = nodes.flatMap { listOf(it.order.toLong(), if (it.scope) 1L else 0L,
         if (it.enabled) 1L else 0L, it.layout.toLong(), java.lang.Double.doubleToRawLongBits(it.extent), it.rowEntry.toLong()) }.toLongArray()
     fun path(key: String): List<CollectionEntry> {
         val path = ArrayList<CollectionEntry>()
-        var item = nodes.firstOrNull { it.key == key }
+        var item = entry(key)
         repeat(2) {
             val current = item ?: return path
-            val parent = nodes.firstOrNull { it.key == current.parent && it.scope } ?: return path
+            val parent = entry(current.parent)?.takeIf { it.scope } ?: return path
             path.add(0, current); item = parent
         }
         return path
@@ -46,9 +50,9 @@ internal data class CollectionDocument(val dataset: Long, val nodes: List<Collec
             CollectionDocument(dataset, (0 until entries.length()).map { index ->
                 val node = entries.getJSONObject(index)
                 val rowEntry = if (node.has("rowEntry")) node.get("rowEntry") else 0
-                require(rowEntry is Number && (rowEntry.toDouble() == 0.0 || rowEntry.toDouble() == 1.0))
+                require(rowEntry is Number && rowEntry.toInt() in 0..2 && rowEntry.toDouble() == rowEntry.toInt().toDouble())
                 val alignment = if (node.has("horizontalAlignment")) node.get("horizontalAlignment") else "nearest"
-                require(alignment is String && (alignment == "nearest" || alignment == "leading") &&
+                require(alignment is String && (alignment == "nearest" || alignment == "leading" || alignment == "pinned") &&
                     (!node.has("horizontalAlignment") || (node.getBoolean("scope") && node.getInt("layout") == 1)))
                 val leadingExtent = if (node.has("leadingExtent")) node.getDouble("leadingExtent") else 0.0
                 require(leadingExtent.isFinite() && leadingExtent >= 0 && leadingExtent <= 1000000 &&
@@ -73,7 +77,9 @@ internal class Collections(private val root: SurfaceView) {
     private var realized = false
     private var source: Mount? = null
     private var handles: Map<String, LongArray> = emptyMap()
-    fun entry(key: String) = document?.nodes?.firstOrNull { it.key == key }
+    internal fun occurrenceForHandle(slot: Long, generation: Long): String? =
+        handles.entries.firstOrNull { it.value[0] == slot && it.value[1] == generation }?.key
+    fun entry(key: String) = document?.entry(key)
     fun accepts(key: String, dataset: String, scope: Boolean, view: View? = null): Boolean {
         val entry = entry(key) ?: return dataset.isEmpty()
         return entry.scope == scope && (dataset == this.dataset.toString() || retainedDeclaration(key, dataset, scope, view))
@@ -103,13 +109,13 @@ internal class Collections(private val root: SurfaceView) {
         if (target.surface !== root || root.live(mount, allowFocusedSource = true) !== target ||
             !accepts(target.occurrenceKey, target.collectionDataset, false, target)) return null
         val ancestry = ArrayList<CollectionEntry>()
-        var item = previous.nodes.firstOrNull { it.key == target.occurrenceKey }
+        var item = previous.entry(target.occurrenceKey)
         repeat(3) {
             val current = item ?: return@repeat
             // Selection policy cancels intent in core; it does not change a live host declaration.
-            if (next.nodes.firstOrNull { it.key == current.key }?.copy(rowEntry = current.rowEntry, horizontalAlignment = current.horizontalAlignment) != current) return null
+            if (next.entry(current.key)?.copy(rowEntry = current.rowEntry, horizontalAlignment = current.horizontalAlignment) != current) return null
             ancestry.add(current)
-            item = previous.nodes.firstOrNull { it.key == current.parent }
+            item = previous.entry(current.parent)
         }
         if (ancestry.isEmpty() || item != null) return null
         val scopes = ancestry.filter { it.scope }.map { entry ->
@@ -141,7 +147,7 @@ internal class Collections(private val root: SurfaceView) {
             val previousHandles = handles
             publicationLease = retained
             document = next
-            root.retireCollectionKeys(previousHandles.filterKeys { key -> next.nodes.none { it.key == key } })
+            root.retireCollectionKeys(previousHandles.filterKeys { key -> next.entry(key) == null })
             handles = next.nodes.associate { it.key to root.connection.exchange(25, key = it.key).copyOfRange(1, 3) }
             publicationLease = publicationLease?.takeIf { lease ->
                 handles[lease.mount.key]?.let { it[0] == lease.mount.slot && it[1] == lease.mount.generation } == true &&
@@ -161,21 +167,31 @@ internal class Collections(private val root: SurfaceView) {
             focused(root.rootView.findFocus())
         }
     }
-    // One next-frame continuation lets the platform finish its own focus scroll.
-    // It carries no destination authority: recheck the exact observed host/mount.
+    // Follow Android's actual focus. Pinned rows settle before Android draws the outline.
     private var alignment: Runnable? = null
+    fun pinnedOffset(target: TargetView, scroll: HorizontalScrollView): Int? {
+        val item = entry(target.occurrenceKey) ?: return null
+        val list = entry(item.parent) ?: return null
+        if (list.horizontalAlignment != "pinned" || list.key != target.scopeKey) return null
+        val content = scroll.getChildAt(0)?.width ?: return null
+        val limit = (content - scroll.width).coerceAtLeast(0)
+        // Use the cell origin: its inner gutter belongs to the card, including at the last index.
+        val logical = (list.offset(item.order) * root.resources.displayMetrics.density).roundToInt().coerceIn(0, limit)
+        return if (scroll.layoutDirection == View.LAYOUT_DIRECTION_RTL) limit - logical else logical
+    }
     fun focused(view: View?) {
         alignment?.let { root.removeCallbacks(it) }; alignment = null
         val target = view as? TargetView ?: return
         val mount = target.mount ?: return
+        val item = entry(mount.key) ?: return
+        val list = entry(item.parent) ?: return
+        if (list.horizontalAlignment == "nearest") return
         val dataset = dataset
         val work = Runnable {
             alignment = null
-            if (root.closed || !root.acceptsInput || root.readerOwnsInput || pending != null || this.dataset != dataset ||
+            if (root.closed || !root.acceptsInput || root.readerOwnsInput || this.dataset != dataset ||
+                (pending != null && (!realized || steps.lastOrNull()?.key != mount.key)) ||
                 root.live(mount, allowFocusedSource = true) !== target || root.rootView.findFocus() !== target) return@Runnable
-            val item = entry(mount.key) ?: return@Runnable
-            val list = entry(item.parent) ?: return@Runnable
-            if (list.horizontalAlignment != "leading") return@Runnable
             val scope = root.scopes[list.key]?.get() ?: return@Runnable
             var parent = target.parent
             while (parent is View && parent !== scope) {
@@ -185,17 +201,25 @@ internal class Collections(private val root: SurfaceView) {
                     root.targetGeometry.boundsIn(target, scroll, bounds)
                     bounds.offset(scroll.scrollX, 0)
                     val content = scroll.getChildAt(0)?.width ?: return@Runnable
-                    scroll.scrollTo(list.horizontalOffset(bounds.left.toDouble(), bounds.right.toDouble(),
-                        scroll.scrollX.toDouble(), scroll.width.toDouble(), content.toDouble(), scroll.layoutDirection == View.LAYOUT_DIRECTION_RTL), scroll.scrollY)
-                    root.geometryChanged(); return@Runnable
+                    val offset = pinnedOffset(target, scroll) ?: list.horizontalOffset(bounds.left.toDouble(), bounds.right.toDouble(),
+                        scroll.scrollX.toDouble(), scroll.width.toDouble(), content.toDouble(), scroll.layoutDirection == View.LAYOUT_DIRECTION_RTL)
+                    if (scroll.scrollX != offset) {
+                        scroll.scrollTo(offset, scroll.scrollY)
+                        root.geometryChanged()
+                    }
+                    return@Runnable
                 }
                 parent = parent.parent
             }
         }
-        alignment = work; root.postOnAnimation(work)
+        if (list.horizontalAlignment == "pinned") work.run()
+        else { alignment = work; root.postOnAnimation(work) }
     }
     fun invoke(effect: LongArray): Boolean {
-        if (effect[12] == 0L && effect[8] != 0L) return mountedTarget.start(effect)
+        // A mounted cell already supplies the native geometry for its reveal.
+        // Keep the render-window path for missing cells and unrelated viewports.
+        if (effect[8] != 0L && mountedTarget.start(effect)) return true
+        if (effect[12] == 0L) return false
         val document = document ?: return false
         val reader = root.context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
         if (!root.acceptsInput || reader.isEnabled || effect[11] != document.dataset) return false
@@ -216,6 +240,7 @@ internal class Collections(private val root: SurfaceView) {
     }
     private fun prepare() {
         val effect = pending ?: return
+        captureFocus { it.effectRecord(root, effect, "host", "render window requested") }
         emit(JSONObject().put("state", "prepare").put("dataset", dataset.toString())
             .put("request", effect[3].toString()).put("effect", effect[4].toString()).put("step", step)
             .put("key", steps[step].key).put("path", path(steps))
@@ -241,8 +266,18 @@ internal class Collections(private val root: SurfaceView) {
         root.dispatcher.submit(14, longArrayOf(SystemClock.uptimeMillis()))
         val effect = pending ?: return
         val reader = root.context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        if (!prepared || realized || root.closed || root.dispatcher.busy || !root.acceptsInput || reader.isEnabled ||
+        if (realized || root.closed || root.dispatcher.busy || !root.acceptsInput || reader.isEnabled ||
             effect[11] != dataset || root.connection.exchange(5)[6] != effect[3]) return
+        // Committing a row can also mount its requested card. Its measured,
+        // current-generation view can finish the reveal before another JS ack.
+        val mount = root.targets.keys.firstOrNull { it.slot == effect[6] && it.generation == effect[7] &&
+            (effect[8] == 0L || it.serial == effect[8]) && it.key == steps.last().key }
+        if (mount != null && root.live(mount)?.collectionDataset == dataset.toString()) {
+            realized = true
+            root.dispatcher.submit(24, effect.copyOfRange(2, 6) + longArrayOf(mount.slot, mount.generation, mount.serial, dataset))
+            return
+        }
+        if (!prepared) return
         val scope = root.scopes[steps[step].parent]?.get() ?: return
         if (!scrolled) {
             val queue = ArrayDeque<View>()
@@ -261,6 +296,7 @@ internal class Collections(private val root: SurfaceView) {
             if (scroll == null) { root.dispatcher.submit(12, effect.copyOfRange(2, 6) + 1L); release(); return }
             if (!root.dispatcher.hostCall {
                 scrolled = true
+                captureFocus { it.effectRecord(root, effect, "host", "scroll requested") }
                 when (val view = scroll) {
                     is HorizontalScrollView -> {
                         val content = view.getChildAt(0)?.width ?: 0
@@ -282,11 +318,6 @@ internal class Collections(private val root: SurfaceView) {
             if (!row.isAttachedToWindow || !row.getGlobalVisibleRect(visible)) return
             step++; prepared = false; scrolled = false; prepare(); return
         }
-        val mount = root.targets.keys.firstOrNull { it.slot == effect[6] && it.generation == effect[7] && it.key == steps[step].key } ?: return
-        val target = root.live(mount) ?: return
-        if (target.collectionDataset != dataset.toString()) return
-        realized = true
-        root.dispatcher.submit(24, effect.copyOfRange(2, 6) + longArrayOf(mount.slot, mount.generation, mount.serial, dataset))
     }
     fun cancel(effect: LongArray): Boolean {
         if (mountedTarget.cancel(effect)) return true

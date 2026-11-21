@@ -44,6 +44,7 @@ class CollectionAccessibilityTest : ActivityInstrumentationTestCase2<MainActivit
         }
     }
     fun testRnMetadataAndDisabledActions() = scenario { main { it.semantics() } }
+    fun testScrollableRowOffersItsCardsForInputFocus() = scenario { main { it.rowInputFocus() } }
     fun testDelegateOwnershipAndRecycling() = scenario { main { it.lifecycle() } }
     fun testUnsupportedOuterHostLeavesRailUntouched() = scenario { main { it.unsupportedParent() } }
     fun testCustomProviderAndActionArePreserved() = scenario { main { it.customCallbacks() } }

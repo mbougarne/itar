@@ -20,8 +20,8 @@ export type EngineNode = {
   height: number;
   collection?: boolean;
   extent?: number;
-  rowEntry?: 0 | 1;
-  horizontalAlignment?: 0 | 1;
+  rowEntry?: 0 | 1 | 2;
+  horizontalAlignment?: 0 | 1 | 2;
 };
 
 export type EngineEffect = {

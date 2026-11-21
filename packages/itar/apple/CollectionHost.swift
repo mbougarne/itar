@@ -140,16 +140,22 @@ final class AppleCollections {
         guard self.dataset == dataset, pending == nil, let root, root.acceptsInput,
               !UIAccessibility.isVoiceOverRunning, let registration = target.registration,
               ownsSource(registration), let item = entry(registration.key), let list = entry(item.parent),
-              list.horizontalAlignment == "leading", let scope = root.scopes[list.key]?.view else { return }
+              (list.horizontalAlignment == "leading" || list.horizontalAlignment == "pinned"), let scope = root.scopes[list.key]?.view else { return }
         var parent = target.superview
         while let view = parent, view !== scope {
             if let scroll = view as? UIScrollView {
                 guard !scroll.isDragging, !scroll.isDecelerating else { return }
                 let bounds = target.convert(target.bounds, to: scroll)
                 var point = scroll.contentOffset
-                point.x = list.horizontalOffset(start: bounds.minX, end: bounds.maxX, current: point.x,
-                    viewport: scroll.bounds.width, content: scroll.contentSize.width,
-                    rtl: scroll.effectiveUserInterfaceLayoutDirection == .rightToLeft)
+                let rtl = scroll.effectiveUserInterfaceLayoutDirection == .rightToLeft
+                if list.horizontalAlignment == "pinned" {
+                    let maximum = max(0, scroll.contentSize.width - scroll.bounds.width)
+                    let offset = min(maximum, max(0, list.offset(item.order)))
+                    point.x = rtl ? maximum - offset : offset
+                } else {
+                    point.x = list.horizontalOffset(start: bounds.minX, end: bounds.maxX, current: point.x,
+                        viewport: scroll.bounds.width, content: scroll.contentSize.width, rtl: rtl)
+                }
                 scroll.setContentOffset(point, animated: false)
                 root.geometryChanged(); return
             }
@@ -315,7 +321,7 @@ extension ItarSurfaceHost {
               let source = collections.entry(origin.key), let sourceRow = collections.entry(source.parent),
               let target = collections.entry(proposal.target), let targetRow = collections.entry(target.parent),
               sourceRow.key != targetRow.key, sourceRow.layout == 1, targetRow.layout == 1,
-              sourceRow.parent == targetRow.parent, collections.entry(sourceRow.parent)?.rowEntry == 1 else { return nil }
+              sourceRow.parent == targetRow.parent, let policy = collections.entry(sourceRow.parent)?.rowEntry, policy != 0 else { return nil }
         if let registration = next.registration, registration.node.slot == proposal.target.slot,
            registration.node.generation == proposal.target.generation, live(registration) === next { return true }
         let dataset = collections.dataset, declaration = collectionData, sequence = eventSequence, lifetime = lifetime, mount = origin.mount

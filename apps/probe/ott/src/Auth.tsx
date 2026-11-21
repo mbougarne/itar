@@ -159,6 +159,10 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
                   )}
                   accessibilityRole="button"
                   accessibilityLabel={action.label}
+                  accessibilityActions={[{ name: 'activate' }]}
+                  onAccessibilityAction={({ nativeEvent }) => {
+                    if (nativeEvent.actionName === 'activate') action.onPress();
+                  }}
                   onPress={action.onPress}
                 >
                   <View

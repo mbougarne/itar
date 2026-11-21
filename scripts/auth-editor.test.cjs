@@ -101,6 +101,24 @@ test('Android keeps both native fields mounted through typing, blur, Done and ke
   assert.equal(f.inputs().length, 0);
 });
 
+test('Android form maps the accessibility activate action to Sign in, Back and Sign up', () => {
+  const f = fixture('android');
+  const activate = (button, name = 'activate') => {
+    assert.deepEqual(Array.from(button.props.accessibilityActions ?? [], action => action.name), ['activate']);
+    button.props.onAccessibilityAction({nativeEvent: {actionName: name}});
+  };
+  const submit = f.find('TouchableNativeFeedback', 'Sign in');
+  activate(submit, 'longpress');
+  assert.equal(f.signIns(), 0);
+  activate(submit);
+  assert.equal(f.signIns(), 1);
+  activate(f.find('TouchableNativeFeedback', 'Back')); f.render();
+  assert.equal(f.inputs().length, 0);
+  f.find('Action', 'Sign up').props.onPress(); f.render();
+  activate(f.find('TouchableNativeFeedback', 'Sign up'));
+  assert.equal(f.signIns(), 2);
+});
+
 for (const platform of ['ios', 'web']) {
   test(`${platform} retains its inline editor and keyboard-hide completion`, () => {
     const f = fixture(platform);

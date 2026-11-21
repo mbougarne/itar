@@ -21,12 +21,14 @@ export const portraits: Readonly<Partial<Record<string, ImageSourcePropType>>> =
   };
 
 export const icons = {
+  'My List': require('../assets/cinematic/icons/check.png'),
   Home: require('../assets/cinematic/icons/home.png'),
   Movies: require('../assets/cinematic/icons/film.png'),
   Series: require('../assets/cinematic/icons/monitor.png'),
   Search: require('../assets/cinematic/icons/search.png'),
   Profile: require('../assets/cinematic/icons/user.png'),
   Settings: require('../assets/cinematic/icons/settings.png'),
+  signOut: require('../assets/cinematic/icons/arrow-left.png'),
   check: require('../assets/cinematic/icons/check.png'),
   play: require('../assets/cinematic/icons/play.png'),
   pause: require('../assets/cinematic/icons/pause.png'),
@@ -44,7 +46,9 @@ export function filmArtwork(
   poster = false,
 ): ImageSourcePropType | undefined {
   if (film.source) {
-    const uri = poster ? film.posterUrl : film.backdropUrl || film.posterUrl;
+    const uri = poster
+      ? film.posterUrl || film.backdropUrl?.replace('/w1280/', '/w780/')
+      : film.backdropUrl?.replace('/w1280/', '/w780/') || film.posterUrl;
 
     return uri ? { uri } : undefined;
   }

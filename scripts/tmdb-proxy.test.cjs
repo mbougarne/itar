@@ -104,13 +104,17 @@ test('bounded concurrency rejects a fifth in-flight upstream request', async () 
 test('details maps rating, runtime, language and territory-specific certification via appended resources', async () => {
   await run({mock: false, apiKey: 'fake-test-key', fetcher: async url => {
     const movie = url.pathname.includes('/movie/');
+    assert.ok(url.searchParams.get('append_to_response').split(',').includes('images'));
+    assert.equal(url.searchParams.get('include_image_language'), 'en,null');
     assert.ok(url.searchParams.get('append_to_response').includes(movie ? 'release_dates' : 'content_ratings'));
     return new Response(JSON.stringify({id: 11, title: 'Film', name: 'Series', vote_average: 8.1, vote_count: 42, runtime: 110, episode_run_time: [45],
+      images: {logos: [{iso_639_1: null, file_path: '/neutral.png'}, {iso_639_1: 'en', file_path: '/english.png'}]},
       spoken_languages: [{english_name: 'English'}], release_dates: {results: [{iso_3166_1: 'US', release_dates: [{certification: 'PG'}]}]},
       content_ratings: {results: [{iso_3166_1: 'US', rating: 'TV-PG'}]}}));
   }}, async base => {
     for (const kind of ['movie', 'series']) {
       const {film} = await (await fetch(`${base}/v1/details?id=tmdb:${kind}:11`)).json();
+      assert.equal(film.titleLogoUrl, 'https://image.tmdb.org/t/p/w500/english.png');
       assert.equal(film.rating, 8.1);assert.equal(film.certificationRegion, 'US');assert.equal(film.languages, 'English');
       assert.equal(film.runtime, kind === 'movie' ? 110 : 45);assert.equal(film.certification, kind === 'movie' ? 'PG' : 'TV-PG');
     }

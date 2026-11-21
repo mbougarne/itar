@@ -1,0 +1,24 @@
+// From apps/probe/android: ./gradlew -I ../../../scripts/check-android-bundle-inputs.gradle :app:checkItarBundleInputs
+// Inspects the real release task in a normal workspace install without building an APK.
+import org.apache.tools.ant.taskdefs.condition.Os
+
+gradle.projectsEvaluated {
+    def app = gradle.rootProject.findProject(':app')
+    if (app == null) return  // Included plugin builds also evaluate this init script.
+    app.tasks.register('checkItarBundleInputs') {
+        doLast {
+            def bundle = app.tasks.named('createBundleReleaseJsAndAssets').get()
+            def inputs = bundle.inputs.files.files.collect { it.canonicalFile } as Set
+            for (def relative : ['../../App.tsx', '../../app.json',
+                                 '../../ott/assets/cinematic/atlas.jpg', '../../ott/assets/cinematic/big_buck_bunny_preview.mp4',
+                                 '../../../../node_modules/itar/src/virtualized.tsx', '../../../../package-lock.json']) {
+                def source = app.file(relative).canonicalFile
+                assert source.isFile() && inputs.contains(source) : "Missing release input: ${relative}"
+            }
+            def os = Os.isFamily(Os.FAMILY_WINDOWS) ? 'win64-bin' : Os.isFamily(Os.FAMILY_MAC) ? 'osx-bin' : 'linux64-bin'
+            def compiler = new File(bundle.hermesCommand.get().replace('%OS-BIN%', os)).canonicalFile
+            def installed = app.file("../../../../node_modules/hermes-compiler/hermesc/${os}/${os == 'win64-bin' ? 'hermesc.exe' : 'hermesc'}")
+            assert compiler == installed.canonicalFile && compiler.isFile() : "Expected the installed Hermes compiler, got ${compiler}"
+        }
+    }
+}

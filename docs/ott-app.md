@@ -21,12 +21,18 @@ A new browser session starts with offline fixtures. Native builds initially look
 
 | Try this | What to observe | Implementation |
 | --- | --- | --- |
-| On Home, move right several cards in **Popular stories**, then press Down. In **Worth exploring**, move right to the end, then left to the first card and press Left again. | Down enters the first eligible card (`rowEntry="first"`). As you move horizontally, the focused card lines up with the leading edge until the row runs out of space to scroll (`horizontalAlignment="leading"`). Left from the first card opens the sidebar. | [Browse](../apps/probe/ott/src/Browse.tsx) · [collection options](guides/collections.md) |
+| On Home, move right several cards in **Popular stories**, then press Down. In **Worth exploring**, move right to the end, then left to the first card and press Left again. | The first visit starts on the first eligible card. Go back up to return to the card you left (`rowEntry="remembered"`). Cards slide through the leading focus position, including the final card (`horizontalAlignment="pinned"`). Left from the first card opens the sidebar. | [Browse](../apps/probe/ott/src/Browse.tsx) · [collection options](guides/collections.md) |
 | Open a nonfirst card, then return from Details. | Compare the final highlighted occurrence and scroll position with the card you activated. A repeated movie in another rail gives this check a useful control. | [Cinema route state](../apps/probe/ott/src/Cinema.tsx) · [Details](../apps/probe/ott/src/Details.tsx) |
 | Search with the on-screen keyboard, clear the last character and move again. | Observe the new target when the selected action becomes unavailable. On web, repeat using Tab and a pointer. | [Search](../apps/probe/ott/src/Search.tsx) |
 | Open Settings and change the focus accent. Enable slow requests and queue a failure, then browse again. | Follow focus through loading, error, Retry and successful publication. Compare observations with the reader on and off. | [Settings](../apps/probe/ott/src/Settings.tsx) · [catalogue session](../apps/probe/ott/src/session.ts) |
 
 On native development builds, **Settings → Open original Itar probes** opens the smaller adapter, React API, virtualization and release-validation screens. Use those when a two-row reproduction is easier to diagnose than a full Cinema route. **Return to Itar Cinema** remounts the showcase. [Probe entry](../apps/probe/ProbeApp.tsx)
+
+## Local library and previews
+
+On Details, add or remove a title with **My List**. Play the demo for a title and leave partway through to see its artwork and progress in **Continue watching** on Home. Both lists belong to the current profile on this device. The card uses the TMDB title logo when one is available.
+
+In **Preview picks**, leave focus on a card to expand it and play a ten-second silent excerpt from *Big Buck Bunny*. Cinema includes the 360p preview clip so it can play offline. Leaving the card stops the preview. Preview playback leaves the saved viewing position alone.
 
 ## Demo playback
 

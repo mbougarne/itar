@@ -129,6 +129,7 @@ export function parseFilm(v: unknown): Film {
     art: 0,
     posterUrl: artwork(v.posterUrl),
     backdropUrl: artwork(v.backdropUrl),
+    titleLogoUrl: artwork(v.titleLogoUrl),
   };
 }
 
@@ -337,7 +338,17 @@ export async function fetchDetails(
     throw new Error('Proxy returned inconsistent related identities.');
   }
 
-  return { film: updated, cast, related };
+  // Different TMDB endpoints can omit different sizes or kinds of title artwork.
+  return {
+    film: {
+      ...updated,
+      posterUrl: updated.posterUrl ?? artwork(film.posterUrl),
+      backdropUrl: updated.backdropUrl ?? artwork(film.backdropUrl),
+      titleLogoUrl: updated.titleLogoUrl ?? artwork(film.titleLogoUrl),
+    },
+    cast,
+    related,
+  };
 }
 
 export async function fetchBiography(

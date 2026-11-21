@@ -124,7 +124,7 @@ Java_com_itar_adapter_Connection_collectionsNative(JNIEnv* env, jobject, jlong t
         copied[j] = text.bytes;
       }
       const auto* v = values.data() + i * 6;
-      if (v[0] < 0 || v[0] > INT32_MAX || v[1] < 0 || v[1] > 1 || v[2] < 0 || v[2] > 1 || v[3] < 0 || v[3] > 2 || v[5] < 0 || v[5] > 1) return conversion;
+      if (v[0] < 0 || v[0] > INT32_MAX || v[1] < 0 || v[1] > 1 || v[2] < 0 || v[2] > 1 || v[3] < 0 || v[3] > 2 || v[5] < 0 || v[5] > 2) return conversion;
       nodes.push_back({itar::OccurrenceKey{std::move(copied[0])}, itar::OccurrenceKey{std::move(copied[1])},
           static_cast<std::int32_t>(v[0]), v[1] != 0, v[2] != 0, static_cast<itar::Layout>(v[3]),
           std::bit_cast<double>(v[4]), static_cast<itar::CollectionRowEntry>(v[5])});

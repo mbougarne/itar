@@ -1,11 +1,11 @@
 import type { Category, Film, Kind, ProviderMode } from './catalog-types';
-import type { Programme } from './guide-types';
+import type { WatchingEntry } from './profile-library';
 
 export type BrowseVisual = {
   film?: Film;
   poster?: boolean;
-  programme?: Programme;
-  channel?: string;
+  preview?: boolean;
+  watching?: WatchingEntry;
   guide?: boolean;
   feedback?: boolean;
 };
@@ -15,6 +15,7 @@ export type BrowseProps = {
   category?: Category;
   onGuide?: (openerKey: string) => void;
   onReady?: (initialKey?: string) => void;
+  onHomeLoading?: () => void;
   viewportWidth?: number;
   mode: ProviderMode;
   id: string;
@@ -26,5 +27,6 @@ export type BrowseProps = {
   onOpen: (film: Film, openerKey: string) => void;
   highContrast: boolean;
   featured?: boolean;
+  continueWatching?: readonly WatchingEntry[];
   searchResults?: boolean;
 };

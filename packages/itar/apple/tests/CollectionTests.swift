@@ -21,7 +21,7 @@ struct CollectionTests {
         guard let document = CollectionDocument.decode(text) else { preconditionFailure("Valid catalog rejected") }
         let nearest = text.replacingOccurrences(of: "\"extent\":100", with: "\"extent\":100,\"rowEntry\":0")
         precondition(CollectionDocument.decode(nearest) != nil)
-        for value in ["-1", "2", "0.5", "\"first\""] {
+        for value in ["-1", "3", "0.5", "\"first\""] {
             precondition(CollectionDocument.decode(nearest.replacingOccurrences(of: "\"rowEntry\":0", with: "\"rowEntry\":\(value)")) == nil)
         }
         let aligned = text.replacingOccurrences(of: "\"extent\":100", with: "\"extent\":100,\"horizontalAlignment\":\"leading\"")
@@ -88,5 +88,10 @@ struct CollectionTests {
         mutation.expected = try connection.find("rail-2")
         check(try connection.apply([mutation], revision: connection.snapshot().revision).code == 0)
         check(try connection.directionQuery(3).target.slot == connection.find("rail-1").slot)
+        check(try connection.collections(document(3, 2)).code == 0)
+        _ = try connection.observe(ItarFocus(kind: 0, node: mutation.expected, mount: 1))
+        check(try connection.directionQuery(2).target.slot == source.slot)
+        _ = try connection.observe(ItarFocus(kind: 0, node: source, mount: 1))
+        check(try connection.directionQuery(3).target.slot == mutation.expected.slot)
     }
 }

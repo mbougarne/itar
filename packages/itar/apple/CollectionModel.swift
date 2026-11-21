@@ -16,7 +16,7 @@ struct CollectionEntry: Decodable, Equatable {
     var horizontalAlignment: String? = nil
     func horizontalOffset(start: CGFloat, end: CGFloat, current: CGFloat, viewport: CGFloat, content: CGFloat, rtl: Bool) -> CGFloat {
         let desired: CGFloat
-        if horizontalAlignment == "leading" || end - start > viewport { desired = rtl ? end - viewport : start }
+        if horizontalAlignment == "leading" || horizontalAlignment == "pinned" || end - start > viewport { desired = rtl ? end - viewport : start }
         else { desired = start < current ? start : (end > current + viewport ? end - viewport : current) }
         return min(max(0, desired), max(0, content - viewport))
     }
@@ -36,8 +36,8 @@ struct CollectionDocument: Decodable {
               document.nodes.allSatisfy({ node in
                   let first = node.leadingExtent ?? 0
                   let alignment = node.horizontalAlignment
-                  return (alignment == nil || ((alignment == "nearest" || alignment == "leading") && node.scope && node.layout == 1)) &&
-                      (node.rowEntry == nil || node.rowEntry == 0 || node.rowEntry == 1) &&
+                  return (alignment == nil || ((alignment == "nearest" || alignment == "leading" || alignment == "pinned") && node.scope && node.layout == 1)) &&
+                      (node.rowEntry == nil || node.rowEntry == 0 || node.rowEntry == 1 || node.rowEntry == 2) &&
                       first.isFinite && first >= 0 && first <= 1_000_000 && (node.scope || first == 0)
               }) else { return nil }
         return document

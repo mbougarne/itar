@@ -80,6 +80,31 @@ test('Android forwards checked updates, explicitly clears reused semantics and d
   assert.equal(clicks, 1);
 });
 
+test('Cinema sidebar and icon controls keep one spoken name while presenting their own artwork', () => {
+  const imports = name => {
+    if (name === 'react') return React;
+    if (name === 'react-native') return {View: 'View', Text: 'Text', Image: 'Image'};
+    if (name === 'itar/react') return {Focusable: 'Focusable'};
+    if (name.endsWith('/theme')) return {useDesign: () => ({s: {}, u: 1})};
+    if (name === './Action') return {Action};
+    throw new Error('Unexpected Cinema import ' + name);
+  };
+  const {Action} = load('apps/probe/ott/src/components/Action.tsx', imports);
+  const {SidebarButton} = load('apps/probe/ott/src/components/SidebarButton.tsx', imports);
+  const {IconAction} = load('apps/probe/ott/src/components/IconAction.tsx', imports);
+  const props = {id: 'nav-profile', title: 'Explorer', label: 'Explorer, switch profile', icon: 1, onPress() {}};
+  for (const expanded of [false, true]) {
+    const host = Action(SidebarButton({...props, expanded}).props);
+    assert.equal(host.props.accessibilityLabel, props.label);
+    assert.equal(nodes(host).filter(node => node.type === 'Image').length, 1);
+    assert.deepEqual(nodes(host).filter(node => node.type === 'Text').map(node => node.props.children),
+      expanded ? ['Explorer'] : []);
+  }
+  const like = Action(IconAction({id: 'like', icon: 1, label: 'Like', onPress() {}}).props);
+  assert.equal(like.props.accessibilityLabel, 'Like');
+  assert.equal(nodes(like).filter(node => node.type === 'Image').length, 1);
+});
+
 test('web renders real DOM switch state, clears it for a button and activates once', () => {
   const f = fixture('web');
   let clicks = 0;
@@ -116,10 +141,11 @@ for (const platform of ['android', 'web', 'ios']) {
     let presses = 0, toggles = 0;
     const navigation = platform === 'web' ? {enabled: true, toggle: () => toggles++} : null;
     const Settings = load('apps/probe/ott/src/Settings.tsx', name => {
-      if (name === 'react') { return {...React, useContext: context => context.value, useMemo: callback => callback(), useCallback: callback => callback, useState: () => [800, () => {}]}; }
+      if (name === 'react') { return {...React, useEffect() {}, useContext: context => context.value, useMemo: callback => callback(), useCallback: callback => callback, useState: () => [800, () => {}]}; }
       if (name === 'react-native') { return {Platform: {OS: platform}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 1920})}; }
       if (name === 'itar/react') { return {occurrenceKey: types.occurrenceKey, FocusVirtualizedRails: 'Rails'}; }
       if (name === './browser-navigation') { return {BrowserNavigation: {value: navigation}}; }
+      if (name === './development-settings') { return {DevelopmentSettings: {value: null}}; }
       if (name === './theme') { return {useDesign: () => ({s: {}, u: 1})}; }
       return {};
     }).Settings;

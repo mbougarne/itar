@@ -10,7 +10,7 @@ const {headerScrollOffset} = require('../packages/itar/lib/api/viewport');
 
 // Evaluate the component's real collection/layout calculations with a host-free
 // hook harness. No native view, application, browser, or renderer is started.
-function fixture(focus = {kind: 'unknown', occurrenceKey: null}, native = false, os = native ? 'ios' : 'web') {
+function fixture(focus = {kind: 'unknown', occurrenceKey: null}, native = false, os = native ? 'ios' : 'web', reader = null) {
   let published;
   const effects = [];
   const commits = [];
@@ -46,14 +46,21 @@ function fixture(focus = {kind: 'unknown', occurrenceKey: null}, native = false,
   const module = {exports: {}};
   vm.runInNewContext(output, {module, exports: module.exports, require: name => {
     if (name === 'react') { return react; }
-    if (name === 'react-native') { return {FlatList: 'FlatList', View: 'View', Platform: {OS: os, isTV: native}, StyleSheet: {create: value => value}}; }
+    if (name === 'react-native') { return {FlatList: 'FlatList', View: 'View', Platform: {OS: os, isTV: native},
+      PixelRatio: {getPixelSizeForLayoutSize: size => Math.round(size * 2)}, StyleSheet: {create: value => value}}; }
     if (name === './api/contexts') { return contexts; }
     if (name === './api/types') { return {nativeScopeKey, nativeTargetKey}; }
     if (name === './api/viewport') { return {headerScrollOffset}; }
-    if (name === './react') { return {Focusable: 'Focusable', FocusScope: 'FocusScope', useFocusState: () => focus}; }
+    if (name === './react') { return {Focusable: 'Focusable', FocusScope: 'FocusScope', useFocusState: () => focus, useScreenReaderEnabled: () => reader}; }
     throw new Error(`Unexpected import ${name}`);
   }});
-  return {renderList: props => { stateIndex = refIndex = 0; effects.length = 0; return module.exports.FocusVirtualizedList(props); }, render: props => { stateIndex = refIndex = 0; effects.length = 0; return module.exports.FocusVirtualizedRails(props); }, nodes: () => published,
+  return {renderList: props => { stateIndex = refIndex = 0; effects.length = 0; return module.exports.FocusVirtualizedList(props); }, render: props => {
+    stateIndex = refIndex = 0; effects.length = 0;
+    const tree = module.exports.FocusVirtualizedRails(props);
+    const headerAlignment = tree.props.children[0]?.props.children[1];
+    if (headerAlignment) { headerAlignment.type(headerAlignment.props); }
+    return tree;
+  }, nodes: () => published,
     commits: () => commits,
     accept: () => { snapshot = {...snapshot, accepted: snapshot.dataset}; },
     flush: () => effects.forEach(callback => callback()), prepare: value => { snapshot.preparation = value; }};
@@ -78,6 +85,8 @@ test('row entry is published on the outer collection and changes the dataset bef
   assert.equal(old.props.value, '1', 'retain the accepted cells until the new policy is accepted');
   f.accept(); f.render(first);
   assert.equal(f.render(first).props.value, '2');
+  f.render({...initial, rowEntry: 'remembered'});
+  assert.equal(f.nodes()[0].rowEntry, 2);
   assert.throws(() => f.render({...options, rowEntry: 'typo'}), /rowEntry/);
   const apple = fixture(undefined, true, 'ios');
   apple.render(first);
@@ -156,6 +165,89 @@ test('ordinary rails retain fixed offsets and invalid header declarations fail b
   ]) { assert.throws(() => fixture().render({...options, ...extra})); }
 });
 
+test('Android fixed rows expose their cards while overflow rails and the vertical list stay scrollable', () => {
+  const cards = (row, count) => Array.from({length: count}, (_, i) => ({occurrenceKey: `${row}-${i}`, accessibilityLabel: `Card ${i}`}));
+  const props = {...options, viewportExtent: 500, itemExtent: 100,
+    rails: [{id: 'short', items: cards('short', 2)}, {id: 'fits', items: cards('fits', 4), itemExtent: 125.00001},
+      {id: 'overflow', items: cards('overflow', 6)}]};
+  for (const os of ['android', 'ios']) {
+    const f = fixture(undefined, true, os);
+    f.render(props); f.accept(); f.render(props);
+    const outer = list(f.render(props)).props;
+    assert.notEqual(outer.scrollEnabled, false);
+    assert.equal(outer.importantForAccessibility, undefined);
+    for (const row of outer.data) {
+      const inner = outer.renderItem({item: row}).props.children.find(child => typeof child?.type === 'function');
+      const flat = inner.type(inner.props);
+      const fixed = os === 'android' && row.id !== 'overflow';
+      assert.equal(flat.type, 'FlatList', 'the native collection reveal step still needs its scroll host');
+      assert.equal(flat.props.scrollEnabled, fixed ? false : undefined);
+      assert.equal(flat.props.importantForAccessibility, fixed ? 'no' : undefined);
+      const target = flat.props.renderItem({item: row.items[0], index: 0});
+      assert.equal(target.props.accessibilityLabel, row.items[0].accessibilityLabel);
+    }
+  }
+});
+
+test('only Android reader-off keeps the outer render window attached for adjacent row entry', () => {
+  for (const [os, reader, expected] of [['android', false, false], ['android', true, undefined],
+    ['android', null, undefined], ['ios', false, undefined]]) {
+    const f = fixture(undefined, true, os, reader);
+    f.render(options); f.accept(); f.render(options);
+    const outer = list(f.render(options)).props;
+    assert.equal(outer.removeClippedSubviews, expected);
+    assert.equal(outer.windowSize, 3);
+    const inner = outer.renderItem({item: outer.data[0]}).props.children.find(child => typeof child?.type === 'function');
+    assert.equal(inner.type(inner.props).props.removeClippedSubviews, undefined);
+  }
+});
+
+test('pinned two-card rows reserve a trailing viewport slot without adding a focus target', () => {
+  for (const os of ['android', 'ios']) {
+    const f = fixture(undefined, true, os);
+    const items = ['a', 'b'].map(occurrenceKey => ({occurrenceKey, accessibilityLabel: occurrenceKey}));
+    const props = {...options, horizontalAlignment: 'pinned', viewportExtent: 500, itemExtent: 120,
+      rails: [{id: 'short', items}]};
+    f.render(props); f.accept(); f.render(props);
+    const outer = list(f.render(props)).props;
+    const inner = outer.renderItem({item: outer.data[0]}).props.children.find(child => typeof child?.type === 'function');
+    const flat = inner.type(inner.props).props;
+    assert.equal(flat.contentContainerStyle.paddingEnd, 380);
+    assert.equal(flat.scrollEnabled, undefined);
+    assert.equal(flat.data.length, 2);
+    assert.equal(f.nodes()[1].horizontalAlignment, 'pinned');
+    assert.equal(f.nodes().filter(node => !node.scope).length, 2);
+  }
+});
+
+test('only Android pinned horizontal windows keep the previous native card attached while the reader is off', () => {
+  for (const [os, reader, alignment, horizontal, expected] of [
+    ['android', false, 'pinned', true, false], ['android', true, 'pinned', true, undefined],
+    ['android', null, 'pinned', true, undefined], ['android', false, 'leading', true, undefined],
+    ['android', false, 'nearest', true, undefined], ['android', false, 'pinned', false, undefined],
+    ['ios', false, 'pinned', true, undefined],
+  ]) {
+    const f = fixture(undefined, true, os, reader);
+    const linear = {id: 'items', data: options.rails[0].items, itemExtent: 120, viewportExtent: 500,
+      horizontal, horizontalAlignment: alignment};
+    f.renderList(linear); f.accept(); f.renderList(linear);
+    const itemList = list(f.renderList(linear));
+    const flat = itemList.type(itemList.props).props;
+    assert.equal(flat.removeClippedSubviews, expected);
+    assert.equal(flat.windowSize, 3);
+    if (horizontal) {
+      const g = fixture(undefined, true, os, reader);
+      const rails = {...options, horizontalAlignment: alignment};
+      g.render(rails); g.accept(); g.render(rails);
+      const outer = list(g.render(rails)).props;
+      const inner = outer.renderItem({item: outer.data[0]}).props.children.find(child => typeof child?.type === 'function');
+      const row = inner.type(inner.props).props;
+      assert.equal(row.removeClippedSubviews, expected);
+      assert.equal(row.windowSize, 3);
+    }
+  }
+});
+
 test('invalid host offset metadata cannot publish a replacement collection', () => {
   const store = new CollectionStore('test', () => {});
   const owner = {};
@@ -174,15 +266,18 @@ test('entering content scrolls Hero fully away while preserving deeper offsets',
   assert.equal(headerScrollOffset(624, 1044, false), 1044);
   assert.equal(headerScrollOffset(624, 1044, true), 0);
   const f = fixture({kind: 'managed', occurrenceKey: 'film'});
-  const props = list(f.render({...options, listHeader: {}, listHeaderExtent: 624, listHeaderScope: 'hero-actions',
-    listHeaderItems: [{occurrenceKey: 'explore', accessibilityLabel: 'Explore'}]})).props;
+  const rails = {...options, listHeader: {}, listHeaderExtent: 624, listHeaderScope: 'hero-actions',
+    listHeaderItems: [{occurrenceKey: 'explore', accessibilityLabel: 'Explore'}]};
+  const props = list(f.render(rails)).props;
   const calls = [];
   props.ref.current = {scrollToOffset: command => calls.push(command)};
   props.onScroll({nativeEvent: {contentOffset: {y: 200}}});
   f.prepare({request: 'pending'});
+  f.render(rails);
   f.flush();
   assert.equal(calls.length, 0, 'must wait for native reveal preparation to release');
   f.prepare(null);
+  f.render(rails);
   f.flush();
   assert.deepEqual(plain(calls), [{offset: 624, animated: false}]);
   props.onScroll({nativeEvent: {contentOffset: {y: 1044}}});

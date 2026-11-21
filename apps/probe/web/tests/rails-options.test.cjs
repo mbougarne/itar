@@ -72,7 +72,7 @@ vm.runInNewContext(output, {
   },
 });
 
-test('web rails accept both entry policies and reject invalid values', () => {
+test('web rails accept supported entry policies and reject invalid values', () => {
   const props = {
     id: 'rows',
     rails: [],
@@ -91,6 +91,7 @@ test('web rails accept both entry policies and reject invalid values', () => {
 
   assert.equal(render(), render('nearest'));
   assert.doesNotThrow(() => render('first'));
+  assert.doesNotThrow(() => render('remembered'));
 
   for (const value of ['typo', 1, null]) {
     assert.throws(() => render(value), /rowEntry.*nearest/);
@@ -112,6 +113,7 @@ test('web rails validate horizontal alignment', () => {
 
   assert.equal(render(), render('nearest'));
   assert.doesNotThrow(() => render('leading'));
+  assert.doesNotThrow(() => render('pinned'));
 
   for (const value of ['center', 1, null]) {
     assert.throws(() => render(value), /horizontalAlignment/);
