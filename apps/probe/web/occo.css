@@ -1,0 +1,39 @@
+.occo-inspector {
+  background: #101820;
+  color: #edf4fa;
+  width: 85vw;
+  max-height: 85vh;
+  border: 1px solid #a7c9dd;
+}
+.occo-inspector::backdrop {
+  background: rgba(0, 0, 0, 0.8);
+}
+.occo-columns {
+  display: flex;
+  gap: 1rem;
+}
+.occo-columns > * {
+  min-width: 0;
+  flex: 1;
+  overflow: auto;
+}
+.occo-columns dl {
+  max-height: 48vh;
+}
+.occo-columns dt {
+  color: #a7c9dd;
+}
+.occo-columns dd {
+  margin: 0 0 0.4rem;
+  overflow-wrap: anywhere;
+}
+.occo-inspector button,
+.occo-inspector select {
+  font: inherit;
+}
+.occo-inspector button {
+  margin: 0.6rem 0.6rem 0 0;
+}
+.occo-inspector :focus {
+  outline: 3px solid #f9ce59;
+}

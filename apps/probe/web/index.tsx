@@ -8,6 +8,10 @@ import {
 } from './focus';
 import './styles.css';
 
+declare const __OCCO__: boolean;
+
+const Development = __OCCO__ ? require('./OccoWeb').OccoWeb : React.Fragment;
+
 const root = document.getElementById('root');
 
 if (!root) {
@@ -24,7 +28,9 @@ function BrowserApp() {
 
   return (
     <BrowserNavigation.Provider value={{ enabled, toggle }}>
-      <App />
+      <Development>
+        <App />
+      </Development>
     </BrowserNavigation.Provider>
   );
 }

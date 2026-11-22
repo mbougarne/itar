@@ -4,7 +4,12 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const zlib = require('node:zlib');
 const esbuild = require('esbuild');
-const { defaultProxyURL } = require('../../../scripts/tmdb-endpoint.cjs');
+
+const {
+  defaultProxyURL,
+  proxyURL,
+} = require('../../../scripts/tmdb-endpoint.cjs');
+
 const root = path.resolve(__dirname, '../../..');
 const targets = ['browser', 'tizen', 'webos'];
 
@@ -97,7 +102,7 @@ function webPlugins(outdir) {
   ];
 }
 
-function writeShell(target, outdir) {
+function writeShell(target, outdir, endpoint = defaultProxyURL) {
   if (!targets.includes(target)) {
     throw new Error(`Unknown web target: ${target}`);
   }
@@ -123,7 +128,11 @@ function writeShell(target, outdir) {
   <tizen:profile name="tv-samsung"/>
   <tizen:privilege name="http://tizen.org/privilege/internet"/>
   <access origin="https://kodi.mirror.garr.it" subdomains="false"/>
-  <access origin="https://image.tmdb.org" subdomains="false"/>
+  <access origin="https://image.tmdb.org" subdomains="false"/>${
+    endpoint === defaultProxyURL
+      ? ''
+      : `\n  <access origin="${endpoint}" subdomains="false"/>`
+  }
   <access origin="https://epgtalk.com" subdomains="false"/>
   <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
 </widget>
@@ -153,10 +162,15 @@ function writeShell(target, outdir) {
   }
 }
 
-async function buildSite(target = 'browser') {
+async function buildSite(target = 'browser', occo = false) {
   if (!targets.includes(target)) {
     throw new Error(`Use one of: ${targets.join(', ')}`);
   }
+
+  const endpoint =
+    target === 'tizen'
+      ? proxyURL(process.env.ITAR_TMDB_PROXY_URL)
+      : defaultProxyURL;
 
   const engine = path.join(root, 'build/web-engine');
 
@@ -166,7 +180,11 @@ async function buildSite(target = 'browser') {
     }
   }
 
-  const outdir = path.join(root, 'build/probe-web', target);
+  const outdir = path.join(
+    root,
+    'build/probe-web',
+    occo ? target + '-occo' : target,
+  );
 
   fs.rmSync(outdir, { recursive: true, force: true });
   fs.mkdirSync(outdir, { recursive: true });
@@ -182,8 +200,9 @@ async function buildSite(target = 'browser') {
     target: ['chrome85'],
     define: {
       __DEV__: 'false',
+      __OCCO__: JSON.stringify(occo),
       'process.env.NODE_ENV': '"production"',
-      'process.env.ITAR_TMDB_PROXY_URL': JSON.stringify(defaultProxyURL),
+      'process.env.ITAR_TMDB_PROXY_URL': JSON.stringify(endpoint),
       'import.meta.url': '__itarModuleUrl',
     },
     banner: {
@@ -212,7 +231,7 @@ async function buildSite(target = 'browser') {
     path.join(outdir, 'itar-web.wasm'),
   );
 
-  writeShell(target, outdir);
+  writeShell(target, outdir, endpoint);
 
   fs.writeFileSync(
     path.join(outdir, 'build-manifest.json'),
@@ -241,7 +260,7 @@ async function buildSite(target = 'browser') {
 module.exports = { buildSite, webPlugins, writeShell };
 
 if (require.main === module) {
-  buildSite(process.argv[2]).catch(error => {
+  buildSite(process.argv[2], process.argv.includes('--occo')).catch(error => {
     console.error(error.message);
     process.exitCode = 1;
   });
