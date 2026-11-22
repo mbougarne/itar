@@ -32,8 +32,10 @@ export type OccoRecording = Readonly<{
   state?: 'idle' | 'recording' | 'frozen';
   device?: {
     model: string;
-    android: string;
-    api: number;
+    android?: string;
+    api?: number;
+    tvos?: string;
+    voiceOverAtStart?: boolean;
     accessibilityEnabledAtStart?: boolean;
     touchExplorationAtStart?: boolean;
   };

@@ -46,6 +46,65 @@ import UIKit
         target.label = "Button \(key)"
         return target
     }
+    #if ITAR_OCCO
+    func testOccoAssignsANewMoveWhenUIKitReusesThePress() throws {
+        final class RemotePress: UIPress {
+            var current: UIPress.Phase = .began
+            override var phase: UIPress.Phase { current }
+            override var type: UIPress.PressType { .downArrow }
+        }
+        var windowMoves: [UInt64] = []
+        let record: ([String: Any]) -> Void = { event in
+            if let move = event["move"] as? UInt64 { windowMoves.append(move) }
+        }
+        ItarFocusTrace.receive = record
+        defer { ItarFocusTrace.receive = nil }
+        let press = RemotePress()
+        var previous: UInt64 = 0
+        for end in [UIPress.Phase.ended, .cancelled, .ended] {
+            press.current = .began
+            let surfaceFirst = ItarFocusTrace.move(for: press)
+            XCTAssertGreaterThan(surfaceFirst, previous)
+            ItarOccoWindow.forward([press], recording: record) {
+                XCTAssertEqual(ItarFocusTrace.move(for: press), surfaceFirst)
+            }
+            press.current = end
+            ItarOccoWindow.forward([press], recording: record) {
+                XCTAssertEqual(ItarFocusTrace.move(for: press), surfaceFirst, "keep the ID during UIKit's terminal dispatch")
+            }
+            XCTAssertEqual(Array(windowMoves.suffix(2)), [surfaceFirst, surfaceFirst])
+            previous = surfaceFirst
+        }
+    }
+
+    func testOccoKeepsFocusChannelsAndRecycledMountsSeparate() throws {
+        var events: [[String: Any]] = []
+        ItarFocusTrace.receive = { events.append($0) }
+        defer { ItarFocusTrace.receive = nil }
+        let original = try XCTUnwrap(a.registration?.mount)
+        root.traceObservation(a, channel: "input")
+        let foreign = UIButton(frame: CGRect(x: 20, y: 20, width: 90, height: 40))
+        root.addSubview(foreign)
+        root.traceObservation(foreign, channel: "accessibility")
+        a.removeFromSuperview()
+        root.addSubview(a)
+        root.commitGeometry()
+        root.traceObservation(a, channel: "input")
+
+        let callbacks = events.filter { ($0["detail"] as? String)?.hasPrefix("callback:") == true }
+        let input = callbacks.filter { $0["channel"] as? String == "input" && $0["target"] as? String == "a" }
+        XCTAssertEqual(input.first?["mount"] as? UInt64, original)
+        XCTAssertGreaterThan(try XCTUnwrap(input.last?["mount"] as? UInt64), original)
+        XCTAssertTrue(input.allSatisfy { $0["request"] == nil })
+        let voice = try XCTUnwrap(callbacks.first { $0["channel"] as? String == "accessibility" })
+        let native = try XCTUnwrap(voice["nativeDestination"] as? [String: Any])
+        XCTAssertEqual(native["role"] as? String, "button")
+        XCTAssertNotNil(native["bounds"] as? [String: Int])
+        XCTAssertNil(voice["target"])
+        XCTAssertNil(voice["mount"])
+    }
+    #endif
+
     func testActualFocusAndNotification() async throws {
         var records: [NSDictionary] = []
         root.onFocusRecord = { records.append($0) }
@@ -85,6 +144,26 @@ import UIKit
         XCTAssertNil(root.registrations["a"])
         XCTAssertEqual(try root.dispatcher?.connection.find("a").slot, 0)
     }
+    func testDiscreteArrowUsesFreshGeometryForMountedHostDestinations() async throws {
+        final class RightPress: UIPress {
+            override var type: UIPress.PressType { .rightArrow }
+            override var phase: UIPress.Phase { .began }
+        }
+        let sibling = target("sibling", x: 400)
+        root.addSubview(sibling)
+        root.focus("a")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.a.isFocused }, object: nil)], timeout: 3)
+        root.commitGeometry()
+        XCTAssertTrue(b.canBecomeFocused)
+        XCTAssertTrue(sibling.canBecomeFocused)
+
+        sibling.center.x += root.bounds.width
+        let recognizer = try XCTUnwrap(root.gestureRecognizers?.compactMap { $0 as? CollectionInput }.first)
+        XCTAssertFalse(recognizer.gestureRecognizer(recognizer, shouldReceive: RightPress()), "UIKit owns the mounted arrow")
+        XCTAssertTrue(b.canBecomeFocused, "An unrelated layout change must not swallow this arrow")
+        XCTAssertFalse(sibling.canBecomeFocused, "The moved target must stay unavailable offscreen")
+    }
+
     func testInvalidGeometryAndSemanticsBeforeEligibility() {
         XCTAssertEqual(a.accessibilityLabel, "Button a")
         XCTAssertTrue(a.accessibilityTraits.contains(.button))
@@ -182,6 +261,29 @@ import UIKit
         }, object: nil)
         await fulfillment(of: [settled], timeout: 3)
     }
+    func testFocusedPrimaryActionSurvivesUnrelatedPendingLayout() async throws {
+        root.focus("a")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.a.isFocused }, object: nil)], timeout: 3)
+        root.commitGeometry()
+        let mount = try XCTUnwrap(a.registration).mount
+        var records: [NSDictionary] = []
+        a.onActivate = { records.append($0) }
+        b.onActivate = { records.append($0) }
+
+        b.center.x += 10
+        a.sendActions(for: .primaryActionTriggered)
+        XCTAssertEqual(records.count, 1, "One Select should activate the focused mount while its sibling moves")
+        XCTAssertEqual(records.first?["source"] as? String, "input")
+        XCTAssertEqual(records.first?["mount"] as? String, String(mount))
+
+        b.sendActions(for: .primaryActionTriggered)
+        a.targetEnabled = false
+        a.sendActions(for: .primaryActionTriggered)
+        a.removeFromSuperview()
+        a.sendActions(for: .primaryActionTriggered)
+        XCTAssertEqual(records.count, 1, "Unfocused, disabled and detached controls cannot activate")
+    }
+
     func testSemanticActivationDoesNotTransferInputFocus() throws {
         root.focus("a")
         let before = try root.dispatcher?.connection.snapshot().input
@@ -194,16 +296,29 @@ import UIKit
         b.removeFromSuperview()
         XCTAssertFalse(b.accessibilityActivate())
     }
-    func testCurrentBaseStyleOnBlurAndReuse() {
+    func testCurrentBaseStyleOnBlurAndReuse() async throws {
+        b.baseColor = .red
+        b.focusColor = .blue
+        XCTAssertEqual(b.layer.borderWidth, 0)
+        XCTAssertEqual(b.currentTitleColor, .red)
+
+        root.focus("b")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.b.isFocused }, object: nil)], timeout: 3)
+        XCTAssertEqual(b.layer.borderWidth, 5)
+        XCTAssertEqual(b.layer.borderColor, UIColor.blue.cgColor)
+        b.baseColor = .green
+        XCTAssertEqual(b.currentTitleColor, .blue)
+
         root.focus("a")
-        a.baseColor = .red
-        a.focusColor = .blue
-        a.restoreBaseStyle()
-        XCTAssertEqual(a.layer.borderColor, UIColor.red.cgColor)
-        a.baseColor = .green
-        a.recycle()
-        XCTAssertEqual(a.layer.borderColor, UIColor.green.cgColor)
-        XCTAssertEqual(a.layer.borderWidth, 1)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.a.isFocused }, object: nil)], timeout: 3)
+        XCTAssertEqual(b.layer.borderWidth, 0)
+        XCTAssertEqual(b.currentTitleColor, .green)
+
+        b.outlineInsetBottom = 16
+        b.recycle()
+        XCTAssertEqual(b.layer.borderWidth, 0)
+        XCTAssertNil(b.layer.borderColor)
+        XCTAssertEqual(b.currentTitleColor, .green)
     }
     func testOwnedPresentationCoversAndRestoresSameWindow() async throws {
         root.focus("a")
@@ -475,6 +590,103 @@ extension AdapterHostTests {
         root.commitGeometry()
         XCTAssertTrue(source.isFocused && source.registration === registration && source.canBecomeFocused)
     }
+    func publishRowRevision(_ revision: Int, change: (inout [[String: Any]]) -> Void) async throws {
+        var document = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(root.collectionData.utf8)) as? [String: Any])
+        var nodes = try XCTUnwrap(document["nodes"] as? [[String: Any]])
+        change(&nodes)
+        document["dataset"] = String(revision); document["nodes"] = nodes
+        root.collectionData = String(decoding: try JSONSerialization.data(withJSONObject: document), as: UTF8.self)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            self.root.collections.dataset == String(revision)
+        }, object: nil)], timeout: 3)
+        root.commitGeometry()
+    }
+    func testPaginationRetainsCompatibleMountsAcrossFabricCommits() async throws {
+        let rows = try await rowEntryRails(policy: 0), source = rows[0][2]
+        let scroll = try XCTUnwrap(source.superview as? UIScrollView)
+        scroll.contentOffset.x = 150; root.commitGeometry()
+        let mount = try XCTUnwrap(source.registration?.mount)
+        let outer = try XCTUnwrap(root.scopes["outer"]?.view), row = try XCTUnwrap(root.scopes["header"]?.view)
+        let append: (inout [[String: Any]]) -> Void = { nodes in
+            let index = nodes.filter { $0["parent"] as? String == "header" }.count
+            nodes.append(["key": "header-\(index)", "parent": "header", "order": index,
+                          "scope": false, "enabled": true, "layout": 0, "extent": 0])
+        }
+        try await publishRowRevision(2, change: append)
+        XCTAssertTrue(source.isFocused && source.canBecomeFocused)
+        XCTAssertEqual(source.registration?.mount, mount)
+        XCTAssertNotNil(rows[0][1].registration, "The visible sibling still has the same declaration and native view")
+        let replacement = target("header-2", x: 300)
+        replacement.scopeKey = "header"; replacement.collectionDataset = "1"
+        XCTAssertFalse(root.collections.accepts(replacement))
+        let replacementRow = ItarScopeHost(frame: row.frame)
+        replacementRow.scopeKey = "header"; replacementRow.collectionDataset = "1"
+        XCTAssertFalse(root.collections.accepts(replacementRow))
+        row.collectionDataset = "2"; root.commitGeometry()
+        XCTAssertEqual(source.registration?.mount, mount, "Fabric can update the parent first")
+        try await publishRowRevision(3, change: append)
+        source.collectionDataset = "3"; root.commitGeometry()
+        XCTAssertEqual(source.registration?.mount, mount, "A second append can arrive before Fabric finishes the first")
+        row.collectionDataset = "3"; outer.collectionDataset = "3"; root.commitGeometry()
+        XCTAssertTrue(source.isFocused && source.canBecomeFocused)
+        XCTAssertEqual(source.registration?.mount, mount)
+        XCTAssertEqual(scroll.contentOffset.x, 150, accuracy: 1)
+        source.removeFromSuperview(); source.collectionDataset = "1"; scroll.addSubview(source); root.commitGeometry()
+        XCTAssertNil(source.registration, "Recycling invalidates the older mount's authority")
+        source.collectionDataset = "3"; root.commitGeometry()
+        XCTAssertGreaterThan(try XCTUnwrap(source.registration?.mount), mount)
+    }
+    func testAppendingAPageKeepsVisibleCardsAvailableFromAnExternalFilter() async throws {
+        let rows = try await rowEntryRails(policy: 0), card = rows[0][0]
+        let filter = target("filter", x: 480)
+        filter.frame = CGRect(x: 460, y: 0, width: 100, height: 60)
+        root.addSubview(filter); root.commitGeometry(); root.focus("filter")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in filter.isFocused }, object: nil)], timeout: 2)
+        let scroll = try XCTUnwrap(card.superview as? UIScrollView)
+        scroll.contentOffset = .zero; root.commitGeometry()
+        XCTAssertTrue(card.canBecomeFocused, "The grid's first card is already fully visible before the append")
+        let old = try XCTUnwrap(card.registration?.mount)
+        try await publishRowRevision(2) { nodes in
+            nodes.append(["key": "header-3", "parent": "header", "order": 3, "scope": false, "enabled": true, "layout": 0, "extent": 0])
+            let first = nodes.firstIndex { $0["key"] as? String == "rail-1" }!
+            nodes[first]["enabled"] = false
+        }
+        XCTAssertTrue(filter.isFocused && card.canBecomeFocused)
+        XCTAssertEqual(card.registration?.mount, old)
+        XCTAssertNil(rows[1][1].registration, "A changed declaration must wait for Fabric")
+        root.focus(card.occurrenceKey) // Enter before Fabric applies the new dataset.
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in card.isFocused }, object: nil)], timeout: 2)
+        XCTAssertEqual(card.registration?.mount, old)
+        card.collectionDataset = "2"; root.commitGeometry()
+        card.collectionDataset = "1"; root.commitGeometry()
+        XCTAssertNil(card.registration, "An older declaration cannot be reapplied after this view committed")
+    }
+    func testChangedOrRemovedCatalogueDeclarationRejectsTheOldMount() async throws {
+        let rows = try await rowEntryRails(policy: 0), source = rows[0][2]
+        try await publishRowRevision(2) { nodes in
+            let index = nodes.firstIndex { $0["key"] as? String == "header" }!
+            nodes[index]["extent"] = 160
+        }
+        XCTAssertNil(source.registration, "Changing ancestor layout invalidates the old mount")
+        for scope in root.scopes.values { scope.view?.collectionDataset = "2" }
+        for row in rows { row.forEach { $0.collectionDataset = "2" } }
+        root.commitGeometry(); root.focus("header-2")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in source.isFocused }, object: nil)], timeout: 3)
+        try await publishRowRevision(3) { nodes in
+            let index = nodes.firstIndex { $0["key"] as? String == "header-2" }!
+            nodes[index]["enabled"] = false
+        }
+        XCTAssertNil(source.registration); XCTAssertFalse(source.canBecomeFocused)
+        for scope in root.scopes.values { scope.view?.collectionDataset = "3" }
+        for row in rows { row.forEach { $0.collectionDataset = "3" } }
+        let removed = rows[0][1]
+        root.commitGeometry(); root.focus("header-1")
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in removed.isFocused }, object: nil)], timeout: 3)
+        try await publishRowRevision(4) { $0.removeAll { node in
+            node["key"] as? String == "header-1" || node["key"] as? String == "header-2"
+        } }
+        XCTAssertNil(root.registrations["header-1"]); XCTAssertNil(removed.registration)
+    }
     func testCooperativeEntryDiscardsQueuedWorkAfterDatasetReplacement() async throws {
         let rows = try await rowEntryRails()
         var requests = 0
@@ -541,12 +753,14 @@ extension AdapterHostTests {
     }
     func testCollectionRevealScrollsBeforeConfirmedFocus() async throws {
         let (scroll, cold) = try await virtualCollection()
+        cold.removeFromSuperview(); root.commitGeometry()
         var observations: [String] = []
         root.onFocusRecord = { observations.append($0["occurrenceKey"] as? String ?? "") }
         root.onCollectionRecord = { [weak self] record in
             guard let self, let text = record["payload"] as? String, let data = text.data(using: .utf8),
                   var value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   value["state"] as? String == "prepare" else { return }
+            scroll.addSubview(cold); self.root.commitGeometry()
             value["lifetime"] = String(self.root.lifetime)
             guard let bytes = try? JSONSerialization.data(withJSONObject: value),
                   let acknowledgement = String(data: bytes, encoding: .utf8) else { return }
@@ -563,7 +777,8 @@ extension AdapterHostTests {
         XCTAssertEqual(try root.dispatcher?.connection.snapshot().active_request, 0)
     }
     func testCancelledPreparationCannotScroll() async throws {
-        let (scroll, _) = try await virtualCollection()
+        let (scroll, cold) = try await virtualCollection()
+        cold.removeFromSuperview(); root.commitGeometry() // A missing cell needs a React preparation.
         var preparation: [String: Any]?
         root.onCollectionRecord = { record in
             guard let text = record["payload"] as? String, let data = text.data(using: .utf8),
@@ -581,6 +796,99 @@ extension AdapterHostTests {
         XCTAssertTrue(a.isFocused)
         XCTAssertEqual(try root.dispatcher?.connection.snapshot().active_request, 0)
     }
+    func testMountedNestedRevealConfirmsWithoutReactPreparation() async throws {
+        let rows = try await rowEntryRails(policy: 0), card = rows[1][2]
+        let inner = try XCTUnwrap(card.superview as? UIScrollView)
+        let outer = try XCTUnwrap(inner.superview?.superview as? UIScrollView)
+        outer.frame.size.height = 150; inner.contentOffset.x = 450
+        root.commitGeometry()
+        let mount = try XCTUnwrap(card.registration?.mount)
+        XCTAssertFalse(card.canBecomeFocused)
+        var windowEvents = 0
+        root.onCollectionRecord = { _ in windowEvents += 1 } // No React renderer available.
+        let observed = expectation(description: "UIKit focused the existing mount")
+        let start = ProcessInfo.processInfo.systemUptime
+        root.onFocusRecord = { record in
+            if record["occurrenceKey"] as? String == card.occurrenceKey, record["kind"] as? String == "managed" {
+                let milliseconds = (ProcessInfo.processInfo.systemUptime - start) * 1000
+                XCTContext.runActivity(named: "Native mounted reveal observed in \(milliseconds) ms") { _ in }
+                observed.fulfill()
+            }
+        }
+        root.focus(card.occurrenceKey)
+        await fulfillment(of: [observed], timeout: 2)
+        XCTAssertTrue(card.isFocused)
+        XCTAssertEqual(windowEvents, 0)
+        XCTAssertEqual(card.registration?.mount, mount)
+        XCTAssertGreaterThan(outer.contentOffset.y, 0); XCTAssertLessThan(inner.contentOffset.x, 450)
+        XCTAssertNotNil(root.measured(card)); XCTAssertEqual(try root.dispatcher?.connection.snapshot().active_request, 0)
+    }
+    func testCancelledMountedRevealDoesNotScrollOrStealFocus() async throws {
+        let (scroll, cold) = try await virtualCollection()
+        var windowEvents = 0; root.onCollectionRecord = { _ in windowEvents += 1 }
+        root.focus(cold.occurrenceKey); root.cancelPending()
+        let drained = expectation(description: "Native reveal owner turn")
+        DispatchQueue.main.async { drained.fulfill() }
+        await fulfillment(of: [drained], timeout: 2)
+        XCTAssertEqual(windowEvents, 0); XCTAssertEqual(scroll.contentOffset.x, 0)
+        XCTAssertTrue(a.isFocused); XCTAssertFalse(cold.isFocused)
+    }
+    func testRecycledDestinationCannotAuthorizeQueuedMountedScroll() async throws {
+        let (scroll, card) = try await virtualCollection()
+        let oldMount = try XCTUnwrap(card.registration?.mount)
+        root.focus(card.occurrenceKey)
+        card.removeFromSuperview(); scroll.addSubview(card); root.commitGeometry()
+        XCTAssertGreaterThan(try XCTUnwrap(card.registration?.mount), oldMount)
+        let drained = expectation(description: "Old mounted reveal discarded")
+        DispatchQueue.main.async { drained.fulfill() }
+        await fulfillment(of: [drained], timeout: 2)
+        XCTAssertEqual(scroll.contentOffset.x, 0); XCTAssertTrue(a.isFocused)
+        XCTAssertFalse(card.isFocused)
+    }
+    func testRecyclingAPageBeforeItsCollectionUnmountsKeepsTheNextCatalogueUsable() async throws {
+        func scope(_ key: String, _ parent: String) -> ItarScopeHost {
+            let view = ItarScopeHost(frame: root.bounds)
+            view.configure(key, parent: parent, active: true, layout: 1, boundary: 2, trap: false,
+                           entryReady: true, preferred: "")
+            return view
+        }
+        func publish(_ dataset: Int, parent: String) async throws {
+            root.collectionData = """
+            {"dataset":"\(dataset)","nodes":[
+              {"key":"route-row","parent":"\(parent)","order":0,"scope":true,"enabled":true,"layout":1,"extent":100},
+              {"key":"route-card","parent":"route-row","order":0,"scope":false,"enabled":true,"layout":0,"extent":0}]}
+            """
+            await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                self.root.collections.dataset == String(dataset) || self.root.dispatcher?.closed == true
+            }, object: nil)], timeout: 3)
+            XCTAssertFalse(root.dispatcher?.closed ?? true)
+        }
+        let page = scope("home-route", ""), list = scope("route-row", "home-route")
+        root.addSubview(page); root.commitGeometry()
+        try await publish(1, parent: "home-route")
+        let card = target("route-card", x: 0)
+        card.scopeKey = "route-row"; card.collectionDataset = "1"; list.collectionDataset = "1"
+        list.addSubview(card); page.addSubview(list); root.commitGeometry()
+        let firstMount = try XCTUnwrap(card.registration?.mount)
+        page.removeFromSuperview()
+        page.recycle() // Fabric can recycle this host before it delivers collectionData.
+        let dispatcher = try XCTUnwrap(root.dispatcher)
+        XCTAssertFalse(dispatcher.closed)
+        guard !dispatcher.closed else { return }
+        XCTAssertEqual(try dispatcher.connection.find("home-route").slot, 0)
+
+        let next = scope("next-route", "")
+        root.addSubview(next); root.commitGeometry()
+        try await publish(2, parent: "next-route")
+        let newList = scope("route-row", "next-route")
+        newList.collectionDataset = "2"; card.collectionDataset = "2"
+        newList.addSubview(card); next.addSubview(newList); root.commitGeometry()
+        list.recycle() // A delayed callback from the retired view cannot take the new owner.
+        XCTAssertTrue(root.scopes["route-row"]?.view === newList)
+        XCTAssertGreaterThan(try XCTUnwrap(card.registration?.mount), firstMount)
+        XCTAssertTrue(card.canBecomeFocused)
+    }
+
     func testCatalogRetirementPrunesDetachedCellsAndScope() async throws {
         let (scroll, cold) = try await virtualCollection()
         let scope = try XCTUnwrap(scroll.superview as? ItarScopeHost)
@@ -646,6 +954,78 @@ extension AdapterHostTests {
 }
 
 extension AdapterHostTests {
+    func testVisibleVerticalGridMoveKeepsViewportWhileEntryAndClippedTargetsCanScroll() async throws {
+        let rows = try await rowEntryRails(policy: 0)
+        let previous = rows[0][2], next = rows[1][2]
+        let row = try XCTUnwrap(root.scopes["rail"]?.view)
+        let viewport = try XCTUnwrap(row.superview as? UIScrollView)
+        viewport.contentSize.height = 1000
+        var confirmed: UIFocusUpdateContext?
+        let observer = NotificationCenter.default.addObserver(forName: UIFocusSystem.didUpdateNotification, object: nil, queue: nil) { note in
+            let context = note.userInfo?[UIFocusSystem.focusUpdateContextUserInfoKey] as? UIFocusUpdateContext
+            if context?.nextFocusedView === next { confirmed = context }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        root.focus(next.occurrenceKey)
+        let update = try XCTUnwrap(confirmed)
+        XCTAssertTrue(update.previouslyFocusedView === previous)
+        func confirm(from source: ItarTargetHost?, heading: UIFocusHeading) {
+            root.collections.confirming(next, from: source, heading: heading)
+            root.collections.finishFocusUpdate(update)
+        }
+        XCTAssertNotNil(root.measured(next))
+        confirm(from: nil, heading: .down)
+        XCTAssertTrue(viewport.isScrollEnabled, "Grid entry keeps the host reveal")
+        confirm(from: previous, heading: .right)
+        XCTAssertTrue(viewport.isScrollEnabled, "A horizontal arrow does not claim the outer vertical viewport")
+        confirm(from: previous, heading: .down)
+        XCTAssertFalse(viewport.isScrollEnabled, "UIKit must leave the fully visible next row in place")
+        await Task.yield()
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in viewport.isScrollEnabled }, object: nil)], timeout: 2)
+        row.frame.origin.y = viewport.bounds.maxY - next.frame.minY - next.frame.height + 1
+        XCTAssertNil(root.measured(next))
+        confirm(from: previous, heading: .down)
+        XCTAssertTrue(viewport.isScrollEnabled, "Even a partially clipped card needs its host reveal")
+    }
+    func testPinnedCardStaysAtItsRenderedAnchorThroughoutFocusUpdate() async throws {
+        let rows = try await rowEntryRails(policy: 0), first = rows[0][0], second = rows[0][1]
+        let scroll = try XCTUnwrap(first.superview as? UIScrollView)
+        try await publishRowRevision(2) { nodes in
+            let index = nodes.firstIndex { $0["key"] as? String == "header" }!
+            nodes[index]["horizontalAlignment"] = "pinned"
+        }
+        for scope in root.scopes.values { scope.view?.collectionDataset = "2" }
+        for row in rows { row.forEach { $0.collectionDataset = "2" } }
+        root.commitGeometry(); root.focus(first.occurrenceKey)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in first.isFocused }, object: nil)], timeout: 3)
+        root.focus(second.occurrenceKey)
+        XCTAssertTrue(second.isFocused)
+        var frames: [CGFloat] = []
+        for _ in 0..<40 {
+            try await Task.sleep(nanoseconds: 16_000_000)
+            if let layer = scroll.layer.presentation() { frames.append(layer.bounds.minX) }
+        }
+        let aligned = try XCTUnwrap(frames.firstIndex(where: { abs($0 - 150) < 1 }))
+        XCTAssertTrue(frames[aligned...].allSatisfy { abs($0 - 150) < 1 }, "Rendered offsets: \(frames)")
+        XCTAssertTrue(second.isFocused); XCTAssertTrue(scroll.isScrollEnabled)
+        scroll.isScrollEnabled = false
+        let third = rows[0][2]; root.focus(third.occurrenceKey)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in third.isFocused }, object: nil)], timeout: 3)
+        XCTAssertFalse(scroll.isScrollEnabled, "A viewport disabled by its owner must stay disabled")
+    }
+    func testPinnedAlignmentKeepsAnAlreadyAlignedCardEligible() async throws {
+        let rows = try await rowEntryRails(policy: 0), target = rows[0][2]
+        let scroll = try XCTUnwrap(target.superview as? UIScrollView)
+        try await publishRowRevision(2) { nodes in
+            let index = nodes.firstIndex { $0["key"] as? String == "header" }!
+            nodes[index]["horizontalAlignment"] = "pinned"
+        }
+        root.collections.align(target, dataset: "2"); root.commitGeometry()
+        XCTAssertTrue(target.isFocused && target.canBecomeFocused)
+        XCTAssertEqual(scroll.contentOffset.x, 300, accuracy: 1)
+        root.collections.align(target, dataset: "2") // The focus animation completion repeats the initial placement.
+        XCTAssertTrue(target.canBecomeFocused)
+    }
     func testLeadingAlignmentUsesConfirmedHostAndRejectsStalePolicy() async throws {
         let rows = try await rowEntryRails(policy: 0)
         let target = rows[0][2]

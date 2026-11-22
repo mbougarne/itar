@@ -3,6 +3,7 @@ import {
   Button,
   Modal,
   NativeModules,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -24,7 +25,7 @@ type Recorder = {
   exportRecording(): Promise<string>;
 };
 
-// The Android debug app registers this module. Capture belongs to the native
+// The TV development app registers this module. Capture belongs to the native
 // process, so switching screens or reloading React cannot erase an incident.
 const recorder: Recorder | undefined = NativeModules.Occo;
 
@@ -115,8 +116,14 @@ export function OccoDevelopment({ children }: React.PropsWithChildren) {
                 title="Export recording"
                 onPress={() =>
                   run(async native => {
-                    await native.exportRecording();
-                    setMessage('Saved to files/occo/latest.json');
+                    const path = await native.exportRecording();
+
+                    setMessage(
+                      'Saved to ' +
+                        (Platform.OS === 'ios'
+                          ? path
+                          : 'files/occo/latest.json'),
+                    );
                   })
                 }
               />

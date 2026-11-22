@@ -4,7 +4,7 @@ import OttApp from './ott/App';
 import ProbeApp from './ProbeApp';
 
 export default function App() {
-  if (__DEV__ && Platform.OS === 'android' && Platform.isTV) {
+  if (__DEV__ && Platform.isTV) {
     const { OccoDevelopment } = require('./OccoDevelopment');
 
     return (

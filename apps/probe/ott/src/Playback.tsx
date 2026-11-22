@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppState,
   BackHandler,
+  Platform,
+  TVFocusGuideView,
   Text,
   View,
   useTVEventHandler,
@@ -26,6 +28,11 @@ import { formatPlaybackTime } from './playback-time';
 
 import { nativeDemoStream } from './demo-stream';
 import { PlaybackHistory, type PlayerProps } from './playback-history';
+
+// A full-width UIKit guide connects the centered transport to the top-right
+// actions. Only the actual controls are accessibility elements or receive focus.
+const appleTV = Platform.OS === 'ios' && Platform.isTV;
+const ControlBand = appleTV ? TVFocusGuideView : View;
 
 const timelineFocusStyle = {
   accentColor: '#FFFFFF',
@@ -88,6 +95,10 @@ export default function Playback({
   const ready = useFocusReady();
   const reader = useScreenReaderEnabled();
 
+  const bandProps = appleTV
+    ? { autoFocus: reader === false, accessible: false }
+    : {};
+
   const { visible, wake, cancelHide } = usePlaybackControls(
     ready &&
       loaded &&
@@ -101,6 +112,13 @@ export default function Playback({
 
   const onRemote = useCallback(
     (event: HWEvent) => {
+      // Siri Remote trackpad swipes arrive without a key-down or key-up phase.
+      if (appleTV && /^swipe(up|down|left|right)$/i.test(event.eventType)) {
+        wake();
+
+        return;
+      }
+
       if (
         !/^(long)?(up|down|left|right|select|playPause)$/i.test(event.eventType)
       ) {
@@ -273,7 +291,7 @@ export default function Playback({
         // Static scopes share the default order. Their keys order the header
         // before transport within this column, with the timeline ordered last.
         <FocusScope id="playback" layout="column" style={s.fill}>
-          <View style={s.playerHeader}>
+          <ControlBand {...bandProps} style={s.playerHeader}>
             <View style={s.fill}>
               <Text style={s.playerTitle}>Big Buck Bunny</Text>
               <Text numberOfLines={1} style={s.muted}>
@@ -328,38 +346,40 @@ export default function Playback({
                 onPress={onClose}
               />
             </FocusScope>
-          </View>
-          <FocusScope
-            id="transport"
-            layout="row"
-            boundary="parent"
-            style={[s.playerControls, s.playerTransport]}
-          >
-            <IconAction
-              order={0}
-              id={occurrenceKey('player', 'rewind')}
-              label="Rewind 10 seconds"
-              icon={icons.rewind}
-              enabled={loaded}
-              onPress={() => seek(-10)}
-            />
-            <IconAction
-              order={1}
-              id={occurrenceKey('player', 'pause')}
-              label={paused ? 'Play' : 'Pause'}
-              icon={paused ? icons.play : icons.pause}
-              size={88}
-              onPress={togglePlayback}
-            />
-            <IconAction
-              order={2}
-              id={occurrenceKey('player', 'forward')}
-              label="Forward 10 seconds"
-              icon={icons.forward}
-              enabled={loaded}
-              onPress={() => seek(10)}
-            />
-          </FocusScope>
+          </ControlBand>
+          <ControlBand {...bandProps} style={s.playerTransport}>
+            <FocusScope
+              id="transport"
+              layout="row"
+              boundary="parent"
+              style={s.playerControls}
+            >
+              <IconAction
+                order={0}
+                id={occurrenceKey('player', 'rewind')}
+                label="Rewind 10 seconds"
+                icon={icons.rewind}
+                enabled={loaded}
+                onPress={() => seek(-10)}
+              />
+              <IconAction
+                order={1}
+                id={occurrenceKey('player', 'pause')}
+                label={paused ? 'Play' : 'Pause'}
+                icon={paused ? icons.play : icons.pause}
+                size={88}
+                onPress={togglePlayback}
+              />
+              <IconAction
+                order={2}
+                id={occurrenceKey('player', 'forward')}
+                label="Forward 10 seconds"
+                icon={icons.forward}
+                enabled={loaded}
+                onPress={() => seek(10)}
+              />
+            </FocusScope>
+          </ControlBand>
           <View style={s.playerChrome}>
             <View style={s.playerMeta}>
               <Text style={s.muted}>

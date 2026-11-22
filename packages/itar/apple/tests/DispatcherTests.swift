@@ -90,7 +90,83 @@ enum DispatcherTests {
         bounded.enqueue(.request("b", 0, 0, 100))
         precondition(bounded.closed && bounded.overflow, "Unbounded callback inbox")
         try invalidatedCommand()
+        try retirePublishedParent()
+        #if ITAR_OCCO
+        try tracedDirection()
+        #endif
         print("Swift dispatcher checks passed")
+    }
+
+    #if ITAR_OCCO
+    static func tracedDirection() throws {
+        let (owner, target) = try fixture(57)
+        defer { owner.close() }
+        var inputs: [(UInt64, UInt64)] = []
+        var observations: [ItarNotification] = []
+        owner.requested = { result in
+            if owner.requestMove != 0 { inputs.append((owner.requestMove, result.request)) }
+        }
+        owner.notify = { observations.append($0) }
+        owner.invoke = { effect in
+            if effect.token.kind == 2 { return 5 }
+            owner.enqueue(.cancel(effect.token.request))
+            owner.enqueue(.focus(ItarFocus(kind: 0, node: target, mount: 1), 0, effect.token))
+            owner.enqueue(.focus(ItarFocus(kind: 0, node: target, mount: 1), 1, nil))
+            return 0
+        }
+        owner.enqueue(.recordedDirection(1, 0, 100, 42))
+        precondition(inputs.count == 1 && inputs[0].0 == 42 && inputs[0].1 != 0)
+        precondition(owner.requestMove == 0 && observations.map { $0.channel } == [0, 1])
+        precondition(observations.allSatisfy { $0.confirmed_request == 0 })
+    }
+    #endif
+
+    static func retirePublishedParent() throws {
+        let connection = try EngineConnection(surface: 58, lifetime: 58)
+        let owner = EngineDispatcher(connection)
+        defer { owner.close() }
+        var page = EngineMutation(key: "page")
+        page.record.scope = 1; page.record.active = 1
+        var next = page; next.key = "next"
+        owner.enqueue(.apply([page, next]))
+        let old = try connection.find("page")
+        let retire = EngineMutation(kind: 3, key: "page", expected: old)
+        let row = CollectionEntry(key: "row", parent: "page", order: 0, scope: true, enabled: true, layout: 1, extent: 100)
+        let card = CollectionEntry(key: "card", parent: "row", order: 0, scope: false, enabled: true, layout: 0, extent: 0)
+        var current: CollectionDocument?, handles = [String: ItarNode]()
+        owner.catalogued = { document, status in
+            precondition(status == 0 || status == 1)
+            current = document
+            handles = Dictionary(uniqueKeysWithValues: document.nodes.map { ($0.key, try! connection.find($0.key)) })
+        }
+        owner.collectionRootsToDetach = { current?.detachRoots(under: $0, handles: handles) ?? [] }
+        owner.enqueue(.collections(CollectionDocument(dataset: "1", nodes: [row, card])))
+        let firstRow = try connection.find("row")
+        owner.enqueue(.retireScope([retire]))
+        precondition(!owner.closed)
+        let removed = try connection.find("page"), retained = try connection.find("row")
+        precondition(removed.slot == 0 && retained.slot == firstRow.slot && retained.generation == firstRow.generation)
+
+        owner.enqueue(.apply([page]))
+        let replacement = try connection.find("page")
+        precondition(replacement.slot != old.slot || replacement.generation != old.generation)
+        owner.enqueue(.retireScope([retire]))
+        let stillLive = try connection.find("page")
+        precondition(stillLive.slot == replacement.slot && stillLive.generation == replacement.generation)
+
+        // The replacement catalogue and the old view's recycle are queued while
+        // UIKit owns the stack. The later recycle must use the accepted topology.
+        let nextRow = CollectionEntry(key: "row", parent: "next", order: 0, scope: true, enabled: true, layout: 1, extent: 100)
+        let reparent = CollectionDocument(dataset: "2", nodes: [nextRow, card])
+        let currentPage = EngineMutation(kind: 3, key: "page", expected: replacement)
+        precondition(owner.hostCall {
+            owner.enqueue(.collections(reparent))
+            owner.enqueue(.retireScope([currentPage]))
+        })
+        precondition(!owner.closed)
+        owner.enqueue(.collections(CollectionDocument(dataset: "3", nodes: [])))
+        let absent = try connection.find("row")
+        precondition(absent.slot == 0 && !owner.closed)
     }
 
     static func invalidatedCommand() throws {

@@ -12,6 +12,9 @@ extension ItarSurfaceHost {
     }
     func surfaceRecord(_ state: String) {
         guard lifetime != 0, let record = stamp(["lifetime": String(lifetime), "state": state]) else { return }
+        #if ITAR_OCCO
+        ItarFocusTrace.receive?(["kind": "surface", "surface": lifetime, "detail": state])
+        #endif
         onSurfaceRecord?(record)
     }
     func beganCommand(_ command: String, result: ItarRequestResult) {
@@ -22,6 +25,15 @@ extension ItarSurfaceHost {
         let names = ["started", "joined", "busy", "unavailable", "stale", "invalid", "cancelled", "unchanged",
                      "confirmed", "reconciled", "expired", "backward_time", "exhausted", "resync", "disposed", "issued", "waiting"]
         let status = names.indices.contains(Int(result.code)) ? names[Int(result.code)] : "invalid"
+        #if ITAR_OCCO
+        if let emit = ItarFocusTrace.receive,
+           result.request != 0 || !command.isEmpty || dispatcher?.requestTarget != nil || (dispatcher?.requestMove ?? 0) != 0 {
+            var event: [String: Any] = ["kind": "request", "surface": lifetime, "request": result.request,
+                                        "move": dispatcher?.requestMove ?? 0, "detail": status]
+            event["target"] = dispatcher?.requestTarget
+            emit(event)
+        }
+        #endif
         if let record = stamp(["lifetime": String(lifetime), "request": String(result.request), "status": status, "command": command]) {
             onRequestRecord?(record)
         }

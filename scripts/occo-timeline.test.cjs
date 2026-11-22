@@ -2,9 +2,27 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const {readFileSync} = require('node:fs');
 const {join} = require('node:path');
-const {eventDetails, eventTitle, parseRecording} = require('../apps/probe/occo/timeline');
+const {eventDetails, eventTitle, parseRecording, recordingSummary} = require('../apps/probe/occo/timeline');
 const sample = readFileSync(join(__dirname, '../apps/probe/occo/synthetic-example.json'), 'utf8');
 const frame = (recording, index) => Object.fromEntries(eventDetails(recording, index));
+
+test('tvOS identifies VoiceOver state and shows activation observed after Select', () => {
+  const recording = parseRecording(JSON.stringify({
+    format: 'occo', version: 1, capacity: 1024, dropped: 0,
+    device: {model: 'Apple TV', tvos: '26.6.1', voiceOverAtStart: false},
+    events: [
+      {seq: 1, ms: 15, kind: 'input', move: '8', direction: 'select', detail: 'window down'},
+      {seq: 2, ms: 15, kind: 'input', move: '8', surface: '2', direction: 'select', owner: 'host'},
+      {seq: 3, ms: 39, kind: 'input', move: '8', direction: 'select', detail: 'window up'},
+      {seq: 4, ms: 40, kind: 'activation', surface: '2', channel: 'input', target: 'film', mount: '3'},
+    ],
+  }));
+  assert.match(recordingSummary(recording), /Apple TV · tvOS 26\.6\.1 · VoiceOver off at start/);
+  assert.equal(frame(recording, 0)['Next observed activation'], '#4 film (mount 3)');
+  assert.equal(frame(recording, 0)['Next input observation'], 'not observed');
+  assert.equal(frame({...recording, events: recording.events.slice(0, 3)}, 0)['Next observed activation'], 'not observed');
+  assert.equal(frame({...recording, events: [recording.events[0], recording.events[3]]}, 0)['Next observed activation'], 'not observed before recording gap');
+});
 
 test('Occo reopens the entire ordered export including tied timestamps, both channels and recycled mounts', () => {
   const first = parseRecording(sample);

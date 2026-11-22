@@ -16,7 +16,7 @@ const time = compile('playback-time.ts');
 const player = compile('Playback.tsx');
 
 // Exercise the native player's real media, remote and idle handlers with a virtual clock.
-function fixture(t, playback = {}) {
+function fixture(t, playback = {}, platform = 'android') {
   t.mock.timers.enable({apis: ['setTimeout']});
   const slots = [], effects = [], requests = [];
   let index = 0, tree, remote, back, foreground, reader = false, closed = 0;
@@ -53,7 +53,7 @@ function fixture(t, playback = {}) {
   const subscribe = set => ({addEventListener(_, fn) { set(fn); return {remove() { set(undefined); }}; }});
   const Playback = load(player, {
     react, 'react-native-video': 'Video',
-    'react-native': {View: 'View', Text: 'Text', useTVEventHandler: fn => { remote = fn; },
+    'react-native': {View: 'View', Text: 'Text', TVFocusGuideView: 'Guide', Platform: {OS: platform, isTV: true}, useTVEventHandler: fn => { remote = fn; },
       AppState: {...subscribe(fn => { foreground = fn; }), currentState: 'active'},
       BackHandler: subscribe(fn => { back = fn; })},
     'itar/react': {Focusable: 'Focusable', FocusScope: 'FocusScope', useFocusCommands: () => commands,
@@ -73,7 +73,7 @@ function fixture(t, playback = {}) {
   const video = () => nodes(tree).find(node => node.type === 'Video').props;
   render();
   return {
-    action, video, requests, closed: () => closed, back: () => back(),
+    action, video, requests, bands: () => nodes(tree).filter(node => node.type === 'Guide'), closed: () => closed, back: () => back(),
     media(event, data) { video()[event](data); render(); },
     start() { video().onLoad({duration: 63}); video().onPlaybackStateChanged({isPlaying: true}); render(); },
     tick(ms) { t.mock.timers.tick(ms); render(); },
@@ -180,4 +180,28 @@ test('native playback resumes on load and reports progress only after the native
   p.media('onEnd');
   p.unmount();
   assert.deepEqual(checkpoints, [[14,100,false],[100,100,true]]);
+});
+
+test('tvOS guides the D-pad between visible player rows and leaves VoiceOver to its own navigation', t => {
+  const p = fixture(t, {}, 'ios');
+  p.start();
+  let bands = p.bands();
+  assert.equal(bands.length, 2);
+  assert.ok(bands.every(band => band.props.autoFocus && band.props.accessible === false));
+  assert.equal(bands[0].props.children[1].props.id, 'header-actions');
+  assert.equal(bands[1].props.children[0].props.id, 'transport');
+  p.tick(3000);
+  assert.equal(p.bands().length, 0);
+  p.press('swipeUp');
+  assert.equal(p.requests.at(-1), 'player/pause');
+  p.tick(3000);
+  p.press('up', 1);
+  assert.equal(p.requests.at(-1), 'player/pause');
+  assert.equal(p.bands().length, 2);
+  p.reader(true);
+  p.tick(5000);
+  assert.ok(p.bands().every(band => !band.props.autoFocus));
+  p.activate('close');
+  assert.equal(p.closed(), 1);
+  p.unmount();
 });

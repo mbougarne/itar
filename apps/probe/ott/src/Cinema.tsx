@@ -43,6 +43,7 @@ import {
 } from './navigation';
 import { androidVerticalBoundary } from './android-focus-boundary';
 import { useDesign } from './theme';
+import { useAppleTVMenu } from './useAppleTVMenu';
 import type { ProviderMode, Film } from './catalog-types';
 import { readBrowserSession, saveBrowserSession } from './browser-session';
 
@@ -58,14 +59,28 @@ const sidebarKeys = new Set(
 
 type CinemaProps = { onOpenProbes?: () => void };
 
+type HomeArrival = { key: string; onFocus: () => void };
+
 // Watch host input focus here. The route tree only needs the sidebar boundary,
 // and a new managed observation dismisses any outstanding navigation notice.
 export default function Cinema(props: CinemaProps) {
   const focus = useFocusState();
   const observedFocus = useRef(focus);
+  const homeArrival = useRef<HomeArrival | null>(null);
 
   useLayoutEffect(() => {
     observedFocus.current = focus;
+
+    const arrival = homeArrival.current;
+
+    if (
+      arrival &&
+      focus.kind === 'managed' &&
+      focus.occurrenceKey === arrival.key
+    ) {
+      homeArrival.current = null;
+      arrival.onFocus();
+    }
   }, [focus]);
 
   const [notice, setNotice] = useState('');
@@ -84,6 +99,7 @@ export default function Cinema(props: CinemaProps) {
       {...props}
       expanded={expanded}
       observedFocus={observedFocus}
+      homeArrival={homeArrival}
       notice={notice}
       setNotice={setNotice}
     />
@@ -94,11 +110,13 @@ const CinemaRoutes = memo(function RouteTree({
   onOpenProbes,
   expanded,
   observedFocus,
+  homeArrival,
   notice,
   setNotice,
 }: CinemaProps & {
   expanded: boolean;
   observedFocus: React.RefObject<FocusState>;
+  homeArrival: React.RefObject<HomeArrival | null>;
   notice: string;
   setNotice: (value: string) => void;
 }) {
@@ -158,12 +176,13 @@ const CinemaRoutes = memo(function RouteTree({
   );
 
   const homeLoadingStarted = useCallback(() => {
+    homeArrival.current = null;
     setHomeEntryKey(undefined);
     setLoadingHome(true);
     // A retry replaces the failed Home entry with a new set of targets.
     entered.current = '';
     setEntering(true);
-  }, []);
+  }, [homeArrival]);
 
   const beginEntry = useCallback(
     (change: () => void, openerKey?: string) => {
@@ -171,6 +190,7 @@ const CinemaRoutes = memo(function RouteTree({
       // the previous content unmounts and the next target becomes ready.
       entryRequest.current?.cancel();
       entryRequest.current = null;
+      homeArrival.current = null;
       entered.current = '';
       setEntering(true);
       setReturnKey(openerKey);
@@ -178,7 +198,7 @@ const CinemaRoutes = memo(function RouteTree({
       setPendingEntry(() => change);
       setHomeEntryKey(undefined);
     },
-    [setNotice],
+    [homeArrival, setNotice],
   );
 
   useEffect(() => {
@@ -267,6 +287,19 @@ const CinemaRoutes = memo(function RouteTree({
     });
   }, [commands, setNotice]);
 
+  // At the top-level sidebar the Siri Remote's Menu button belongs to tvOS.
+  // The sign-in form manages its own Menu lifetime before authentication.
+  const hasBackRoute =
+    authenticated &&
+    (guideOpen ||
+      playing ||
+      !!film ||
+      screen === 'Profile' ||
+      screen === 'Settings' ||
+      !expanded);
+
+  useAppleTVMenu(hasBackRoute);
+
   useLayoutEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
       if (!authenticated || guideOpen) {
@@ -301,6 +334,8 @@ const CinemaRoutes = memo(function RouteTree({
 
         return true;
       }
+
+      if (Platform.OS === 'ios' && Platform.isTV) return false;
 
       if (!exitPrompt.current) {
         exitPrompt.current = true;
@@ -396,11 +431,30 @@ const CinemaRoutes = memo(function RouteTree({
 
       entryRequest.current = request;
 
+      if (
+        Platform.OS === 'ios' &&
+        Platform.isTV &&
+        screen === 'Home' &&
+        !film &&
+        !returnKey &&
+        key !== occurrenceKey(page, 'load-more')
+      ) {
+        // Only a fresh input observation of this hero may open the sidebar
+        // before its command receipt. UIKit still owns the initial landing.
+        homeArrival.current = {
+          key,
+          onFocus: () => {
+            if (entryRequest.current === request) setEntering(false);
+          },
+        };
+      }
+
       request.result.then(result => {
         if (entryRequest.current !== request) {
           return;
         }
 
+        homeArrival.current = null;
         setReturnKey(undefined);
 
         entryRequest.current = null;
@@ -413,10 +467,12 @@ const CinemaRoutes = memo(function RouteTree({
     },
     [
       commands,
+      homeArrival,
       observedFocus,
       setNotice,
       film,
       page,
+      screen,
       playing,
       guideOpen,
       entryVersion,

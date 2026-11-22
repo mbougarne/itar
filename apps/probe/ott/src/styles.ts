@@ -173,7 +173,9 @@ export function createStyles(u: number) {
     playerTransport: {
       position: 'absolute',
       top: '50%',
-      alignSelf: 'center',
+      left: 0,
+      right: 0,
+      alignItems: 'center',
       marginTop: -44 * u,
     },
     playerChrome: {

@@ -114,11 +114,12 @@ export default function Browse({
     viewportWidth || measuredWidth || width - 192 * u,
   );
 
-  const columns = grid ? 5 : 4;
+  const fiveColumns = grid || searchResults;
+  const columns = fiveColumns ? 5 : 4;
   const cardGap = 24 * u;
   // Each grid cell owns its gutter. Two half gutters leave the grid flush
   // with its viewport instead of giving a fixed row horizontal scroll range.
-  const cardInset = grid ? cardGap / 2 : featured ? cardGap : 0;
+  const cardInset = fiveColumns ? cardGap / 2 : featured ? cardGap : 0;
 
   const landscapeWidth =
     (viewport - 2 * cardInset - (columns - 1) * cardGap) / columns;

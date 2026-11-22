@@ -8,8 +8,12 @@ import ItarEngineCore
 final class EngineDispatcher {
     enum Event {
         case apply([EngineMutation])
+        case retireScope([EngineMutation])
         case collections(CollectionDocument)
         case direction(Int32, UInt64, UInt64)
+        #if ITAR_OCCO
+        case recordedDirection(Int32, UInt64, UInt64, UInt64)
+        #endif
         case releaseInput
         case realize(ItarEffect, UInt64)
         case focus(ItarFocus, Int32, ItarToken?)
@@ -25,7 +29,13 @@ final class EngineDispatcher {
         case complete(ItarToken, Int32)
         case restore(UInt64, Int32, UInt64, UInt64)
     }
+    #if ITAR_OCCO
+    // Set only around the exact result returned by the traced key's engine call.
+    private(set) var requestMove: UInt64 = 0
+    private(set) var requestTarget: String?
+    #endif
     let connection: EngineConnection
+    var collectionRootsToDetach: ((Set<String>) -> [EngineMutation])?
     var catalogued: ((CollectionDocument, Int32) -> Void)?
     var invoke: ((ItarEffect) -> Int32)?
     var notify: ((ItarNotification) -> Void)?
@@ -64,14 +74,25 @@ final class EngineDispatcher {
         pump()
     }
 
+    private func direction(_ direction: Int32, now: UInt64, deadline: UInt64) throws -> ItarRequestResult {
+        _ = try connection.advance(to: now)
+        return try connection.direction(direction, deadline: deadline)
+    }
+
     private func process(_ event: Event) throws {
         switch event {
         case .collections(let document):
             let result = try connection.collections(document)
             catalogued?(document, result.code)
+        #if ITAR_OCCO
+        case .recordedDirection(let direction, let now, let deadline, let move):
+            let result = try self.direction(direction, now: now, deadline: deadline)
+            requestMove = move
+            requested?(result)
+            requestMove = 0
+        #endif
         case .direction(let direction, let now, let deadline):
-            _ = try connection.advance(to: now)
-            let result = try connection.direction(direction, deadline: deadline)
+            let result = try self.direction(direction, now: now, deadline: deadline)
             requested?(result)
         case .releaseInput:
             try connection.releaseInput()
@@ -80,6 +101,19 @@ final class EngineDispatcher {
         case .apply(let mutations):
             let result = try connection.apply(mutations, revision: connection.snapshot().revision)
             // Host mappings must not become live after a rejected native batch.
+            if result.code != 0 { fail() }
+        case .retireScope(let removals):
+            // A later Fabric recycle or a queued catalogue can refer to the
+            // same key with a different generation. Only retire the old handle.
+            func stillRegistered(_ mutation: EngineMutation) throws -> Bool {
+                let current = try connection.find(mutation.key)
+                return current.slot == mutation.expected.slot && current.generation == mutation.expected.generation
+            }
+            let live = try removals.filter(stillRegistered)
+            guard !live.isEmpty else { return }
+            let parents = Set(live.map(\.key))
+            let roots = try (collectionRootsToDetach?(parents) ?? []).filter(stillRegistered)
+            let result = try connection.apply(roots + live, revision: connection.snapshot().revision)
             if result.code != 0 { fail() }
         case .focus(let focus, let channel, let correlation):
             let result = try connection.observe(focus, channel: channel, correlation: correlation)
@@ -95,6 +129,10 @@ final class EngineDispatcher {
             let time = try connection.advance(to: now)
             if time.code == 10 { requested?(time) }
             let result = try connection.requestFocus(key, owner: owner, deadline: deadline, dataset: 1)
+            #if ITAR_OCCO
+            requestTarget = key
+            defer { requestTarget = nil }
+            #endif
             requested?(result)
         case .restoreScope(let key, let now, let deadline):
             _ = try connection.advance(to: now)
@@ -115,6 +153,10 @@ final class EngineDispatcher {
             let result: ItarRequestResult
             if case .restoreScopeCommand = event { result = try connection.restoreScope(key, deadline: deadline) }
             else { result = try connection.requestFocus(key, deadline: deadline, dataset: 1) }
+            #if ITAR_OCCO
+            if case .requestCommand = event { requestTarget = key }
+            defer { requestTarget = nil }
+            #endif
             commandBegan?(command, result)
             requested?(result)
         case .cancelCommand(let command):
@@ -215,6 +257,7 @@ final class EngineDispatcher {
         timer = nil
         inbox.removeAll()
         effects.removeAll()
+        collectionRootsToDetach = nil
         catalogued = nil
         invoke = nil
         notify = nil

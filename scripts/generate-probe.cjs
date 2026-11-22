@@ -78,6 +78,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {`],
     delegateSource = delegateSource.replace(before, after);
   }
   writeFileSync(delegateFile, delegateSource);
+  require('./wire-apple-probe.cjs')(root);
   // The published template assumes app-local dependencies; npm workspaces hoist them.
   require('./wire-android-probe.cjs')(root);
   const settings = path.join(app, 'android/settings.gradle');

@@ -20,7 +20,7 @@ const textFields = [
 
 const integer = value => Number.isSafeInteger(value) && value >= 0;
 
-// Roles are coarse Android categories. Recordings never need an element's text.
+// Native hosts share coarse roles. Recordings never need an element's text.
 const nativeRoles = new Set([
   'button',
   'text input',
@@ -139,6 +139,13 @@ function recordingSummary(recording) {
 
   if (typeof device?.android === 'string')
     fields.push('Android ' + device.android);
+
+  if (typeof device?.tvos === 'string') fields.push('tvOS ' + device.tvos);
+
+  if (typeof device?.voiceOverAtStart === 'boolean')
+    fields.push(
+      'VoiceOver ' + (device.voiceOverAtStart ? 'on' : 'off') + ' at start',
+    );
 
   if (typeof device?.accessibilityEnabledAtStart === 'boolean') {
     fields.push(
@@ -277,6 +284,7 @@ function followingFacts(events, index, linked) {
   const surface = selected.surface || linked.received?.surface;
   const observed = {};
   const mounts = [];
+  let activation;
 
   const intended = new Set(
     linked.requests
@@ -319,6 +327,8 @@ function followingFacts(events, index, linked) {
       observed[event.channel] = fact;
     }
 
+    if (!activation && event.kind === 'activation') activation = fact;
+
     if (
       (event.kind === 'mount' || event.kind === 'unmount') &&
       event.target &&
@@ -335,6 +345,9 @@ function followingFacts(events, index, linked) {
   return [
     ['Next input observation', observed.input || missing],
     ['Next accessibility observation', observed.accessibility || missing],
+    ...(selected.direction === 'select'
+      ? [['Next observed activation', activation || missing]]
+      : []),
     ...(mounts.length
       ? [['Target mounts in interval', shortList(mounts)]]
       : []),

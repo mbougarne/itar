@@ -257,6 +257,25 @@ test('narrow Search rows keep named results and enough room for the pagination c
   assert.ok(rails.rowExtent >= 116 + 56, 'feedback and its button must fit in the same row');
 });
 
+test('Search fits five cards beside the keyboard and preserves the fifth occurrence when another page arrives', () => {
+  const f = fixture('', 'applied', 'ios');
+  const page = id => ({id, title: id, entries: Array.from({length: 5},
+    (_, i) => ({...film, id: id + i}))});
+  f.catalogueState.rows = [page('first')];
+  const search = f.component('Search', {id: 'search', active: true});
+  search.layout(1117, 730);
+  const browse = f.component('Browse', search.find('Browse').props);
+  browse.layout(1117, 645);
+  const rails = () => browse.find('Rails').props;
+  const first = rails().rails[0];
+  assert.equal(first.itemExtent * first.items.length, rails().viewportExtent);
+  const fifth = first.items[4].occurrenceKey;
+  f.catalogueState.rows = [...f.catalogueState.rows, page('next')];
+  browse.render();
+  assert.equal(rails().rails[0].items[4].occurrenceKey, fifth);
+  assert.equal(rails().horizontalAlignment, 'nearest');
+});
+
 test('web Search recovers only its own focused edit control when the query becomes empty', () => {
   for (const platform of ['web', 'android']) {
     for (const action of ['Clear', 'Delete']) {
@@ -307,7 +326,41 @@ test('initial web retry waits for committed results and respects focus ownership
   }
 });
 
-for (const platform of ['android', 'web']) {
+test('tvOS Home opens for remote input once the requested hero receives focus', async () => {
+  const f = fixture('', 'applied', 'ios');
+  const home = () => f.app.find('Browse').props;
+  const hero = occurrenceKey(home().id, 'hero', film.id);
+  const page = () => nodes(f.app.tree()).find(node => node.props.id === 'page');
+  home().onHomeLoading();
+  f.app.render();
+  assert.equal(f.app.find('Sidebar').props.active, false);
+  home().onReady(hero);
+  assert.deepEqual(f.requests, [], 'the loader must be removed before the hero request');
+  f.app.render();
+  assert.deepEqual(f.requests, [hero]);
+  assert.equal(f.app.find('Sidebar').props.active, false, 'dispatching a request does not mean the hero has focus');
+  f.focusOn(occurrenceKey(home().id, 'hero-guide'), '41');
+  assert.equal(f.app.find('Sidebar').props.active, false, 'an unrelated observation cannot release the guard');
+  f.focusOn(hero, '42');
+  assert.equal(f.app.find('Sidebar').props.active, true, 'Left can enter the sidebar before the receipt');
+  assert.equal(page().props.entryReady, true, 'Down can enter the catalogue before the receipt');
+  f.focusOn(occurrenceKey('nav', 'Home'));
+  await Promise.resolve();
+  f.app.render();
+  assert.equal(f.app.find('Sidebar').props.expanded, true);
+  assert.deepEqual(f.requests, [hero], 'a late receipt must not pull focus back');
+
+  const opener = occurrenceKey(home().id, 'popular', film.id);
+  home().onOpen(film, opener);
+  f.app.render();
+  f.close();
+  home().onReady(hero);
+  f.app.render();
+  assert.equal(f.requests.at(-1), opener);
+  assert.equal(f.app.find('Sidebar').props.active, false, 'returning to an opener keeps the restore guard');
+});
+
+for (const platform of ['android', 'ios', 'web']) {
   test(`Home loading keeps the shell out of focus through the first fetch and retry on ${platform}`, async () => {
     const f = fixture('', 'applied', platform);
     const home = {...f.app.find('Browse').props, mode: 'proxy'};
@@ -337,6 +390,7 @@ for (const platform of ['android', 'web']) {
     assert.equal(pagination().accessibilityLabel, 'Retry fetch');
     assert.equal(browse.find('Rails').props.listHeader, undefined);
     assert.equal(scope().props.entryReady, false, 'hold automatic entry until the command settles');
+    assert.equal(f.app.find('Sidebar').props.active, false);
     assert.equal(scope().props.preferredKey, platform === 'android' ? pagination().occurrenceKey : undefined);
     assert.deepEqual(f.requests, [occurrenceKey(home.id, 'load-more')]);
     await Promise.resolve(); update();
@@ -424,6 +478,7 @@ function fixture(inputKey, outcome = 'applied', platform = 'android', readDetail
   let current, back;
   const requests = [];
   const prompts = [];
+  const menuKeys = [];
   const memoized = new Set();
   const requestKinds = [];
   const issue = (kind, key) => {
@@ -480,7 +535,8 @@ function fixture(inputKey, outcome = 'applied', platform = 'android', readDetail
   const imports = name => {
     if (name === 'react') { return react; }
     if (name === 'react-native') {
-      return {View: 'View', Text: 'Text', Image: 'Image', ScrollView: 'ScrollView', Alert: {alert: title => prompts.push(title)}, Platform: {OS: platform, isTV: true},
+      return {TVEventControl: {enableTVMenuKey: () => menuKeys.push(true), disableTVMenuKey: () => menuKeys.push(false)},
+        View: 'View', Text: 'Text', Image: 'Image', ScrollView: 'ScrollView', Alert: {alert: title => prompts.push(title)}, Platform: {OS: platform, isTV: true},
         useWindowDimensions: () => ({width: 1920}), BackHandler: {addEventListener: (_, callback) => {
           back = callback; return {remove() {}};
         }}};
@@ -497,6 +553,9 @@ function fixture(inputKey, outcome = 'applied', platform = 'android', readDetail
       return {[component]: component};
     }
     if (name === './artwork') { return {icons: {}, portraits: {}, art: [], filmArtwork: value => value.art}; }
+    if (name === './useAppleTVMenu') {
+      return evaluate(`apps/probe/ott/src/useAppleTVMenu${platform === 'ios' ? '.ios' : ''}.ts`, imports);
+    }
     if (name === './navigation' || name === './android-focus-boundary') {
       return evaluate(`apps/probe/ott/src/${name.slice(2)}.ts`, imports);
     }
@@ -567,7 +626,7 @@ function fixture(inputKey, outcome = 'applied', platform = 'android', readDetail
   }
   const app = {...routes, render: () => update(true)};
   const component = (name, props) => mount(load(`src/${name}`), props);
-  return {app, component, mount, hooks: react, requests, requestKinds, prompts, catalogueState, loadCalls: () => loadCalls,
+  return {app, component, mount, hooks: react, requests, requestKinds, prompts, menuKeys, catalogueState, loadCalls: () => loadCalls,
     focusOn: (key, mount) => {
       if (focus.occurrenceKey !== key || focus.mount !== mount) {
         focus = {kind: 'managed', occurrenceKey: key, mount}; update(false);
@@ -915,4 +974,32 @@ test('returning from playback that inserted Continue Watching requests the origi
   home().onReady(occurrenceKey(home().id, 'hero', film.id));
   assert.equal(f.requestKinds.at(-1), 'restore');
   assert.equal(f.requests.at(-1), key);
+});
+
+test('tvOS grants Menu to Details, player and guide, and releases it at the top-level sidebar and unmount', () => {
+  const sidebar = occurrenceKey('nav', 'Home');
+  const f = fixture(sidebar, 'applied', 'ios');
+  assert.deepEqual(f.menuKeys, []);
+  const home = f.app.find('Browse').props;
+  home.onOpen(film, 'home-card'); f.app.render();
+  f.app.find('Details').props.onOpen(recommendation, 'related-card'); f.app.render();
+  f.app.find('Details').props.onPlay(recommendation); f.app.render();
+  assert.deepEqual(f.menuKeys, [true], 'nested routes keep one Menu subscription');
+  f.close();
+  assert.equal(f.app.find('Details').props.film.id, recommendation.id);
+  f.close();
+  assert.equal(f.app.find('Details').props.film.id, film.id);
+  f.close();
+  assert.deepEqual(f.menuKeys, [true, false]);
+  home.onGuide('guide'); f.app.render();
+  assert.deepEqual(f.menuKeys, [true, false, true]);
+  f.app.find('Epg').props.onClose(); f.app.render();
+  assert.deepEqual(f.menuKeys, [true, false, true, false]);
+  f.focusOn('home-card');
+  f.focusOn(sidebar);
+  assert.deepEqual(f.menuKeys.slice(-2), [true, false], 'content can return to the sidebar');
+  f.navigate('Settings');
+  assert.equal(f.menuKeys.at(-1), true);
+  f.app.unmount();
+  assert.equal(f.menuKeys.at(-1), false);
 });
