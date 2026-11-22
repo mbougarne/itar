@@ -19,6 +19,7 @@ function fixture(platform) {
   const commands = {focusByKey: key => { requests.push(key); return {cancel() {}}; }};
   const react = {
     createElement: (type, props, ...children) => ({type, props: {...props, children: children.flat(Infinity)}}),
+    useContext: context => context,
     useState: initial => {
       const i = stateIndex++;
       if (!(i in states)) { states[i] = initial; }
@@ -35,6 +36,7 @@ function fixture(platform) {
   const module = {exports: {}};
   vm.runInNewContext(outputText, {module, exports: module.exports, require: name => {
     if (name === 'react') { return react; }
+    if (name === './browser-navigation') { return {BrowserNavigation: platform === 'web' ? {enabled: true} : null}; }
     if (name === 'react-native') {
       return {Platform: {OS: platform}, View: 'View', Text: 'Text', TextInput: 'TextInput', TouchableNativeFeedback: nativeTouchable,
         Keyboard: {addListener: (event, callback) => { keyboard.set(event, callback); return {remove: () => keyboard.delete(event)}; }},
@@ -144,4 +146,17 @@ test('Welcome yields Menu, and the sign-in form and inline editor provide their 
   assert.equal(f.menuRoutes.at(-1), true, 'the form remains after the editor closes');
   assert.equal(f.back(), true); f.render();
   assert.equal(f.menuRoutes.at(-1), false, 'tvOS can leave from Welcome');
+});
+
+test('Samsung Done returns to the current editor action and leaves submission to the user', () => {
+  const f = fixture('web');
+  for (const field of ['email', 'password']) {
+    f.activate(field);
+    f.find('TextInput').props.onKeyPress({nativeEvent: {key: 'Unidentified', keyCode: 65376}});
+    f.render();
+    assert.equal(f.requests.at(-1), 'auth/' + field);
+    assert.equal(f.signIns(), 0);
+  }
+  f.find('Action', 'Sign in').props.onPress();
+  assert.equal(f.signIns(), 1);
 });

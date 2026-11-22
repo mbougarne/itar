@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
   Keyboard,
@@ -14,6 +14,7 @@ import {
   useFocusCommands,
   useFocusReady,
 } from 'itar/react';
+import { BrowserNavigation } from './browser-navigation';
 import { Action } from './components/Action';
 import { useDesign } from './theme';
 import { useAppleTVMenu } from './useAppleTVMenu';
@@ -24,7 +25,8 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [editing, setEditing] = useState<'email' | 'password' | null>(null);
-  const lastField = useRef<'email' | 'password'>('email');
+  const returnTarget = useRef<'email' | 'password' | 'submit'>('email');
+  const browserNavigation = useContext(BrowserNavigation);
   const emailInput = useRef<TextInput>(null);
   const passwordInput = useRef<TextInput>(null);
   const commands = useFocusCommands();
@@ -38,7 +40,7 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
     }
 
     const request = commands.focusByKey(
-      occurrenceKey('auth', form ? lastField.current : 'signin'),
+      occurrenceKey('auth', form ? returnTarget.current : 'signin'),
     );
 
     return () => request.cancel();
@@ -82,6 +84,52 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
     return () => handler.remove();
   }, [form, editing]);
 
+  function moveDownFromField(field: 'email' | 'password') {
+    if (Platform.OS === 'web') {
+      returnTarget.current = field === 'email' ? 'password' : 'submit';
+    }
+
+    setEditing(null);
+  }
+
+  function onEditorKey(
+    field: 'email' | 'password',
+    key: { key: string; isComposing?: boolean } & Partial<React.KeyboardEvent>,
+  ) {
+    if (
+      key.repeat ||
+      key.altKey ||
+      key.ctrlKey ||
+      key.metaKey ||
+      key.shiftKey ||
+      key.isComposing ||
+      key.keyCode === 229
+    )
+      return;
+
+    // The TV keyboard handles its own arrows. Only act on keys it delivers to the editor.
+    if (key.keyCode === 65385) {
+      setEditing(null); // Samsung IME Cancel
+    } else if (key.keyCode === 65376) {
+      setEditing(null); // Samsung IME Done returns to the edited field.
+    } else if (browserNavigation?.enabled) {
+      if (key.key === 'ArrowDown' || key.keyCode === 40) {
+        moveDownFromField(field);
+      } else if (
+        field === 'password' &&
+        (key.key === 'ArrowUp' || key.keyCode === 38)
+      ) {
+        returnTarget.current = 'email';
+        setEditing(null);
+      }
+    }
+  }
+
+  function openForm(next: 'Sign in' | 'Sign up') {
+    returnTarget.current = 'email';
+    setForm(next);
+  }
+
   return (
     <FocusScope id="welcome" layout="spatial" style={s.auth}>
       <Text style={s.splashBrand}>
@@ -112,6 +160,11 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
                   autoCapitalize="none"
                   autoCorrect={false}
                   returnKeyType="done"
+                  onKeyPress={
+                    Platform.OS === 'web'
+                      ? event => onEditorKey(field, event.nativeEvent)
+                      : undefined
+                  }
                   submitBehavior="blurAndSubmit"
                   maxLength={120}
                   onBlur={
@@ -137,7 +190,7 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
                       : 'Enter any password'
                   }
                   onPress={() => {
-                    lastField.current = field;
+                    returnTarget.current = field;
                     setEditing(field);
                   }}
                   style={s.authInput}
@@ -216,14 +269,14 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
           <Action
             id={occurrenceKey('auth', 'signin')}
             label="Sign in"
-            onPress={() => setForm('Sign in')}
+            onPress={() => openForm('Sign in')}
             style={s.primaryCta}
           />
           <Action
             order={1}
             id={occurrenceKey('auth', 'signup')}
             label="Sign up"
-            onPress={() => setForm('Sign up')}
+            onPress={() => openForm('Sign up')}
             style={s.primaryCta}
           />
         </FocusScope>

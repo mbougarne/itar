@@ -1,5 +1,6 @@
 import React, {
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -19,6 +20,7 @@ import { useCatalogue } from './useCatalogue';
 import { Picture } from './components/Picture';
 import { filmArtwork } from './artwork';
 import Hero from './Hero';
+import { BrowserNavigation } from './browser-navigation';
 import { layoutRows } from './browse-layout';
 import { useDesign } from './theme';
 
@@ -115,6 +117,11 @@ export default function Browse({
   );
 
   const fiveColumns = grid || searchResults;
+  const browserNavigation = useContext(BrowserNavigation);
+
+  const autoPageGrid =
+    Platform.OS === 'web' && fiveColumns && browserNavigation?.enabled === true;
+
   const columns = fiveColumns ? 5 : 4;
   const cardGap = 24 * u;
   // Each grid cell owns its gutter. Two half gutters leave the grid flush
@@ -175,8 +182,9 @@ export default function Browse({
   const last = displayedRows[displayedRows.length - 1];
 
   const endKeys =
-    last?.entries.slice(-2).map(film => occurrenceKey(id, last.id, film.id)) ??
-    [];
+    last?.entries
+      .slice(autoPageGrid ? 0 : -2)
+      .map(film => occurrenceKey(id, last.id, film.id)) ?? [];
 
   const model = useMemo(() => {
     const visuals = new Map<string, BrowseVisual>();
@@ -272,7 +280,12 @@ export default function Browse({
       });
     }
 
-    if (!featured || initial || state.error) {
+    // In an automatically paged grid, a focused footer moves down with every
+    // append. Keep navigation on the cards until the footer has a user action.
+    const needsFooter =
+      !autoPageGrid || initial || state.error || state.ended || retryFocused;
+
+    if ((!featured || initial || state.error) && needsFooter) {
       const key = occurrenceKey(id, 'load-more');
 
       visuals.set(key, { feedback: true });
@@ -306,7 +319,8 @@ export default function Browse({
             ...action,
             // Keep a filter focused during the first fetch. A focused retry
             // stays mounted and eligible until its result is ready.
-            enabled: !grid || !initial || !pending || retryFocused,
+            enabled:
+              !(grid || autoPageGrid) || !initial || !pending || retryFocused,
           },
         ],
       });
@@ -315,6 +329,7 @@ export default function Browse({
     return { rails, visuals, titles };
   }, [
     displayedRows,
+    autoPageGrid,
     grid,
     cardGap,
     cardInset,
@@ -516,7 +531,11 @@ export default function Browse({
         {height > 0 && !loadingHome && (
           <FocusVirtualizedRails
             active={active}
-            onEndReached={!featured && !state.error ? loadMore : undefined}
+            onEndReached={
+              !featured && !state.error && !(autoPageGrid && retryFocused)
+                ? loadMore
+                : undefined
+            }
             onReady={reportReady}
             id="catalogue"
             rails={model.rails}

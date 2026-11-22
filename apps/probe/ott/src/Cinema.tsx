@@ -27,6 +27,7 @@ import Epg from './Epg';
 import Browse from './Browse';
 import Catalogue from './Catalogue';
 import Search from './Search';
+import { hasDeviceProxy } from './tmdb';
 import Details from './Details';
 import Player from './Player';
 import MyList from './MyList';
@@ -127,7 +128,8 @@ const CinemaRoutes = memo(function RouteTree({
   const guideOpen = !!guideOpener;
 
   const [mode, setMode] = useState<ProviderMode>(
-    savedSession?.mode ?? (Platform.OS === 'web' ? 'fixture' : 'proxy'),
+    savedSession?.mode ??
+      (Platform.OS === 'web' && !hasDeviceProxy ? 'fixture' : 'proxy'),
   );
 
   const [screen, setScreen] = useState<Screen>(

@@ -276,6 +276,33 @@ test('Search fits five cards beside the keyboard and preserves the fifth occurre
   assert.equal(rails().horizontalAlignment, 'nearest');
 });
 
+test('web grids keep the last loaded row navigable while another page is pending', () => {
+  for (const props of [{grid: true}, {searchResults: true}]) {
+    const f = fixture('', 'applied', 'web');
+    const entries = Array.from({length: 5}, (_, i) => ({...film, id: 'card-' + i}));
+    Object.assign(f.catalogueState, {rows: [{id: 'first', entries}], ended: false});
+    const browse = f.component('Browse', {id: 'test', active: true, ...props});
+    browse.layout();
+    const rails = () => browse.find('Rails').props.rails;
+    const original = rails()[0].items.map(item => item.occurrenceKey);
+    assert.deepEqual(nodes(browse.tree()).filter(n => n.type === 'EndObserver').map(n => n.props.id), Array.from(original));
+    f.catalogueState.loading = true;
+    browse.render();
+    assert.equal(rails().length, 1, 'Down cannot select a footer that will move');
+    Object.assign(f.catalogueState, {loading: false, rows: [...f.catalogueState.rows,
+      {id: 'next', entries: entries.map(entry => ({...entry, id: entry.id + '-next'}))}]});
+    browse.render();
+    assert.deepEqual(rails()[0].items.map(item => item.occurrenceKey), original);
+    assert.equal(rails().length, 2);
+    f.catalogueState.error = 'Retry';
+    browse.render();
+    assert.equal(rails().at(-1).items[0].accessibilityLabel, 'Retry fetch');
+    Object.assign(f.catalogueState, {error: '', ended: true, limitReached: true});
+    browse.render();
+    assert.equal(rails().at(-1).items[0].accessibilityLabel, 'Continue to next titles');
+  }
+});
+
 test('web Search recovers only its own focused edit control when the query becomes empty', () => {
   for (const platform of ['web', 'android']) {
     for (const action of ['Clear', 'Delete']) {
@@ -487,7 +514,9 @@ function fixture(inputKey, outcome = 'applied', platform = 'android', readDetail
   };
   const commands = {focusByKey: key => issue('focus', key), restoreFocusByKey: key => issue('restore', key),
     restoreScope: path => issue('scope', path.join('/'))};
+  const browserNavigation = {enabled: true};
   const react = {
+    useContext: context => context,
     memo: component => { memoized.add(component); return component; },
     createElement: (type, props, ...children) => ({type, props: {...props, children: children.flat(Infinity)}}),
     useState: initial => {
@@ -561,6 +590,7 @@ function fixture(inputKey, outcome = 'applied', platform = 'android', readDetail
     }
     if (name === './catalog') { return catalogue; }
     if (name === './catalog-types') { return evaluate('apps/probe/ott/src/catalog-types.ts'); }
+    if (name === './browser-navigation') return {BrowserNavigation: browserNavigation};
     if (name === './browse-layout') { return {layoutRows}; }
     if (name === './guide') { return {useGuide: () => ({guide: null})}; }
     if (name === './useCatalogue') {
