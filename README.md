@@ -6,7 +6,7 @@
 
 Itar is a C++20 focus engine for React Native TV apps. It handles the part of remote navigation that gets difficult in a real catalogue. A viewer can open a movie from the fourth rail, watch something, and press Back after the list has changed. Itar gives the app a way to identify that *particular card*, ask the host to reveal it, and learn whether focus actually returned.
 
-**Source beta · physical-device testing in progress.** The React API and host behavior can change. You can build the engine, run the example and try a local package in a TV app. The workspace and package are marked private at version `0.0.0`. Install the beta from this checkout or build a local tarball. [Device status and open checks](docs/devices/README.md)
+**Source beta · physical-device testing in progress.** The React API and host behavior can change. You can build the engine, run the example and try a local package in a TV app. The local `0.1.0-beta` package includes the React Native TV adapter (`itar/react`) and the browser/Wasm adapter (`itar/web`) used by Cinema on Samsung Tizen and LG webOS. Install the beta from this checkout or build a local tarball. [Device status and open checks](docs/devices/README.md)
 
 [![Itar Cinema running in a browser with the TV guide button focused above a rail of fictional movies.](docs/images/cinema-browser.jpg)](docs/images/itar-cinema-preview.mp4)
 
@@ -99,12 +99,12 @@ Here `occurrenceKey('watchlist', 'arrival')` identifies the card the viewer acti
 | Android TV / Google TV | Kotlin/JNI adapter, React Native Fabric components, fixed-extent collections. Google TV emulator scenarios cover directional navigation and selected TalkBack returns. | Chromecast HD testing reported TalkBack focus jumps during Down/loading. Physical remote, speech and long-session checks remain open. |
 | Apple TV / tvOS | Swift/UIKit adapter, focus preferences and collection realization. The Cinema app has run on Apple TV HD, with targeted regressions exercised in the simulator. | Repeat the Home and Settings flows with the physical Siri Remote and VoiceOver, including visible focus and spoken output. |
 | Fire TV / Fire OS | The Android path is available to evaluate on Android-based Fire TV devices. | Independent physical Fire OS remote and VoiceView testing. Fire TV devices running Vega OS require a different runtime investigation. |
-| Desktop browser, Samsung Tizen, LG webOS | The Cinema browser probe runs in Chromium. Build scripts produce unsigned Tizen and webOS staging directories. | TV packaging, installation, remote input, media and built-in reader behavior on named models. |
+| Desktop browser, Samsung Tizen, LG webOS | Cinema navigation passed on physical Samsung and LG TVs with Voice Guide and Audio Guidance enabled, respectively. Chromium exercises the same DOM/Wasm adapter. | Coverage on other TV models and browser versions. |
 | Other TV runtimes | Vega OS, VIDAA, Xbox and PlayStation are under investigation. | No adapter has been validated for these targets. Roku is outside the project scope. |
 
 ## How Itar compares
 
-If your TV app already uses Norigin, you can keep the idea of a stable key for each card. Itar adds a request you can cancel while a rail scrolls or a route changes, and a result that tells you whether the host focused the intended card. Cinema uses the same occurrence keys on Android TV, Apple TV and the web. Its browser adapter lives in the example and targets Chrome 85.
+If your TV app already uses Norigin, you can keep the idea of a stable key for each card. Itar adds a request you can cancel while a rail scrolls or a route changes, and a result that tells you whether the host focused the intended card. Cinema uses the same occurrence keys on Android TV, Apple TV and the web. The packaged web adapter targets Chrome 85.
 
 The comparison follows one rail through a reorder and a return from Details. It covers plain React Native TV, Norigin, BAM and Itar, including who chooses the next card, what each focus call returns, virtualized collection limits and reader support. [Compare TV focus systems](docs/comparison.md)
 

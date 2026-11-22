@@ -139,8 +139,6 @@ jobs:
       - run: npm run build && npm run typecheck && npm run lint && npm test
       - name: Check TV app lint and formatting
         run: npm run check:tv
-      - name: Verify local tarball in a fresh portable consumer
-        run: node scripts/check-package.cjs "$RUNNER_TEMP/itar-package-check"
       - run: mkdir -p build && npm run bundle -w itar-probe
 
       - run: npm run native:generate
@@ -191,6 +189,10 @@ jobs:
       - run: npm run build:web:engine
       - run: npm run typecheck:web
       - run: npm run test:web
+      - name: Verify local tarball in a fresh portable consumer
+        env:
+          ITAR_CHROME: google-chrome
+        run: node scripts/check-package.cjs "$RUNNER_TEMP/itar-package-check"
       - name: Build browser and unsigned TV artifacts
         run: |
           node apps/probe/web/build.cjs browser

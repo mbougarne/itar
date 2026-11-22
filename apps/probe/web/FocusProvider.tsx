@@ -11,25 +11,55 @@ import {
 } from './focus-store';
 import { StoreContext, WebScopeContext } from './focus-context';
 
-let engineModule: EngineModule;
+let engineModule: EngineModule | undefined;
+let initializing: Promise<void> | undefined;
 
-export async function initializeFocusEngine() {
-  engineModule = await createItarEngine({
+export function initializeFocusEngine(): Promise<void> {
+  initializing ??= createItarEngine({
     wasmBinary,
     locateFile: path => new URL(path, document.baseURI).href,
-  });
+  })
+    .then(module => {
+      engineModule = module;
+    })
+    .catch(error => {
+      initializing = undefined;
+
+      throw error;
+    });
+
+  return initializing;
 }
 
-export function FocusProvider({
+type Props = React.ComponentProps<typeof NativeProvider>;
+
+export function FocusProvider(props: Props) {
+  const [store, setStore] = useState<WebFocusStore>();
+
+  useLayoutEffect(() => {
+    if (!engineModule) {
+      throw new Error(
+        'Await initializeFocusEngine() before mounting FocusProvider',
+      );
+    }
+
+    const mounted = new WebFocusStore(new engineModule.WebEngine(2048));
+
+    setStore(mounted);
+
+    return () => mounted.dispose();
+  }, []);
+
+  return store ? <MountedProvider {...props} store={store} /> : null;
+}
+
+function MountedProvider({
   children,
   active = true,
   style,
   testID,
-}: React.ComponentProps<typeof NativeProvider>) {
-  const [store] = useState(
-    () => new WebFocusStore(new engineModule.WebEngine(2048)),
-  );
-
+  store,
+}: Props & { store: WebFocusStore }) {
   const root = useRef<HTMLElement | null>(null);
 
   useLayoutEffect(() => {
@@ -141,7 +171,6 @@ export function FocusProvider({
       element.removeEventListener('keyup', keyup);
       element.removeEventListener('scroll', measure, true);
       resize.disconnect();
-      store.dispose();
     };
   }, [store]);
 

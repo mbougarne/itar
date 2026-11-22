@@ -6,16 +6,13 @@ import {nativeScopeKey, nativeTargetKey} from './api/types';
 import type {CollectionNode, CollectionStore} from './api/collections';
 import {Focusable, FocusScope, useFocusState, useScreenReaderEnabled} from './react';
 import {headerScrollOffset} from './api/viewport';
+import type {Rail, ItemRenderer, ListProps, RailsProps} from './api/component-props';
 import type {FocusableProps} from './react';
 
 export type VirtualizedFocusItem = Omit<FocusableProps, 'order' | 'style'>;
-/** Presentation only; the collection retains the owned focus host and its identity. */
-export type VirtualizedFocusItemRenderer = (item: VirtualizedFocusItem, index: number) => React.ReactNode;
-export type VirtualizedFocusRail = Readonly<{id: string; items: readonly VirtualizedFocusItem[];
-  overlayTarget?: boolean; itemExtent?: number; itemStyle?: StyleProp<ViewStyle>}>;
+export type VirtualizedFocusItemRenderer = ItemRenderer<VirtualizedFocusItem>;
+export type VirtualizedFocusRail = Rail<VirtualizedFocusItem, StyleProp<ViewStyle>>;
 type FocusRailRow = VirtualizedFocusRail & {key: string};
-type Common = {id: string; itemExtent: number; viewportExtent: number; style?: StyleProp<ViewStyle>;
-  itemStyle?: StyleProp<ViewStyle>; renderItem?: VirtualizedFocusItemRenderer; testID?: string; horizontalAlignment?: 'nearest' | 'leading' | 'pinned'};
 const supported = Platform.isTV && (Platform.OS === 'ios' || Platform.OS === 'android');
 function extent(value: number) {
   if (!Number.isFinite(value) || value <= 0 || value > 1000000) { throw new Error('List extents must be positive and at most 1000000'); }
@@ -119,9 +116,7 @@ const ItemList = memo(function ItemListView({data, collection, horizontal, itemE
 });
 
 /** Fixed-extent owned buttons using the pinned react-native-tvos FlatList. */
-export function FocusVirtualizedList({id, data, horizontal = true, itemExtent, viewportExtent, style, itemStyle, testID, renderItem, crossExtent, horizontalAlignment = 'nearest'}: Common & {
-  data: readonly VirtualizedFocusItem[]; horizontal?: boolean; crossExtent?: number;
-}) {
+export function FocusVirtualizedList({id, data, horizontal = true, itemExtent, viewportExtent, style, itemStyle, testID, renderItem, crossExtent, horizontalAlignment = 'nearest'}: ListProps<VirtualizedFocusItem, StyleProp<ViewStyle>>) {
   const parent = useContext(ScopeContext);
   const reader = useScreenReaderEnabled();
   const model = useMemo(() => {
@@ -176,17 +171,7 @@ function HeaderAlignment({rows, headerExtent, headerScope, viewport, scrollOffse
 /** Two-level row-then-item realization with logical column entry. */
 export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewportExtent, viewportRows = 2,
   style, itemStyle, testID, viewportHeight, headerExtent = 0, listHeader, listHeaderExtent = 0,
-  listHeaderItems, listHeaderScope, renderDecoration, renderItem, renderRailHeader, active = true, onReady, onEndReached, rowEntry = 'nearest', horizontalAlignment = 'nearest'}: Common & {
-    /** Logical Up/Down entry into an adjacent rail on the native TV adapters. */
-    rowEntry?: 'nearest' | 'first' | 'remembered';
-    active?: boolean; onReady?: () => void; onEndReached?: () => void; rails: readonly VirtualizedFocusRail[]; rowExtent: number; viewportRows?: number; viewportHeight?: number; headerExtent?: number;
-    /** A real leading collection row. Render its matching scope and focusable items
-     * inside a horizontal ScrollView so offscreen return uses the normal reveal path. */
-    listHeader?: React.ReactNode; listHeaderExtent?: number;
-    listHeaderItems?: readonly VirtualizedFocusItem[]; listHeaderScope?: string;
-    renderDecoration?: (item: VirtualizedFocusItem) => React.ReactNode;
-    renderRailHeader?: (rail: VirtualizedFocusRail) => React.ReactNode;
-  }) {
+  listHeaderItems, listHeaderScope, renderDecoration, renderItem, renderRailHeader, active = true, onReady, onEndReached, rowEntry = 'nearest', horizontalAlignment = 'nearest'}: RailsProps<VirtualizedFocusItem, StyleProp<ViewStyle>>) {
   const parent = useContext(ScopeContext);
   const store = useCollection();
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);

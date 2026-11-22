@@ -38,14 +38,18 @@ export function Focusable({
     () => ({
       ...createNode(key, scope.key),
       publicKey,
-      mount: store.mountId(),
     }),
-    [store, key, scope.key, publicKey],
+    [key, scope.key, publicKey],
   );
 
   const ref = useRef<HTMLElement | null>(null);
 
-  useLayoutEffect(() => store.register(record), [store, record]);
+  useLayoutEffect(() => {
+    // React can detach and reattach effects for the same rendered card.
+    record.mount = store.mountId();
+
+    return store.register(record);
+  }, [store, record]);
 
   useLayoutEffect(() => {
     const element = ref.current;

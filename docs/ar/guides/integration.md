@@ -5,11 +5,13 @@
 [فهرس الأدلة العربية](../README.md) · [English](../../guides/integration.md)
 
 
-توفّر نقطة الدخول `itar/react` مكوّنات لتعريف نطاقات التأشير والأزرار والقوائم ذات العناصر ثابتة الأبعاد، وأوامر لنقل التأشير واستعادته. تتاح هذه النسخة التجريبية من خلال المستودع. يمكنك تعديل تطبيق التلفاز المرفق، أو تحزيم المكتبة محليًا وتجربتها في تطبيقك. يستخدم المثال React 19.2.0 ونسخة React Native الخاصة بالتلفاز تحت الاسم `"react-native": "npm:react-native-tvos@0.83.0-0"`. تعتمد المكوّنات الأصلية على Fabric، ولمثال المتصفح موائم لعناصر DOM. [تشغيل إطار سينما](../ott-app.md) · [إعداد المتصفح](../devices/web-tv.md)
+توفّر نقطة الدخول `itar/react` مكوّنات لتعريف نطاقات التأشير والأزرار والقوائم ذات العناصر ثابتة الأبعاد، وأوامر لنقل التأشير واستعادته. تتاح هذه النسخة التجريبية من خلال المستودع. يمكنك تعديل تطبيق التلفاز المرفق، أو تحزيم المكتبة محليًا وتجربتها في تطبيقك. يستخدم المثال React 19.2.0 ونسخة React Native الخاصة بالتلفاز تحت الاسم `"react-native": "npm:react-native-tvos@0.83.0-0"`. تعتمد المكوّنات الأصلية على Fabric، وتستورد تطبيقات الويب الموائم من `itar/web`. [تشغيل إطار سينما](../ott-app.md) · [إعداد المتصفح](../devices/web-tv.md)
 
 ## تثبيت الحزمة من نسخة محلية
 
 استخدم Node 22.23.4 وnpm 10.9.9. نفّذ الأوامر التالية من جذر مستودع إطار. يثبّت الأمر الأول الإصدارات المسجّلة في ملف القفل. يبني أمر التحزيم ملفات JavaScript وتعريفات TypeScript، ويضمّ إليها شيفرة C++ وملفات الترويسة والرخصة التي يحتاجها تطبيق مستقل.
+
+لتحزيم الإصدار من المصدر، ثبّت [Emscripten 6.0.13 وCMake](../devices/web-tv.md) لبناء محرّك الويب. يكفي تثبيت الأرشيف الناتج في التطبيق الذي سيستخدمه.
 
 <div dir="ltr">
 
@@ -26,7 +28,7 @@ npm pack --workspace itar --pack-destination build/packages
 <div dir="ltr">
 
 ```sh
-npm install /absolute/path/to/itar/build/packages/itar-0.0.0.tgz
+npm install /absolute/path/to/itar/build/packages/itar-0.1.0-beta.tgz
 ```
 
 </div>
@@ -43,6 +45,31 @@ pod 'ItarEngineCore', :path => '../node_modules/itar'
 </div>
 
 للتحقّق من الأرشيف، نفّذ `node scripts/check-package.cjs build/package-check` من جذر المستودع. يثبّت البرنامج الأرشيف في مجلد مستقل عن مساحة عمل npm، ويتحقّق من نقاط الدخول، ثم يترجم مثال C++ صغيرًا يستخدم واجهة C الخاصة بـ Apple. يتطلّب اختبار التنقّل الفعلي تشغيل تطبيق التلفاز. [برنامج التحقّق](../../../scripts/check-package.cjs) · [اختبار الأجهزة](../devices/README.md)
+
+## استخدام إطار في تطبيق ويب للتلفاز
+
+لتطبيقات الويب، ومنها تطبيقات Samsung Tizen وLG webOS، استورد المكوّنات من `itar/web`. ثبّت React وReact DOM بالإصدار 19.2.0 مع `react-native-web@0.21.4`، واستورد `itar/web.css` وانتظر اكتمال `initializeFocusEngine()` قبل عرض أوّل `FocusProvider`. يتضمّن موائم الويب المحرّك بصيغة Wasm ويمكن تحميله من ملفات التطبيق على التلفاز.
+
+<div dir="ltr">
+
+```tsx
+import {createRoot} from 'react-dom/client';
+import {FocusProvider, FocusScope, Focusable, initializeFocusEngine} from 'itar/web';
+import 'itar/web.css';
+
+initializeFocusEngine().then(() => {
+  createRoot(document.getElementById('root')!).render(
+    <FocusProvider>
+      <FocusScope id="actions" layout="row" style={{flexDirection: 'row'}}>
+        <Focusable occurrenceKey="play" accessibilityLabel="تشغيل" style={{width: 160, height: 80}} />
+        <Focusable occurrenceKey="save" accessibilityLabel="حفظ" style={{width: 160, height: 80}} />
+      </FocusScope>
+    </FocusProvider>,
+  );
+});
+```
+
+</div>
 
 ## إنشاء شاشة بزرّين
 

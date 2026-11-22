@@ -2,11 +2,13 @@
 
 [العربية](../ar/guides/integration.md)
 
-Use `itar/react` for focus scopes, buttons, commands, and fixed-size lists. This beta is distributed as source. The repository includes a working TV app you can modify and a local tarball workflow for trying the package in your own app. The pinned combination is React 19.2.0 and the TV fork installed as `"react-native": "npm:react-native-tvos@0.83.0-0"`. The native components use Fabric. The browser demo has its own DOM binding. [TV app setup](../ott-app.md) · [Browser demo](../devices/web-tv.md)
+Use `itar/react` for focus scopes, buttons, commands, and fixed-size lists. This beta is distributed as source. The repository includes a working TV app you can modify and a local tarball workflow for trying the package in your own app. The pinned combination is React 19.2.0 and the TV fork installed as `"react-native": "npm:react-native-tvos@0.83.0-0"`. The native components use Fabric. Browser apps use `itar/web`. [TV app setup](../ott-app.md) · [Browser demo](../devices/web-tv.md)
 
 ## Install from your checkout
 
 Use Node 22.23.4 and npm 10.9.9. From the Itar repository root, install the lockfile and build a tarball. The pack step compiles declarations and JavaScript, then copies the C++ source, headers and license needed by a separate consumer.
+
+To pack from source, first install [Emscripten 6.0.13 and CMake](../devices/web-tv.md#desktop-browser). The pack step builds the web engine. Apps installing the resulting tarball receive the compiled bytes.
 
 ```sh
 npm ci --ignore-scripts --no-audit
@@ -17,7 +19,7 @@ npm pack --workspace itar --pack-destination build/packages
 In your TV app, install the path to that file. A fresh native build is required because Itar adds native views, codegen and a C++ library. To run the repository demo instead, its workspace dependency is already wired after `npm ci`.
 
 ```sh
-npm install /absolute/path/to/itar/build/packages/itar-0.0.0.tgz
+npm install /absolute/path/to/itar/build/packages/itar-0.1.0-beta.tgz
 ```
 
 - **Android TV.** Use the TV template's native-module autolinking. The library declares Android SDK 36, minimum API 24, NDK 27.1.12297006 and CMake 3.22.1. Use JDK 17 for the example build. Rebuild the Android application after installation. [Android library build](../../packages/itar/android/build.gradle)
@@ -28,6 +30,27 @@ pod 'ItarEngineCore', :path => '../node_modules/itar'
 ```
 
 To verify the package archive independently, run `node scripts/check-package.cjs build/package-check` from the repository root. It installs its tarball outside npm's workspace resolution, verifies the exports and compiles a small C++/Apple C facade consumer. Native interaction needs a TV build. [Package verification](../../scripts/check-package.cjs) · [Device testing](../devices/README.md)
+
+## Use Itar in a web TV app
+
+Import the browser components from `itar/web` in web apps, including Samsung Tizen and LG webOS apps. Install React and React DOM 19.2.0 plus `react-native-web@0.21.4`. Import `itar/web.css` and await `initializeFocusEngine()` before rendering the first provider. The web entry embeds the compiled Wasm and works with local TV app URLs.
+
+```tsx
+import {createRoot} from 'react-dom/client';
+import {FocusProvider, FocusScope, Focusable, initializeFocusEngine} from 'itar/web';
+import 'itar/web.css';
+
+initializeFocusEngine().then(() => {
+  createRoot(document.getElementById('root')!).render(
+    <FocusProvider>
+      <FocusScope id="actions" layout="row" style={{flexDirection: 'row'}}>
+        <Focusable occurrenceKey="play" accessibilityLabel="Play" style={{width: 160, height: 80}} />
+        <Focusable occurrenceKey="save" accessibilityLabel="Save" style={{width: 160, height: 80}} />
+      </FocusScope>
+    </FocusProvider>,
+  );
+});
+```
 
 ## Make a screen with two buttons
 

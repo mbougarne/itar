@@ -2,7 +2,7 @@
 
 [العربية](../ar/devices/web-tv.md)
 
-Itar Cinema has a web-only adapter in the [example app](../../apps/probe/web/). React Native Web renders the shared screens. C++ compiled to WebAssembly selects focus targets, and a DOM host measures elements, scrolls them into view and observes browser focus. Selection and DOM work share the browser thread. The web build resolves `itar/react` to this adapter inside the example; the native package does not supply a browser export.
+Itar Cinema has a web-only adapter in the [example app](../../apps/probe/web/). React Native Web renders the shared screens. C++ compiled to WebAssembly selects focus targets, and a DOM host measures elements, scrolls them into view and observes browser focus. Selection and DOM work share the browser thread. Cinema builds from the same source as the `itar/web` package entry. [Use it in another app](../guides/integration.md#use-itar-in-a-web-tv-app)
 
 ## Desktop browser
 
@@ -61,6 +61,6 @@ On the TV, first verify a packaged cold launch with offline fixtures and image l
 npm run build:webos
 ```
 
-The output in `build/probe-web/webos/` includes `appinfo.json`, an 80×80 icon, the app bundle and assets. With the webOS TV CLI installed, `ares-package build/probe-web/webos` produces an `.ipk` for the separate developer-device install workflow. webOS TV 22 is an investigation candidate. The manifest enables Audio Guidance semantics; physical playback, focus and speech remain unverified.
+The output in `build/probe-web/webos/` includes `appinfo.json`, an 80×80 icon, the app bundle and assets. With the webOS TV CLI installed, `ares-package build/probe-web/webos` produces an `.ipk` for the separate developer-device install workflow. Cinema’s remote navigation was tested on a physical LG TV with Audio Guidance enabled.
 
 Start with a 5-way move into a card, switch to the Magic Remote pointer, scroll with the wheel and return to 5-way input. Observe the actual focused element after each transition. Try Back (key code 461) from Details and an editor. Enable Audio Guidance and check each card exposes one meaningful action, including after scrolling recycles it.

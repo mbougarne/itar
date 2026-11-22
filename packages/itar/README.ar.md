@@ -1,10 +1,12 @@
 <div lang="ar" dir="rtl">
 
-# حزمة إطار لتطبيقات React Native TV
+# حزمة إطار لتطبيقات التلفاز الأصلية وتطبيقات الويب
 
 [English](README.md) · [تثبيت الحزمة وبناء أول شاشة](../../docs/ar/guides/integration.md)
 
 استورد المكوّنات والدوال التالية من `itar/react`. تستخدم النسخة التجريبية React 19.2.0 و`react-native-tvos@0.83.0-0` مع Fabric. لتجربتها في تطبيق آخر، نفّذ `npm pack --workspace itar` من جذر المستودع بعد إعداده، ثم ثبّت الأرشيف الناتج في تطبيق التلفاز وأعد بناء التطبيق الأصلي. ولإعداد tvOS راجع [دليل CocoaPods](apple/README.ar.md).
+
+لتطبيقات الويب، ومنها تطبيقات Samsung Tizen وLG webOS، استورد المكوّنات من `itar/web`. ثبّت React وReact DOM بالإصدار 19.2.0 مع `react-native-web@0.21.4`، واستورد `itar/web.css` وانتظر اكتمال `initializeFocusEngine()` قبل عرض أوّل `FocusProvider`. يتضمّن موائم الويب المحرّك بصيغة Wasm ويمكن تحميله من ملفات التطبيق على التلفاز.
 
 ## تعريف عناصر التأشير
 

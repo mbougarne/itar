@@ -1,8 +1,8 @@
 {
   "name": "itar",
-  "version": "0.0.0",
+  "version": "0.1.0-beta",
   "private": true,
-  "description": "React Native TV focus package; native adapter and React API preview",
+  "description": "C++ focus navigation for React Native TV and React web apps on smart TVs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "react-native": "src/index.ts",
@@ -17,15 +17,18 @@
     "README.md",
     "README.ar.md",
     "virtualization.md",
-    "virtualization.ar.md"
+    "virtualization.ar.md",
+    "web"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "prepack": "npm run build && node scripts/prepare-package.cjs"
+    "prepack": "npm run build && node scripts/prepare-package.cjs && node scripts/build-web.cjs"
   },
   "peerDependencies": {
     "react": "19.2.0",
-    "react-native": "0.83.0-0"
+    "react-native": "0.83.0-0",
+    "react-native-web": "0.21.4",
+    "react-dom": "19.2.0"
   },
   "codegenConfig": {
     "name": "ItarSpec",
@@ -63,6 +66,22 @@
       "react-native": "./src/react.tsx",
       "default": "./lib/react.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./web": {
+      "types": "./web/index.d.ts",
+      "default": "./lib/web.mjs"
+    },
+    "./web.css": "./web/focus.css"
+  },
+  "peerDependenciesMeta": {
+    "react-native": {
+      "optional": true
+    },
+    "react-native-web": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   }
 }
