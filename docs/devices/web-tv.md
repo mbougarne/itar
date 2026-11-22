@@ -27,6 +27,20 @@ To repeat only the checks after building, run `npm run typecheck:web` and `npm r
 
 To check the card focus ring with the fixture catalogue, start on **Explore title** and press Down, then Right. The cyan ring should move from **Beyond the Atlas** to **A Different Tide** and remain visible over all four edges of the artwork. Press Enter to open Details, then Escape to return to the same highlighted card.
 
+### Record a Chrome interaction with Occo
+
+After setting up the web toolchain, build the recorder variant and serve it locally. Open `http://127.0.0.1:8080` in Chrome.
+
+```sh
+npm run build:web:engine
+node apps/probe/web/build.cjs browser --occo
+python3 -m http.server 8080 --bind 127.0.0.1 --directory build/probe-web/browser-occo
+```
+
+1. In Cinema Settings, choose **Start Occo recording**. Open Home, press Down from **Explore title**, move Right, open the selected card with Enter, then return with Escape.
+2. Return to Settings to mark the incident or choose **Freeze and inspect Occo recording**. Select a window input to compare the key with the Wasm request, the DOM focus target and its mount. Use Up and Down in the event list and Right to reach **Export recording**.
+3. Open the exported JSON in the [offline viewer](../../apps/probe/occo/viewer.html) from a local checkout. Chrome exposes DOM input focus. Screen-reader focus is reported as “not observed”. A page reload clears the in-memory trace. The recorder retains the latest 1,024 events and reports how many older events were dropped.
+
 ### Known pointer issue on Home
 
 In Chromium at 1280×720, starting from **Explore title** and clicking the second card in **Popular stories** can focus the card without opening Details. In the reproduced case, the card received pointer-down and focus, then a different element received the click. Pressing Enter opened the focused card, and Escape restored it. The offline fixture for this case is **A Different Tide**.
@@ -37,7 +51,7 @@ In Chromium at 1280×720, starting from **Explore title** and clicking the secon
 npm run build:tizen
 ```
 
-The output in `build/probe-web/tizen/` includes `config.xml`, the app bundle and its assets. It is an unsigned staging directory. Import the complete directory into a Samsung TV SDK web app workflow, configure an app identity and signing profile for the selected TV, and package a signed `.wgt` for testing. The manifest targets Tizen 6.5 and the JavaScript build targets Chromium 85. Physical compatibility beyond successful staging remains open.
+The output in `build/probe-web/tizen/` includes `config.xml`, the app bundle and its assets. It is an unsigned staging directory. Import the complete directory into a Samsung TV SDK web app workflow, configure an app identity and signing profile for the selected TV, and package a signed `.wgt` for testing. The manifest targets Tizen 6.5 and the JavaScript build targets Chromium 85. Itar Cinema was tested on a Samsung UE43DU7100UXTK with the physical remote and live catalogue. Voice Guide passed on the same TV before the Home row performance update.
 
 On the TV, first verify a packaged cold launch with offline fixtures and image loading. Then test 5-way movement, Select, Return (key code 10009), and held Back. Run the same flow with Voice Guide enabled and check spoken labels, activation, inactive route exclusion and restoration after an item disappears. Record the model, firmware and input device.
 
