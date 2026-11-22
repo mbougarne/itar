@@ -80,4 +80,38 @@ class GeometryChecks(context: Context) {
         check(root.connection.exchange(5)[5] == revision) { "An unchanged frame republished geometry" }
         rightFromStart()
     }
+
+    fun repeatedScrollInvalidation() {
+        root.layout(0, 0, 800, 600)
+        start.layout(20, 60, 100, 120)
+        root.refreshGeometry()
+        check(start.requestFocus())
+        // Scroll and layout can fire inline while Android is processing a host call.
+        // Duplicates must not exhaust the 32-message inbox before the next draw.
+        check(root.dispatcher.hostCall { repeat(40) { root.geometryChanged() } })
+        check(!root.closed)
+
+        val late = target("")
+        root.addView(late)
+        late.layout(120, 60, 200, 120)
+        // Like a recycled cell receiving props after attach and layout.
+        late.occurrenceKey = "late"
+        late.actionLabel = "Late"
+        late.commitProps()
+        fun expectEffect(kind: Long) {
+            val now = android.os.SystemClock.uptimeMillis()
+            val request = root.connection.exchange(9, longArrayOf(0, now, now + 3000), late.occurrenceKey)
+            val effect = root.connection.exchange(10)
+            check(request[2] != 0L && effect[1] == 1L && effect[3] == request[2] &&
+                effect[5] == kind && effect[8] == late.mount?.serial) {
+                "Expected effect $kind for the late mount, got ${effect.toList()}"
+            }
+            root.connection.exchange(13, longArrayOf(request[2]))
+        }
+        expectEffect(1) // Fresh measured mount after the first invalidation.
+        root.geometryChanged()
+        expectEffect(0) // The next scroll invalidates the new mount immediately.
+        root.refreshGeometry()
+        expectEffect(1)
+    }
 }

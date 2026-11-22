@@ -2,7 +2,7 @@
 
 **English** · [العربية](README.ar.md)
 
-[Features](#what-you-can-build-with-it) · [Get started](#try-it-from-a-checkout) · [React example](#use-it-in-a-react-native-tv-screen) · [Devices](#where-the-beta-stands) · [Compare libraries](#how-itar-compares) · [Documentation](#find-your-way-around)
+[Features](#what-you-can-build-with-it) · [Occo focus debugger](#debug-focus-with-occo) · [Get started](#try-it-from-a-checkout) · [React example](#use-it-in-a-react-native-tv-screen) · [Devices](#where-the-beta-stands) · [Compare libraries](#how-itar-compares) · [Documentation](#find-your-way-around)
 
 Itar is a C++20 focus engine for React Native TV apps. It handles the part of remote navigation that gets difficult in a real catalogue. A viewer can open a movie from the fourth rail, watch something, and press Back after the list has changed. Itar gives the app a way to identify that *particular card*, ask the host to reveal it, and learn whether focus actually returned.
 
@@ -18,6 +18,15 @@ Itar is a C++20 focus engine for React Native TV apps. It handles the part of re
 - **Cards with a single focus target.** Put artwork and text inside a `Focusable`. The outer host owns the accessible label, activation and focus feedback. The same title can appear in multiple rails with distinct occurrence keys.
 - **Virtualized catalogues.** Fixed-extent lists and nested rails keep logical items in the engine while React mounts a window of cells. A request for a distant item can wait for realization, scroll and native confirmation.
 - **Interfaces that load or change routes.** Gate entry while data is being committed, cancel obsolete focus requests and observe the outcome. Input focus and accessibility focus have separate channels. Platform readers retain control of speech and exploration.
+
+## Debug focus with Occo
+
+Occo is the opt-in focus debugger in development builds of Itar Cinema for Android TV and Apple TV. Its timeline shows which remote input reached the app, which card Itar requested, how the TV responded, and where input focus and accessibility focus were observed.
+
+Suppose you press Down expecting the next card, but the screen reader moves to the menu. Did Itar request the menu? In the included example, Itar requested the next card. The TV accepted that request, the request was cancelled, and input focus still reached the card. Accessibility focus then moved to the menu. Seeing that sequence helps you decide where to investigate next.
+
+- **Try it without a TV.** From a local checkout, open the viewer in your browser and choose the sample JSON file. Select event 13 to see the card and the menu on their respective focus channels. [Offline viewer](apps/probe/occo/viewer.html) · [Example recording](apps/probe/occo/synthetic-example.json)
+- **Record your own interaction.** In Cinema Settings, choose **Start Occo recording**, reproduce the move, then freeze and inspect the timeline. Export the recording to let another developer step through it offline. [Android TV instructions](docs/devices/android-tv.md#record-a-focus-incident-with-occo) · [Apple TV instructions](docs/devices/apple-tv.md#record-a-d-pad-or-select-interaction-with-occo)
 
 ## Try it from a checkout
 

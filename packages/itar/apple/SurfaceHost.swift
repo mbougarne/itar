@@ -60,10 +60,24 @@ public final class ItarSurfaceHost: UIView {
         super.init(frame: frame)
         isAccessibilityElement = false
         addGestureRecognizer(collectionInput)
+        observers.append(NotificationCenter.default.addObserver(forName: UIFocusSystem.didUpdateNotification, object: nil, queue: nil) {
+            [weak self] note in
+            if let context = note.userInfo?[UIFocusSystem.focusUpdateContextUserInfoKey] as? UIFocusUpdateContext {
+                self?.collections.finishFocusUpdate(context)
+            }
+        })
         for name in [UIAccessibility.voiceOverStatusDidChangeNotification,
                      UIAccessibility.elementFocusedNotification] {
             observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) {
-                [weak self] _ in self?.readerChanged()
+                [weak self] notification in
+                #if ITAR_OCCO
+                if let self, ItarFocusTrace.receive != nil, self.acceptsInput,
+                   notification.name == UIAccessibility.elementFocusedNotification,
+                   UIAccessibility.isVoiceOverRunning {
+                    self.traceVoiceOverNotification(notification)
+                }
+                #endif
+                self?.readerChanged()
             })
         }
     }
@@ -87,8 +101,27 @@ public final class ItarSurfaceHost: UIView {
         collectionInput.isEnabled = true
         let owner = EngineDispatcher(connection)
         dispatcher = owner
+        owner.collectionRootsToDetach = { [weak self] in self?.collections.rootsToDetach(under: $0) ?? [] }
         owner.catalogued = { [weak self] in self?.collections.accept($0, status: $1) }
-        owner.invoke = { [weak self] in self?.invoke($0) ?? 1 }
+        owner.invoke = { [weak self] effect in
+            guard let self else { return 1 }
+            #if ITAR_OCCO
+            if ItarFocusTrace.receive != nil {
+                let kinds = ["reveal", "focus", "cancel"]
+                let index = Int(effect.token.kind)
+                self.traceEffect(effect, kind: "effect", detail: kinds.indices.contains(index) ? kinds[index] : "unknown effect")
+            }
+            #endif
+            let outcome = self.invoke(effect)
+            #if ITAR_OCCO
+            if ItarFocusTrace.receive != nil {
+                let results = ["accepted", "rejected", "completed", "cancelled", "already finished", "not cancellable"]
+                let index = Int(outcome)
+                self.traceEffect(effect, kind: "host", detail: results.indices.contains(index) ? results[index] : "unknown outcome")
+            }
+            #endif
+            return outcome
+        }
         owner.notify = { [weak self] in self?.deliver($0) }
         owner.requested = { [weak self] in self?.requestRecord($0) }
         owner.commandBegan = { [weak self] in self?.beganCommand($0, result: $1) }
@@ -138,11 +171,17 @@ public final class ItarSurfaceHost: UIView {
         movingViews.removeAll()
     }
 
-    func beginCollectionDirection(_ direction: Int32) {
+    func beginCollectionDirection(_ direction: Int32, move: UInt64 = 0) {
         guard acceptsInput, let dispatcher, !dispatcher.pumping else { return }
         commitGeometry()
         let now = dispatcher.clock()
         guard now <= UInt64.max - 3000 else { shutdown(); return }
+        #if ITAR_OCCO
+        if move != 0 {
+            dispatcher.enqueue(.recordedDirection(direction, now, now + 3000, move))
+            return
+        }
+        #endif
         dispatcher.enqueue(.direction(direction, now, now + 3000))
     }
     public override func layoutSubviews() {
@@ -154,14 +193,32 @@ public final class ItarSurfaceHost: UIView {
     }
     public override var preferredFocusEnvironments: [UIFocusEnvironment] { preferredEnvironments() }
     public override func shouldUpdateFocus(in context: UIFocusUpdateContext) -> Bool {
-        allowsFocus(context) && super.shouldUpdateFocus(in: context)
+        let allowed = allowsFocus(context) && super.shouldUpdateFocus(in: context)
+        #if ITAR_OCCO
+        if let emit = ItarFocusTrace.receive, let heading = ItarFocusTrace.direction(context.focusHeading) {
+            var event: [String: Any] = ["kind": "proposal", "surface": lifetime, "direction": heading,
+                                        "detail": allowed ? "UIKit proposal allowed" : "UIKit proposal declined"]
+            let next = context.nextFocusedView as? ItarTargetHost
+            if next?.owner === self, let registration = next?.registration {
+                event["target"] = registration.key; event["mount"] = registration.mount
+            }
+            emit(event)
+        }
+        #endif
+        return allowed
     }
     public override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
         super.didUpdateFocus(in: context, with: coordinator)
+        collections.confirming(context.nextFocusedView as? ItarTargetHost, from: context.previouslyFocusedView as? ItarTargetHost,
+                              heading: context.focusHeading)
         observedFocus(context)
         if let target = context.nextFocusedView as? ItarTargetHost, target.owner === self,
            let registration = target.registration {
             let dataset = collections.dataset, mount = registration.mount
+            // A pinned row must place the card before UIKit draws its focus animation.
+            if let item = collections.entry(registration.key), collections.entry(item.parent)?.horizontalAlignment == "pinned" {
+                collections.align(target, dataset: dataset)
+            }
             coordinator.addCoordinatedAnimations({}, completion: { [weak self, weak target] in
                 guard let self, let target, target.registration === registration, registration.mount == mount else { return }
                 self.collections.align(target, dataset: dataset)
@@ -224,16 +281,22 @@ public final class ItarSurfaceHost: UIView {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.posted = false
-            self.commitGeometry()
+            self.commitPendingGeometry()
         }
+    }
+
+    func commitPendingGeometry() {
+        guard !refreshing, invalidatedEpoch == epoch else { return }
+        commitGeometry()
     }
 
     // UIKit converts planar translations into surface coordinates. Other transforms
     // and partially clipped rectangles cannot be published as navigation bounds.
-    func measured(_ target: ItarTargetHost) -> CGRect? {
+    func measured(_ target: ItarTargetHost, projecting offset: ((UIScrollView, CGRect) -> CGPoint)? = nil) -> CGRect? {
         guard target.window === window, window != nil, target.targetEnabled,
               !target.label.isEmpty, !target.occurrenceKey.isEmpty else { return nil }
         var ancestor: UIView? = target
+        var dx: CGFloat = 0, dy: CGFloat = 0
         while let view = ancestor {
             let transform = view.layer.transform
             guard !view.isHidden, view.alpha > 0.01, transform.m41.isFinite, transform.m42.isFinite,
@@ -248,13 +311,20 @@ public final class ItarSurfaceHost: UIView {
             }
             // RN TV can leave painting unclipped. The scroll viewport still
             // bounds focus eligibility, independently of that drawing setting.
-            if (view.clipsToBounds || view is UIScrollView) &&
-                !view.bounds.contains(target.convert(target.bounds, to: view)) { return nil }
+            if view.clipsToBounds || view is UIScrollView {
+                var rect = target.convert(target.bounds, to: view).offsetBy(dx: dx, dy: dy)
+                if let scroll = view as? UIScrollView, let offset {
+                    let point = offset(scroll, rect)
+                    let x = scroll.contentOffset.x - point.x, y = scroll.contentOffset.y - point.y
+                    dx += x; dy += y; rect = rect.offsetBy(dx: x, dy: y)
+                }
+                if !view.bounds.contains(rect) { return nil }
+            }
             if view === self { break }
             ancestor = view.superview
         }
         guard ancestor === self else { return nil }
-        let rect = target.convert(target.bounds, to: self)
+        let rect = target.convert(target.bounds, to: self).offsetBy(dx: dx, dy: dy)
         guard rect.origin.x.isFinite, rect.origin.y.isFinite, rect.width.isFinite, rect.height.isFinite,
               rect.width > 0, rect.height > 0, bounds.contains(rect) else { return nil }
         return rect
@@ -294,7 +364,7 @@ public final class ItarSurfaceHost: UIView {
               target.registration === registration, target.owner === self,
               scopeActive(registration.scopeKey),
               target.occurrenceKey == registration.key,
-              collections.accepts(registration.key, dataset: target.collectionDataset, scope: false),
+              collections.accepts(target),
               collections.entry(registration.key)?.enabled != false,
               let bounds = registration.bounds, measured(target) == bounds else { return nil }
         return target
@@ -310,12 +380,12 @@ public final class ItarSurfaceHost: UIView {
         var mutations: [EngineMutation] = []
         guard let content = descendants() else { shutdown(); return }
         for view in content.scopes {
-            guard collections.accepts(view.scopeKey, dataset: view.collectionDataset, scope: true) else { continue }
+            guard collections.accepts(view) else { continue }
             if let entry = collections.entry(view.scopeKey), entry.parent != view.parentKey { continue }
             if !view.parentKey.isEmpty {
                 guard let parent = content.scopes.first(where: { $0.scopeKey == view.parentKey }),
-                      (parent.collectionDataset.isEmpty || parent.collectionDataset == view.collectionDataset),
-                      collections.accepts(parent.scopeKey, dataset: parent.collectionDataset, scope: true) else { continue }
+                      (parent.collectionDataset.isEmpty || collections.entry(view.scopeKey)?.parent == parent.scopeKey),
+                      collections.accepts(parent) else { continue }
             }
             if view.owner !== self { view.owner?.dropScope(view); view.owner = self }
             guard !view.scopeKey.isEmpty else { shutdown(); return }
@@ -348,7 +418,7 @@ public final class ItarSurfaceHost: UIView {
             if target.owner !== self { target.owner?.detach(target); target.owner = self }
             if let old = target.registration, old.key != target.occurrenceKey { drop(target) }
             guard !target.occurrenceKey.isEmpty, target.occurrenceKey.utf8.count <= 512, !target.label.isEmpty else { continue }
-            guard collections.accepts(target.occurrenceKey, dataset: target.collectionDataset, scope: false) else {
+            guard collections.accepts(target) else {
                 target.isAccessibilityElement = false; detach(target); continue
             }
             if let entry = collections.entry(target.occurrenceKey), entry.parent != target.scopeKey {
@@ -357,8 +427,8 @@ public final class ItarSurfaceHost: UIView {
             if !target.scopeKey.isEmpty {
                 guard let parent = scopes[target.scopeKey]?.view, parent.owner === self,
                       parent.window === window, parent.nearestSurface() === self,
-                      (parent.collectionDataset.isEmpty || parent.collectionDataset == target.collectionDataset),
-                      collections.accepts(parent.scopeKey, dataset: parent.collectionDataset, scope: true) else {
+                      (parent.collectionDataset.isEmpty || collections.entry(target.occurrenceKey)?.parent == parent.scopeKey),
+                      collections.accepts(parent) else {
                     target.isAccessibilityElement = false; detach(target); continue
                 }
             }
@@ -371,6 +441,9 @@ public final class ItarSurfaceHost: UIView {
                 guard mountSequence < UInt64.max else { shutdown(); return }
                 mountSequence += 1
                 registration.mount = mountSequence
+                #if ITAR_OCCO
+                ItarFocusTrace.receive?(["kind": "mount", "surface": lifetime, "target": registration.key, "mount": registration.mount])
+                #endif
             }
             registration.target = target
             registration.scopeKey = target.scopeKey
@@ -456,6 +529,9 @@ public final class ItarSurfaceHost: UIView {
     func detachMount(_ target: ItarTargetHost) -> (node: ItarNode, mount: UInt64)? {
         guard let registration = target.registration, registration.target === target,
               registrations[registration.key] === registration, target.owner === self else { return nil }
+        #if ITAR_OCCO
+        ItarFocusTrace.receive?(["kind": "unmount", "surface": lifetime, "target": registration.key, "mount": registration.mount])
+        #endif
         registration.available = false
         registration.target = nil
         if preferred === target { preferred = nil; preferredToken = nil }
@@ -541,9 +617,19 @@ public final class ItarSurfaceHost: UIView {
         }
         if value.confirmed_request != 0 { pendingRequest = 0 }
         let kinds = ["managed", "unmanaged", "absent", "unknown"]
+        let focusKind = kinds.indices.contains(Int(value.focus.kind)) ? kinds[Int(value.focus.kind)] : "unknown"
+        #if ITAR_OCCO
+        if let emit = ItarFocusTrace.receive {
+            var event: [String: Any] = ["kind": "observation", "surface": lifetime, "request": value.confirmed_request,
+                                        "mount": value.focus.mount, "detail": "core sample: " + focusKind,
+                                        "channel": value.channel == 0 ? "input" : "accessibility"]
+            event["target"] = registration?.key
+            emit(event)
+        }
+        #endif
         if let record = stamp(["lifetime": String(lifetime), "request": String(value.confirmed_request),
             "occurrenceKey": registration?.key ?? "", "mount": String(value.focus.mount),
-            "kind": kinds.indices.contains(Int(value.focus.kind)) ? kinds[Int(value.focus.kind)] : "unknown",
+            "kind": focusKind,
             "channel": value.channel == 0 ? "input" : "accessibility"]) { onFocusRecord?(record) }
     }
 }

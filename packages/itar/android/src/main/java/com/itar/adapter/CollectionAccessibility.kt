@@ -1,5 +1,6 @@
 package com.itar.adapter
 
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
@@ -14,9 +15,10 @@ import com.facebook.react.views.scroll.ReactHorizontalScrollView
 import com.facebook.react.views.scroll.ReactScrollView
 import java.lang.ref.WeakReference
 
-/** Project native axes only for the accepted nested collection; the reader still scrolls. */
+/** Keep input on cards and present native scroll axes for an accepted nested collection. */
 internal class CollectionAccessibility(private val root: SurfaceView) {
     private val bindings = ArrayList<Binding>()
+    private val rowInput = RowInputFocus()
     private val changed = ArrayList<WeakReference<View>>()
     private var notificationPosted = false
     private var notificationLifetime = 0L
@@ -44,17 +46,17 @@ internal class CollectionAccessibility(private val root: SurfaceView) {
         if (root.isAttachedToWindow) root.parent?.notifySubtreeAccessibilityStateChanged(root, root, AccessibilityEvent.CONTENT_CHANGE_TYPE_SUBTREE)
     }
 
-    private fun axis(scope: ScopeView): Int? {
+    private fun axis(scope: ScopeView, onlyLtr: Boolean = true): Int? {
         val document = root.collections.document ?: return null
         val entry = root.collections.entry(scope.scopeKey) ?: return null
-        if (!root.acceptsInput || scope.layoutDirection != View.LAYOUT_DIRECTION_LTR || scope.owner !== root || scope.root() !== root ||
+        if (!root.acceptsInput || (onlyLtr && scope.layoutDirection != View.LAYOUT_DIRECTION_LTR) || scope.owner !== root || scope.root() !== root ||
             !scope.isAttachedToWindow || scope.committedKey != entry.key || scope.node[0] == 0L ||
             root.scopes[entry.key]?.get() !== scope || !root.scopeActive(entry.key) ||
             !entry.scope || !entry.enabled || entry.parent != scope.parentScopeKey ||
             !root.collections.accepts(entry.key, scope.collectionDataset, true, scope)) return null
         return when {
             entry.layout == 1 && scope.layout == "row" && root.scopes[entry.parent]?.get()?.let {
-                root.collections.entry(it.scopeKey)?.layout == 2 && axis(it) == 2
+                root.collections.entry(it.scopeKey)?.layout == 2 && axis(it, onlyLtr) == 2
             } == true -> 1
             entry.layout == 2 && scope.layout == "column" && document.nodes.any {
                 it.parent == entry.key && it.scope && it.enabled && it.layout == 1
@@ -63,14 +65,14 @@ internal class CollectionAccessibility(private val root: SurfaceView) {
         }
     }
 
-    fun clear() { bindings.toList().forEach { it.release() } }
+    fun clear() { bindings.toList().forEach { it.release() }; rowInput.update(emptySet()) }
 
     fun rebuild() {
         if (root.closed || root.dispatcher.busy) return
         val hosts = ArrayList<Pair<ScopeView, View>>()
         var visited = 0
         for (scope in root.scopes.values.mapNotNull { it.get() }) {
-            val axis = axis(scope) ?: continue
+            val axis = axis(scope, onlyLtr = false) ?: continue
             val queue = ArrayDeque<View>()
             for (index in 0 until scope.childCount) queue.add(scope.getChildAt(index))
             val found = ArrayList<View>()
@@ -82,19 +84,27 @@ internal class CollectionAccessibility(private val root: SurfaceView) {
                 else if (view is ViewGroup) for (index in 0 until view.childCount) queue.add(view.getChildAt(index))
             }
             val host = found.singleOrNull() ?: continue
-            if (host.isAttachedToWindow && host.layoutDirection == View.LAYOUT_DIRECTION_LTR && ((axis == 1 && host is ReactHorizontalScrollView) ||
+            if (host.isAttachedToWindow && ((axis == 1 && host is ReactHorizontalScrollView) ||
                 (axis == 2 && host is ReactScrollView))) hosts.add(scope to host)
         }
+        val columns = hosts.filter { it.second is ReactScrollView }.associate { it.first.scopeKey to it.second }
+        rowInput.update(hosts.mapNotNull { (scope, host) ->
+            val column = columns[scope.parentScopeKey] ?: return@mapNotNull null
+            (host as? ReactHorizontalScrollView)?.takeIf { it.javaClass == ReactHorizontalScrollView::class.java &&
+                it.scrollEnabled && it.contentDescription.isNullOrEmpty() && !it.isClickable && !it.isLongClickable &&
+                generateSequence(it.parent) { parent -> parent.parent }.take(256).any { parent -> parent === column } }
+        }.toSet())
         for (binding in bindings.toList()) {
             if (!binding.valid() || hosts.none { (scope, host) -> binding.owns(scope, host) } ||
                 binding.host.get()?.let { ViewCompat.getAccessibilityDelegate(it) !== binding } != false) binding.release()
         }
-        // An inner rail must never receive the horizontal-only projection.
+        // An inner rail receives the horizontal projection only when its outer list owns the vertical one.
         for ((scope, host) in hosts.sortedByDescending { axis(it.first) }) {
-            if (axis(scope) == 1 && !paired(scope, host)) continue
+            val projection = axis(scope) ?: continue
+            if (host.layoutDirection != View.LAYOUT_DIRECTION_LTR || (projection == 1 && !paired(scope, host))) continue
             if (bindings.any { it.owns(scope, host) }) continue
             val original = ViewCompat.getAccessibilityDelegate(host) ?: continue
-            val binding = Binding(scope, host, original, axis(scope) ?: continue)
+            val binding = Binding(scope, host, original, projection)
             bindings.add(binding)
             host.addOnAttachStateChangeListener(binding)
             ViewCompat.setAccessibilityDelegate(host, binding)
@@ -160,4 +170,33 @@ internal class CollectionAccessibility(private val root: SurfaceView) {
         override fun getAccessibilityNodeProvider(host: View) = original.getAccessibilityNodeProvider(host)
         override fun performAccessibilityAction(host: View, action: Int, args: Bundle?) = original.performAccessibilityAction(host, action, args)
     }
+}
+
+/** Only an anonymous row's cards participate in input focus. Its scroll actions remain native. */
+private class RowInputFocus : View.OnAttachStateChangeListener {
+    private data class Original(val focusable: Int, val touch: Boolean)
+    private val changed = mutableMapOf<ReactHorizontalScrollView, Original>()
+
+    fun update(rows: Set<ReactHorizontalScrollView>) {
+        changed.keys.toList().filterNot { it in rows }.forEach(::restore)
+        for (row in rows) {
+            if (!row.isFocusable) continue
+            if (row !in changed) row.addOnAttachStateChangeListener(this)
+            val mode = if (Build.VERSION.SDK_INT >= 26) row.focusable else View.FOCUSABLE
+            changed[row] = Original(mode, row.isFocusableInTouchMode)
+            row.isFocusable = false
+        }
+    }
+
+    private fun restore(row: ReactHorizontalScrollView) {
+        val original = changed.remove(row) ?: return
+        row.removeOnAttachStateChangeListener(this)
+        // RN sets focusability when scrollEnabled changes. Keep a newer disabled state.
+        if (!row.scrollEnabled || row.isFocusable) return
+        if (original.touch) row.isFocusableInTouchMode = true
+        if (Build.VERSION.SDK_INT >= 26) row.focusable = original.focusable else row.isFocusable = true
+    }
+
+    override fun onViewDetachedFromWindow(view: View) { restore(view as ReactHorizontalScrollView) }
+    override fun onViewAttachedToWindow(view: View) = Unit
 }

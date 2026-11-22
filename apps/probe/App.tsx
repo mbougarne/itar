@@ -1,9 +1,23 @@
 import React, { useState } from 'react';
-import { Button, StyleSheet, View } from 'react-native';
+import { Button, Platform, StyleSheet, View } from 'react-native';
 import OttApp from './ott/App';
 import ProbeApp from './ProbeApp';
 
 export default function App() {
+  if (__DEV__ && Platform.isTV) {
+    const { OccoDevelopment } = require('./OccoDevelopment');
+
+    return (
+      <OccoDevelopment>
+        <CinemaOrProbes />
+      </OccoDevelopment>
+    );
+  }
+
+  return <CinemaOrProbes />;
+}
+
+function CinemaOrProbes() {
   const [probes, setProbes] = useState(false);
 
   if (__DEV__ && probes) {

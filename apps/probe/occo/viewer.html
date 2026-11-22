@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Occo recording viewer</title>
+<style>
+  :root { color-scheme: dark; font: 16px/1.5 system-ui,sans-serif; color: #edf4fa; background: #101820; }
+  body { max-width: 80rem; margin: 3vw auto; padding: 1rem; }
+  h1, h2 { line-height: 1.25; margin-bottom: .65rem; }
+  main { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 2rem; }
+  select { width: 100%; min-height: 20rem; font: inherit; }
+  option { padding: .3rem; }
+  dl { margin: 0; display: grid; grid-template-columns: minmax(8rem,auto) 1fr; gap: .25rem .8rem; }
+  dt { color: #a7c9dd; }
+  dd { margin: 0; overflow-wrap: anywhere; }
+  :focus-visible { outline: 3px solid #f9ce59; outline-offset: 2px; }
+  @media (max-width: 48rem) { main { grid-template-columns: 1fr; } }
+</style>
+<h1>Occo recording viewer</h1>
+<label>Open a local recording <input id="file" type="file" accept=".json,application/json"></label>
+<p id="status" role="status">Choose an export or the included synthetic-example.json.</p>
+<main>
+  <section><h2><label for="events">Events</label></h2><select size="12" id="events" disabled></select></section>
+  <section><h2>Event details</h2><dl id="details"></dl></section>
+</main>
+<script src="timeline.js"></script>
+<script src="viewer.js"></script>
+</html>

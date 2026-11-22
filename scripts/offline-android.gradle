@@ -1,11 +1,36 @@
-// Opt-in, reproducible instrumentation consumer without a running Metro server.
+import org.apache.tools.ant.taskdefs.condition.Os
+
+// The generated probe lives two levels below the workspace that owns npm's install.
+def workspace = file('../../../..')
+def appModules = file('../../node_modules')
+def installedItar = new File(appModules, 'itar/package.json').isFile()
+    ? new File(appModules, 'itar') : new File(workspace, 'node_modules/itar')
+def hermesc = Os.isFamily(Os.FAMILY_WINDOWS) ? 'hermesc.exe' : 'hermesc'
+def localHermesBuild = new File(appModules, "react-native/ReactAndroid/hermes-engine/build/hermes/bin/${hermesc}")
+
 def itarOffline = providers.gradleProperty('itarOffline').orElse('false').get().toBoolean()
 react {
+    if (!hermesCommand.get() && !providers.environmentVariable('REACT_NATIVE_OVERRIDE_HERMES_DIR').orNull &&
+            !localHermesBuild.isFile() && !new File(appModules, 'hermes-compiler/hermesc').isDirectory()) {
+        hermesCommand = new File(workspace, "node_modules/hermes-compiler/hermesc/%OS-BIN%/${hermesc}").absolutePath
+    }
     if (itarOffline) {
-        // RN's generated asset task becomes a dependency of APK asset packaging.
+        // Bundle instrumentation builds so they can run without a Metro server.
         debuggableVariants = []
         extraPackagerArgs = ['--max-workers', '1']
-        hermesCommand = file('../../../../node_modules/hermes-compiler/hermesc/%OS-BIN%/hermesc').absolutePath
+    }
+}
+// RN tracks the app's JS/TS files by default. Metro also bundles the installed
+// Itar package (usually a workspace symlink), app data, and Cinema media.
+tasks.configureEach { task ->
+    if (task.name.startsWith('createBundle') && task.name.endsWith('JsAndAssets')) {
+        task.inputs.dir(new File(installedItar.canonicalFile, 'src'))
+            .withPropertyName('itarJsSources').withPathSensitivity(PathSensitivity.RELATIVE)
+        task.inputs.files(new File(installedItar, 'package.json'), new File(workspace, 'package-lock.json'),
+                          file('../../package.json'), file('../../app.json'))
+            .withPropertyName('itarBundleManifests').withPathSensitivity(PathSensitivity.RELATIVE)
+        task.inputs.dir(file('../../ott/assets'))
+            .withPropertyName('cinemaAssets').withPathSensitivity(PathSensitivity.RELATIVE)
     }
 }
 android {

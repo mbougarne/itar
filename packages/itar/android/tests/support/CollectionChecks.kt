@@ -24,7 +24,7 @@ object CollectionChecks {
         val initial = checkNotNull(CollectionDocument.decode(text))
         check(initial.nodes.all { it.rowEntry == 0 })
         val policy = text.replace("\"extent\":200", "\"extent\":200,\"rowEntry\":1")
-        for (value in listOf("2", "-1", "0.5", "\"1\"", "null")) {
+        for (value in listOf("3", "-1", "0.5", "\"1\"", "null")) {
             check(CollectionDocument.decode(policy.replace("\"rowEntry\":1", "\"rowEntry\":$value")) == null)
         }
         Connection().use { connection ->
@@ -56,7 +56,7 @@ object CollectionChecks {
             check(destination().contentEquals(node("first")))
             check(query(owner = 3)[1] == 4L) // Screen reader retains directional ownership.
             check(publish(initial) == 3L) // Older policy dataset is stale.
-            check(publish(first.copy(dataset = 3), first.values().also { it[5] = 2 }) == -2L)
+            check(publish(first.copy(dataset = 3), first.values().also { it[5] = 3 }) == -2L)
             check(publish(first.copy(dataset = 3), first.values().copyOf(5)) == -2L)
             check(destination().contentEquals(node("first")))
             val invalid = first.copy(dataset = 3, nodes = first.nodes.map {
@@ -70,6 +70,11 @@ object CollectionChecks {
             check(publish(initial.copy(dataset = 3)) == 0L)
             val restored = query(direction = 2)
             check(restored[1] == 0L && restored.copyOfRange(2, 4).contentEquals(source))
+            val remembered = checkNotNull(CollectionDocument.decode(policy.replace("\"rowEntry\":1", "\"rowEntry\":2")))
+            check(publish(remembered.copy(dataset = 4)) == 0L)
+            check(query(direction = 2).copyOfRange(2, 4).contentEquals(source))
+            check(connection.exchange(4, longArrayOf(0, 0, source[0], source[1], 1))[0] == 0L)
+            check(query().copyOfRange(2, 4).contentEquals(nearest))
         }
     }
     fun leadingRowOffsets() {

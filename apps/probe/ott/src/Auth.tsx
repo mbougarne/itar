@@ -16,6 +16,7 @@ import {
 } from 'itar/react';
 import { Action } from './components/Action';
 import { useDesign } from './theme';
+import { useAppleTVMenu } from './useAppleTVMenu';
 
 export default function Auth({ onSignIn }: { onSignIn: () => void }) {
   const { s, u } = useDesign();
@@ -28,6 +29,8 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
   const passwordInput = useRef<TextInput>(null);
   const commands = useFocusCommands();
   const ready = useFocusReady();
+
+  useAppleTVMenu(!!form);
 
   useEffect(() => {
     if (!ready || editing || (Platform.OS === 'android' && form)) {
@@ -159,6 +162,10 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
                   )}
                   accessibilityRole="button"
                   accessibilityLabel={action.label}
+                  accessibilityActions={[{ name: 'activate' }]}
+                  onAccessibilityAction={({ nativeEvent }) => {
+                    if (nativeEvent.actionName === 'activate') action.onPress();
+                  }}
                   onPress={action.onPress}
                 >
                   <View

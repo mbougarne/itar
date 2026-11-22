@@ -111,7 +111,7 @@ extension ItarSurfaceHost {
             if current.isEmpty { return true }
             guard let scope = scopes[current], let view = scope.view, view.active,
                   view.owner === self, window != nil, view.window === window, view.nearestSurface() === self,
-                  collections.accepts(current, dataset: view.collectionDataset, scope: true) else { return false }
+                  collections.accepts(view) else { return false }
             current = view.parentKey
         }
         return false
@@ -154,6 +154,6 @@ extension ItarSurfaceHost {
             scope.view?.registeredKey = ""
             if view.collectionDataset.isEmpty && scope.node.slot != 0 && collections.entry(key) == nil { mutations.append(EngineMutation(kind: 3, key: key, expected: scope.node)) }
         }
-        if !mutations.isEmpty { dispatcher?.enqueue(.apply(mutations)) }
+        if !mutations.isEmpty { dispatcher?.enqueue(.retireScope(mutations)) }
     }
 }

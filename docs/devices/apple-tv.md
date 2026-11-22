@@ -29,10 +29,28 @@ For a physical Apple TV, pair it with Xcode, open `apps/probe/ios/ItarProbe.xcwo
 3. Open a nonfirst movie card, enter the player, and return through Details to the catalogue. Compare the opener with the restored card. Repeat with clicks, then swipes, then held/repeated input; gesture momentum can change the sequence.
 4. Repeat in VoiceOver navigation and exploration modes. Record which element VoiceOver visits, speaks and activates. Check the outline and focus feedback again with Reduce Motion enabled.
 
+## Record a D-pad or Select interaction with Occo
+
+Occo runs in the **Debug** build of Cinema. New shells include the wiring. For an existing shell, run `node scripts/wire-apple-probe.cjs` from the repository root, then run `bundle _2.6.9_ exec pod install` in `apps/probe/ios` and rebuild.
+
+1. Open Cinema **Settings** and select **Start Occo recording**. In Browse, move between two cards, press Select, then go Back.
+2. Return to Settings and select **Freeze and inspect Occo recording**. On a directional event, compare the press received by the window with UIKit’s focus proposal, any Itar request, and the observed destination. On Select, look for the next observed activation and its card. VoiceOver focus appears on its own channel. Gestures and input handled before the app may have no recorded key.
+3. Choose **Export recording**. Copy the file from the development app’s cache before tvOS reclaims it. Substitute your device name and the bundle identifier you signed.
+
+   ```sh
+   xcrun devicectl device copy from --device "YOUR APPLE TV" \
+     --domain-type appDataContainer --domain-identifier YOUR_BUNDLE_ID \
+     --source Library/Caches/occo/latest.json --destination apple-tv-focus.json
+   ```
+
+Open [the offline viewer](../../apps/probe/occo/viewer.html) and choose the exported file to inspect it on another computer. Each export replaces the previous file on the TV. Give each copy a different filename.
+
 ## What has been observed
 
 A development-signed Release build displayed catalogue content and artwork on physical Apple TV HD (4th generation) running tvOS 26.6.1. Settings displayed its heading without the expected controls. The tester also reported difficulty returning to the sidebar and a Home entry that stopped responding to directions.
 
-On a tvOS 26.5 simulator, the Home failure was reproduced and the repair passed two cold-launch, card and sidebar re-entry cycles with VoiceOver off. A later build was installed and launched on the physical TV; confirmation of visible Home navigation after that install is still pending. Settings, Siri Remote gestures and both VoiceOver modes also need a hardware run.
+On a tvOS 26.5 simulator, the Home repair passed two cold-launch, card and sidebar re-entry cycles with VoiceOver off.
+
+A later Cinema development build passed remote-button tests on a physical Apple TV HD running tvOS 26.6.1. XCTest sent D-pad, Select and Menu inputs. Home opened Details and restored the opener on return. In Movies, Down from **All** reached the first card. Settings accepted focus, and the tester could start, mark, freeze and export an Occo recording using the remote controls. The recording reopened in the offline viewer. This run used VoiceOver off. Handheld swipes and spoken VoiceOver feedback still need a hardware check.
 
 Separate hosted UIKit tests on a tvOS 27 simulator exercised collection reveal, cancellation, observed focus and single-host ownership for custom card content. These fixtures can drive selected host operations directly. To run the simulator fixtures, wire test targets into a freshly generated shell with `bundle _2.6.9_ exec ruby probes/apple/tests/wire-tests.rb`. Run `bundle _2.6.9_ exec pod install` inside `apps/probe/ios` to update the generated workspace, then select the **ItarAppleTests** scheme in Xcode. The separate **ItarRemoteTests** scheme drives simulator remote buttons and expects Metro on port 8096. [Test wiring and fixtures](../../probes/apple/tests/)

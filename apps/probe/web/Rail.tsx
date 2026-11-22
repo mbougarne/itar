@@ -29,6 +29,11 @@ export function Rail({
   const focus = useFocusState();
   const store = useWebStore();
   const previousAlignment = useRef(alignment);
+  const pinned = alignment === 'pinned';
+
+  const content =
+    rail.items.length * extent +
+    (pinned && rail.items.length ? Math.max(0, width - extent) : 0);
 
   const focused = rail.items.findIndex(
     item => item.occurrenceKey === focus.occurrenceKey,
@@ -61,23 +66,25 @@ export function Rail({
 
     const index = requested >= 0 ? requested : focused;
 
-    const content = rail.items.length * extent;
     const maximum = Math.max(0, content - width);
     const current = reversed ? maximum + view.scrollLeft : view.scrollLeft;
 
-    setStart(Math.floor(current / extent));
+    setStart(
+      Math.floor((pinned && reversed ? maximum - current : current) / extent),
+    );
 
     if (
       !active ||
       !directionalNavigationEnabled ||
       index < 0 ||
       (requested >= 0 ? changed : !store.canAlign()) ||
-      (requested < 0 && alignment !== 'leading')
+      (requested < 0 && alignment === 'nearest')
     ) {
       return;
     }
 
-    const itemStart = index * extent;
+    const itemStart =
+      pinned && reversed ? content - (index + 1) * extent : index * extent;
 
     const offset = horizontalScrollOffset(
       itemStart,
@@ -85,18 +92,22 @@ export function Rail({
       current,
       width,
       content,
-      alignment,
+      pinned ? 'leading' : alignment,
       reversed,
     );
 
     view.scrollLeft = reversed ? offset - maximum : offset;
-    setStart(Math.floor(offset / extent));
+
+    setStart(
+      Math.floor((pinned && reversed ? maximum - offset : offset) / extent),
+    );
   }, [
     requested,
     focused,
     extent,
     width,
-    rail.items.length,
+    content,
+    pinned,
     alignment,
     active,
     store,
@@ -120,8 +131,12 @@ export function Rail({
         onScroll={event => {
           const view = event.currentTarget;
 
+          const reversed = getComputedStyle(view).direction === 'rtl';
+
           const offset =
-            getComputedStyle(view).direction === 'rtl'
+            pinned && reversed
+              ? -view.scrollLeft
+              : reversed
               ? Math.max(0, view.scrollWidth - view.clientWidth) +
                 view.scrollLeft
               : view.scrollLeft;
@@ -132,7 +147,7 @@ export function Rail({
         <div
           style={{
             height: height - headerHeight,
-            width: rail.items.length * extent,
+            width: content,
             ...htmlStyles.relative,
           }}
         >
@@ -144,7 +159,9 @@ export function Rail({
                 key={item.occurrenceKey}
                 style={{
                   ...itemStyles.cell,
-                  left: index * extent,
+                  ...(pinned
+                    ? { start: index * extent }
+                    : { left: index * extent }),
                   width: extent,
                   height: height - headerHeight,
                 }}

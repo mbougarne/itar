@@ -1,6 +1,10 @@
 package com.itar.adapter
 
 import android.content.Context
+import android.view.View
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.FrameLayout
+import android.widget.ScrollView
 
 /** Actual host focus must survive a policy-only publication before React acknowledges it. */
 class RowEntryHostChecks(context: Context) {
@@ -28,6 +32,47 @@ class RowEntryHostChecks(context: Context) {
         check(target.requestFocus()); root.observe()
         mounted = checkNotNull(target.mount)
         check(root.live(mounted) === target)
+    }
+    fun readerScroll() {
+        check(root.readerOwnsInput && root.collections.dataset == 1L && root.hasWindowFocus())
+        // A stationary control remains eligible while the collection scrolls beneath it.
+        val filter = TargetView(root.context).apply { occurrenceKey = "filter"; actionLabel = "Filter" }
+        root.addView(filter)
+        val scroll = ScrollView(root.context)
+        val rows = FrameLayout(root.context).apply { minimumHeight = 600 }
+        outer.removeView(row)
+        rows.addView(row, FrameLayout.LayoutParams(300, 80).apply { topMargin = 30 })
+        scroll.addView(rows)
+        outer.addView(scroll)
+        root.layout(0, 0, 800, 600)
+        filter.layout(0, 0, 100, 60)
+        outer.layout(0, 70, 300, 270)
+        fun exact(size: Int) = View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY)
+        scroll.measure(exact(300), exact(200))
+        scroll.layout(0, 0, 300, 200)
+        target.layout(0, 0, 100, 80)
+        target.commitProps(); filter.commitProps(); root.refreshGeometry()
+        val mount = checkNotNull(target.mount)
+        check(root.live(mount) === target && target.requestFocus())
+        var requests = 0
+        root.onRequestRecord = { requests++ }
+        fun scrollTo(y: Int) {
+            scroll.scrollTo(0, y)
+            check(scroll.scrollY == y)
+            root.refreshGeometry()
+        }
+        scrollTo(31)
+        check(target.hasFocus() && target.mount == mount) {
+            "A one-pixel scroll clip evicted the reader's current input focus"
+        }
+        check(target.committedBounds.isEmpty && root.live(mount) == null && !target.performClick())
+        check(filter.performAccessibilityAction(AccessibilityNodeInfo.ACTION_FOCUS, null))
+        check(filter.hasFocus() && !target.isFocusable && !target.requestFocus())
+        scrollTo(0)
+        check(target.requestFocus())
+        scrollTo(111)
+        check(!target.isFocusable && !target.hasFocus() && !target.requestFocus())
+        check(requests == 0 && !root.closed) { "Scrolling or reader focus issued an Itar request" }
     }
     fun horizontal() {
         row.removeView(target)

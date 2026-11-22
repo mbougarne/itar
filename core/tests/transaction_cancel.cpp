@@ -1,7 +1,41 @@
 #include "transaction_fixture.hpp"
 
+#include <array>
+
+namespace {
+void targetGeometryDuringIssuedMove(bool generalBatch) {
+  using namespace itar;
+  TransactionFixture f;
+  const auto request = f.tx.requestFocus(OccurrenceKey{"20"}, f.input, f.options);
+  CHECK(request.status == RequestStatus::started);
+  const auto movement = f.tx.drainEffects().at(0);
+  CHECK(f.tx.issue(movement.token).status == RequestStatus::issued);
+
+  const auto& registry = f.state.snapshot().registry;
+  std::array updates{
+      Mutation{MutationKind::update, *registry.key(f.b), f.b, *registry.key(f.row), *registry.lookup(f.b)},
+      Mutation{MutationKind::update, *registry.key(f.row), f.row, {}, *registry.lookup(f.row)}};
+  const auto batch = std::span{updates}.first(generalBatch ? 2 : 1);
+  updates[0].record.geometry.layout = LayoutRevision{2};
+  updates[0].record.geometry.bounds.x = 32;
+  CHECK(f.tx.apply({f.state.surface(), f.state.snapshot().revision, batch}).status == BatchStatus::valid);
+  CHECK(f.tx.active() && f.tx.active()->id == request.request);
+  CHECK(f.tx.active()->revision == f.state.snapshot().revision && f.tx.drainEffects().empty());
+
+  updates[0].record.geometry.layout = LayoutRevision{3};
+  updates[0].record.geometry.state = GeometryState::clipped;
+  CHECK(f.tx.apply({f.state.surface(), f.state.snapshot().revision, batch}).status == BatchStatus::valid);
+  CHECK(!f.tx.active());
+  const auto cleanup = f.tx.drainEffects();
+  CHECK(cleanup.size() == 1 && cleanup[0].cancels == movement.token);
+  CHECK(f.state.snapshot().inputFocus == f.input.source);
+}
+}  // namespace
+
 int main() {
   using namespace itar;
+  targetGeometryDuringIssuedMove(false);
+  targetGeometryDuringIssuedMove(true);
   TransactionFixture f;
   auto old = f.tx.requestFocus(OccurrenceKey{"20"}, f.input, f.options).request;
   auto movement = f.tx.drainEffects()[0];

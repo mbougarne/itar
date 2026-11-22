@@ -16,16 +16,38 @@ function evaluate(file, imports, globals = {}) {
 }
 const {occurrenceKey} = evaluate('packages/itar/src/api/types.ts');
 const {layoutRows} = evaluate('apps/probe/ott/src/browse-layout.ts');
+const {createStyles} = evaluate('apps/probe/ott/src/styles.ts', () => ({StyleSheet: {create: styles => styles}}));
+const cinemaStyles = createStyles(1);
 const film = {id: 'title-b', title: 'Title B', kind: 'movie', year: 2026, category: 'Drama', synopsis: '', art: 0};
 const recommendation = {...film, id: 'title-c', title: 'Title C'};
-const catalogue = {hero: film, films: [film, recommendation], cast: []};
+const castMember = {id: 'cast-a', name: 'Actor A', role: 'Lead'};
+const catalogue = {hero: film, films: [film, recommendation], cast: [castMember]};
 const nodes = node => !node?.props ? [] : [node, ...node.props.children.flatMap(nodes)];
 
 test('details keep decorative glyphs visual and accessible names plain', () => {
   const f = fixture('');
   const details = f.component('Details', {film, active: true, onPlay() {}, onOpen() {}, highContrast: false});
   assert.equal(details.find('Action', 'Play demo').props.displayLabel, '▶  Play demo');
-  assert.equal(details.find('Action', 'My list').props.displayLabel, '＋  My list');
+  assert.equal(details.find('Action', 'Add to My List').props.displayLabel, '＋  My List');
+});
+
+test('Details reserves a gutter and a caption for each recommendation and cast card', () => {
+  const details = fixture('').component('Details', {film, active: true, onPlay() {}, onOpen() {}, highContrast: false});
+  details.layout();
+  function checkCard(caption, alignment) {
+    const rails = details.find('Rails').props;
+    assert.equal(rails.horizontalAlignment, alignment);
+    const rail = rails.rails[0];
+    assert.ok(rail.itemStyle.marginEnd > 0);
+    assert.equal(rail.itemStyle.width + rail.itemStyle.marginEnd, rail.itemExtent);
+    assert.equal(rail.itemStyle.height, rails.rowExtent);
+    const card = nodes(rails.renderItem(rail.items[0]));
+    assert.equal(card.find(node => node.type === 'Text').props.children[0], caption);
+    assert.ok(card.find(node => node.type === 'Picture').props.style.height < rails.rowExtent);
+  }
+  checkCard(recommendation.title, 'leading');
+  details.find('Action', 'Cast & crew').props.onPress(); details.render();
+  checkCard(castMember.name, 'nearest');
 });
 
 test('the Home backdrop scrolls with its hero and the following rails retain their headings', () => {
@@ -39,13 +61,187 @@ test('the Home backdrop scrolls with its hero and the following rails retain the
   assert.ok(rails.headerExtent > 34, 'the 34-unit heading needs room below it');
 });
 
-test('Home showcases first-card entry and leading alignment while grids keep the source column', () => {
+test('Home remembers row entry and pins the focused card while grids keep the source column', () => {
   for (const featured of [true, false]) {
     const browse = fixture('').component('Browse', {id: 'browse', mode: 'fixture', active: true, featured, grid: !featured});
     browse.layout();
     const rails = browse.find('Rails').props;
-    assert.equal(rails.rowEntry, featured ? 'first' : 'nearest');
-    assert.equal(rails.horizontalAlignment, featured ? 'leading' : 'nearest');
+    assert.equal(rails.rowEntry, featured ? 'remembered' : 'nearest');
+    assert.equal(rails.horizontalAlignment, featured ? 'pinned' : 'nearest');
+    assert.equal(rails.viewportHeight, featured ? 744 : 800, 'Home leaves 56 design pixels below its focusable viewport');
+    if (!featured) {
+      const row = rails.rails[0];
+      assert.equal(row.itemExtent * 5, rails.viewportExtent, 'five grid cells must fit without horizontal scrolling');
+      assert.equal(row.itemStyle.width + 2 * row.itemStyle.marginStart, row.itemExtent, 'the outer half gutters match');
+    }
+  }
+});
+
+test('Home gives previews and playback history stable placements separate from ordinary cards', () => {
+  const {component} = fixture('');
+  const movie = {...film, source: 'tmdb'};
+  const watching = [
+    {film: movie, position: 30, duration: 120},
+    {film: {...movie, source: 'tmdb-mock'}, position: 20, duration: 100},
+  ];
+  let opened;
+  const props = {id: 'home', active: true, featured: true, mode: 'fixture', continueWatching: watching,
+    onOpen: (title, key) => { opened = [title, key]; }};
+  const browse = component('Browse', props);
+  browse.layout();
+  const rails = browse.find('Rails').props;
+  const [history, normal] = rails.rails;
+  assert.equal(history.id, 'continue-watching');
+  assert.equal(rails.renderItem(history.items[0]).props.entry, watching[0]);
+  assert.match(history.items[0].accessibilityLabel, /25% watched/);
+  assert.notEqual(history.items[0].occurrenceKey, history.items[1].occurrenceKey);
+  history.items[0].onPress();
+  assert.deepEqual(opened, [movie, history.items[0].occurrenceKey]);
+  const preview = rails.rails.find(row => row.id === 'home-previews');
+  assert.equal(preview.itemStyle.width, normal.itemStyle.width * 2);
+  assert.equal(rails.renderItem(preview.items[0]).type, 'HomePreviewCard');
+  assert.notEqual(preview.items[0].occurrenceKey, normal.items[0].occurrenceKey);
+  const firstNormalKey = normal.items[0].occurrenceKey;
+  props.continueWatching = [];
+  browse.render();
+  assert.equal(browse.find('Rails').props.rails[0].items[0].occurrenceKey, firstNormalKey);
+});
+
+test('the More below cue tracks content after the focused row and stays out of navigation', () => {
+  let key = 'hero';
+  const {ContentBelowCue} = evaluate('apps/probe/ott/src/components/ContentBelowCue.tsx', name => ({
+    react: {useMemo: fn => fn(), createElement: (type, props) => ({type, props})},
+    'react-native': {StyleSheet: {create: value => value}, View: 'View'},
+    'itar/react': {useFocusState: () => ({kind: 'managed', occurrenceKey: key})},
+    '../theme': {useDesign: () => ({u: 1})},
+  })[name]);
+  const rails = ['first', 'last', 'pagination'].map(id => ({id, items: [{occurrenceKey: id}]}));
+  const cue = (hasNextPage = false, active = true) => ContentBelowCue({rails, heroKey: 'hero', hasNextPage, active});
+  assert.equal(cue().props.importantForAccessibility, 'no-hide-descendants');
+  key = 'first';
+  assert.equal(cue().props.pointerEvents, 'none');
+  key = 'last';
+  assert.equal(cue(), null);
+  assert.ok(cue(true));
+  key = 'pagination';
+  assert.equal(cue(true), null);
+  key = 'sidebar';
+  assert.equal(cue(true), null);
+  key = 'first';
+  assert.equal(cue(true, false), null);
+});
+
+test('a focused Home preview waits for dwell, returns to its thumbnail and stops on route changes', t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  const f = fixture('preview');
+  let reader = false, foreground, active = false;
+  const preview = evaluate('apps/probe/ott/src/components/HomePreviewCard.tsx', name => ({
+    react: {...f.hooks, createContext: () => ({Provider: 'PreviewProvider'}), useContext: () => active},
+    'react-native': {View: 'View', Text: 'Text', StyleSheet: {create: v => v}, Platform: {OS: 'android'},
+      AppState: {currentState: 'active', addEventListener: (_, fn) => { foreground = fn; return {remove() { foreground = null; }}; }}},
+    'itar/react': {useIsFocused: key => key === 'preview', useScreenReaderEnabled: () => reader},
+    '../theme': {useDesign: () => ({u: 1})}, '../artwork': {filmArtwork: () => 0},
+    './Picture': {Picture: 'Picture'}, './PreviewVideo': {PreviewVideo: 'Video'},
+  })[name], {setTimeout, clearTimeout});
+  const gate = f.mount(preview.HomePreviewProvider, {active: true});
+  active = gate.tree().props.value;
+  const props = {film, width: 600, height: 300, occurrence: 'neighbor'};
+  const card = f.mount(preview.HomePreviewCard, props);
+  assert.ok(card.find('Picture').props.style.width < props.width);
+  props.occurrence = 'preview'; card.render();
+  const sessionElement = card.tree().props.children[0];
+  assert.equal(sessionElement.props.poster.props.style.width, props.width);
+  reader = true; gate.render();
+  assert.equal(gate.tree().props.value, false);
+  reader = false; gate.render();
+  assert.equal(gate.tree().props.value, true);
+  const session = f.mount(sessionElement.type, sessionElement.props);
+  assert.ok(session.find('Picture'));
+  assert.equal(session.find('Video'), undefined);
+  const tick = ms => { t.mock.timers.tick(ms); session.render(); };
+  tick(699); assert.equal(session.find('Video'), undefined);
+  tick(1); assert.ok(session.find('Video'));
+  assert.ok(session.find('Picture'), 'artwork covers the player while it buffers');
+  session.find('Video').props.onReady(); session.render();
+  assert.equal(session.find('Picture'), undefined, 'no artwork occludes the playing video');
+  tick(9999); assert.ok(session.find('Video'));
+  tick(1); assert.ok(session.find('Picture')); assert.equal(session.find('Video'), undefined);
+  tick(15000); assert.equal(session.find('Video'), undefined, 'no replay until another focus visit');
+  session.unmount();
+  const background = f.mount(sessionElement.type, sessionElement.props);
+  t.mock.timers.tick(700); background.render();
+  const fromPlayer = background.find('Video').props;
+  foreground('background'); background.render();
+  assert.equal(background.find('Video'), undefined);
+  fromPlayer.onReady(); background.render();
+  assert.equal(background.find('Video'), undefined, 'a late media callback cannot restart a hidden preview');
+  background.unmount();
+  active = false; card.render();
+  assert.ok(card.find('Picture'));
+});
+
+test('both Home preview players use muted passive playback and release the web stream on exit', () => {
+  let finishes = 0, cleanup;
+  const calls = [];
+  const media = {
+    play: () => { calls.push('play'); return Promise.resolve(); }, pause: () => calls.push('pause'),
+    removeAttribute: value => calls.push('remove ' + value), load: () => calls.push('load'),
+  };
+  const props = {onReady() {}, onFinish: () => finishes++};
+  const imports = name => ({
+    react: {createElement: (type, attributes) => ({type, props: attributes}),
+      useRef: () => ({current: media}), useEffect: fn => { cleanup = fn(); }},
+    'react-native': {StyleSheet: {}},
+    'react-native-video': {__esModule: true, default: 'Video', ViewType: {TEXTURE: 0}},
+    '../../assets/cinematic/big_buck_bunny_preview.mp4': {uri: 'local-demo.mp4'},
+  })[name];
+  const file = 'apps/probe/ott/src/components/PreviewVideo';
+  const native = evaluate(file + '.tsx', name =>
+    name.endsWith('.mp4') ? 42 : imports(name)).PreviewVideo(props).props;
+  assert.equal(native.muted, true); assert.equal(native.controls, false); assert.equal(native.focusable, false);
+  assert.equal(native.viewType, 0, 'the inline player requests a composited Android texture');
+  assert.equal(native.source.uri, 42, 'Metro resolves the bundled video asset');
+  native.onProgress({currentTime: 9.9}); assert.equal(finishes, 0);
+  native.onProgress({currentTime: 10}); assert.equal(finishes, 1);
+  const web = evaluate(file + '.web.tsx', imports).PreviewVideo(props).props;
+  assert.equal(media.muted, true); assert.equal(web.tabIndex, -1); assert.equal(web.controls, undefined);
+  assert.equal(web.src, 'local-demo.mp4');
+  web.onTimeUpdate({currentTarget: {currentTime: 10}}); assert.equal(finishes, 2);
+  cleanup(); assert.deepEqual(calls, ['play', 'pause', 'remove src', 'load']);
+});
+
+test('hiding a catalogue can report a zero-sized layout without discarding its scroll window', () => {
+  const props = {id: 'series', active: true, mode: 'fixture', grid: true};
+  const browse = fixture('').component('Browse', props);
+  browse.layout(1200, 0);
+  assert.equal(browse.find('Rails'), undefined);
+  browse.layout(1200, 800);
+  props.active = false;
+  browse.render();
+  for (const [width, height] of [[0, 0], [0, 800], [1200, 0]]) {
+    browse.layout(width, height);
+    const rails = browse.find('Rails')?.props;
+    assert.ok(rails, 'the retained FlatList must not be removed between routes');
+    assert.equal(rails.active, false);
+    assert.equal(rails.viewportHeight, 800);
+    assert.equal(rails.viewportExtent, 1200);
+  }
+  props.active = true;
+  browse.render();
+  browse.layout(960, 600);
+  assert.equal(browse.find('Rails').props.viewportHeight, 600);
+  assert.equal(browse.find('Rails').props.viewportExtent, 960);
+});
+
+test('Details splits spare room around recommendations and fits shorter panels', () => {
+  const details = fixture('').component('Details', {film, active: true});
+  for (const height of [390, 120]) {
+    details.layout(1200, height);
+    const rail = details.find('Rails');
+    const strip = nodes(details.tree()).find(node => node.props.children.includes(rail));
+    const expected = Math.max(0, (height - rail.props.rowExtent) / 2);
+    assert.equal(strip.props.style.marginTop, expected);
+    assert.equal(rail.props.viewportHeight, Math.min(height, rail.props.rowExtent));
   }
 });
 
@@ -59,6 +255,25 @@ test('narrow Search rows keep named results and enough room for the pagination c
   assert.equal(rails.rails[0].items[0].accessibilityLabel, 'Title B, Movie');
   assert.equal(rails.rails.at(-1).id, 'pagination');
   assert.ok(rails.rowExtent >= 116 + 56, 'feedback and its button must fit in the same row');
+});
+
+test('Search fits five cards beside the keyboard and preserves the fifth occurrence when another page arrives', () => {
+  const f = fixture('', 'applied', 'ios');
+  const page = id => ({id, title: id, entries: Array.from({length: 5},
+    (_, i) => ({...film, id: id + i}))});
+  f.catalogueState.rows = [page('first')];
+  const search = f.component('Search', {id: 'search', active: true});
+  search.layout(1117, 730);
+  const browse = f.component('Browse', search.find('Browse').props);
+  browse.layout(1117, 645);
+  const rails = () => browse.find('Rails').props;
+  const first = rails().rails[0];
+  assert.equal(first.itemExtent * first.items.length, rails().viewportExtent);
+  const fifth = first.items[4].occurrenceKey;
+  f.catalogueState.rows = [...f.catalogueState.rows, page('next')];
+  browse.render();
+  assert.equal(rails().rails[0].items[4].occurrenceKey, fifth);
+  assert.equal(rails().horizontalAlignment, 'nearest');
 });
 
 test('web Search recovers only its own focused edit control when the query becomes empty', () => {
@@ -111,33 +326,193 @@ test('initial web retry waits for committed results and respects focus ownership
   }
 });
 
+test('tvOS Home opens for remote input once the requested hero receives focus', async () => {
+  const f = fixture('', 'applied', 'ios');
+  const home = () => f.app.find('Browse').props;
+  const hero = occurrenceKey(home().id, 'hero', film.id);
+  const page = () => nodes(f.app.tree()).find(node => node.props.id === 'page');
+  home().onHomeLoading();
+  f.app.render();
+  assert.equal(f.app.find('Sidebar').props.active, false);
+  home().onReady(hero);
+  assert.deepEqual(f.requests, [], 'the loader must be removed before the hero request');
+  f.app.render();
+  assert.deepEqual(f.requests, [hero]);
+  assert.equal(f.app.find('Sidebar').props.active, false, 'dispatching a request does not mean the hero has focus');
+  f.focusOn(occurrenceKey(home().id, 'hero-guide'), '41');
+  assert.equal(f.app.find('Sidebar').props.active, false, 'an unrelated observation cannot release the guard');
+  f.focusOn(hero, '42');
+  assert.equal(f.app.find('Sidebar').props.active, true, 'Left can enter the sidebar before the receipt');
+  assert.equal(page().props.entryReady, true, 'Down can enter the catalogue before the receipt');
+  f.focusOn(occurrenceKey('nav', 'Home'));
+  await Promise.resolve();
+  f.app.render();
+  assert.equal(f.app.find('Sidebar').props.expanded, true);
+  assert.deepEqual(f.requests, [hero], 'a late receipt must not pull focus back');
+
+  const opener = occurrenceKey(home().id, 'popular', film.id);
+  home().onOpen(film, opener);
+  f.app.render();
+  f.close();
+  home().onReady(hero);
+  f.app.render();
+  assert.equal(f.requests.at(-1), opener);
+  assert.equal(f.app.find('Sidebar').props.active, false, 'returning to an opener keeps the restore guard');
+});
+
+for (const platform of ['android', 'ios', 'web']) {
+  test(`Home loading keeps the shell out of focus through the first fetch and retry on ${platform}`, async () => {
+    const f = fixture('', 'applied', platform);
+    const home = {...f.app.find('Browse').props, mode: 'proxy'};
+    Object.assign(f.catalogueState, {rows: [], error: '', loading: true, ended: false});
+    const browse = f.component('Browse', home);
+    const update = () => {
+      f.app.render();
+      Object.assign(home, f.app.find('Browse').props, {mode: 'proxy'});
+      browse.render();
+    };
+    const loader = () => nodes(f.app.tree()).some(node => node.props.children.includes('Loading Home…'));
+    const scope = () => nodes(f.app.tree()).find(node => node.props.id === 'page');
+    const ready = () => browse.find('Rails').props.onReady();
+    browse.layout(); update();
+    assert.equal(loader(), true);
+    assert.equal(f.app.find('Sidebar').props.active, false);
+    assert.equal(scope().props.entryReady, false);
+    assert.equal(nodes(f.app.tree()).some(node => node.props.inert === true), platform === 'web');
+    assert.equal(browse.find('Rails'), undefined, 'no pagination target may receive focus while Home is loading');
+
+    Object.assign(f.catalogueState, {loading: false, error: 'offline'});
+    browse.render(); ready();
+    assert.deepEqual(f.requests, [], 'reveal the controls before asking for focus');
+    update();
+    assert.equal(loader(), false);
+    const pagination = () => browse.find('Rails').props.rails.at(-1).items[0];
+    assert.equal(pagination().accessibilityLabel, 'Retry fetch');
+    assert.equal(browse.find('Rails').props.listHeader, undefined);
+    assert.equal(scope().props.entryReady, false, 'hold automatic entry until the command settles');
+    assert.equal(f.app.find('Sidebar').props.active, false);
+    assert.equal(scope().props.preferredKey, platform === 'android' ? pagination().occurrenceKey : undefined);
+    assert.deepEqual(f.requests, [occurrenceKey(home.id, 'load-more')]);
+    await Promise.resolve(); update();
+    assert.equal(scope().props.entryReady, true);
+    pagination().onPress();
+    Object.assign(f.catalogueState, {loading: true, error: ''});
+    browse.render(); update();
+    assert.equal(loader(), true);
+
+    Object.assign(f.catalogueState, {loading: false, ended: true, rows: [{id: 'first', entries: [film]}]});
+    browse.render(); ready(); update();
+    assert.equal(scope().props.entryReady, false);
+    assert.equal(scope().props.preferredKey, platform === 'android' ? occurrenceKey(home.id, 'hero', film.id) : undefined);
+    assert.deepEqual(f.requests, [occurrenceKey(home.id, 'load-more'), occurrenceKey(home.id, 'hero', film.id)]);
+    await Promise.resolve(); update();
+    assert.equal(scope().props.entryReady, true);
+    Object.assign(f.catalogueState, {loading: true});
+    browse.render(); update();
+    assert.equal(loader(), false, 'background pagination keeps the ready screen interactive');
+    assert.ok(browse.find('Rails'));
+  });
+}
+
+test('Home catalogue props remain stable when input focus moves between cards', () => {
+  const f = fixture(occurrenceKey('nav', 'Home'));
+  const home = () => f.app.find('Browse').props;
+  const previous = home();
+  for (const key of ['first-card', 'second-card']) {
+    f.focusOn(key);
+    assert.equal(f.app.find('Sidebar').props.expanded, false);
+    for (const prop of Object.keys(previous)) {
+      // The JSX double gives every element a fresh array even when it has no children.
+      if (prop !== 'children') assert.equal(home()[prop], previous[prop], prop);
+    }
+  }
+  home().onGuide(occurrenceKey(previous.id, 'hero-guide')); f.app.render();
+  assert.equal(home().active, false, 'route changes must still reach the mounted catalogue');
+});
+
+test('an empty Home catalogue exposes its reload action without a placeholder hero', () => {
+  const f = fixture('');
+  Object.assign(f.catalogueState, {rows: [], error: '', loading: false, ended: true});
+  const home = f.component('Browse', {...f.app.find('Browse').props, mode: 'proxy'});
+  home.layout();
+  const rails = home.find('Rails').props;
+  assert.equal(rails.listHeader, undefined);
+  const reload = rails.rails[0].items[0];
+  assert.equal(reload.accessibilityLabel, 'Reload catalogue');
+  assert.equal(rails.renderDecoration(reload).props.children[0].props.initial, true);
+  rails.onReady();
+  assert.deepEqual(f.requests, [reload.occurrenceKey]);
+});
+
+test('Home publishes its four initial rails together, and a partial fetch failure still permits browsing', () => {
+  for (const fail of [false, true]) {
+    const f = fixture('');
+    const firstPage = Array.from({length: 20}, (_, index) => ({...film, id: 'title-' + index}));
+    Object.assign(f.catalogueState, {rows: [{id: 'first', entries: firstPage}], ended: false});
+    const home = f.component('Browse', {...f.app.find('Browse').props, mode: 'proxy'});
+    home.layout();
+    assert.equal(home.find('Rails'), undefined, 'no intermediate dataset during the initial fill');
+    if (fail) {
+      f.catalogueState.error = 'offline';
+    } else {
+      f.catalogueState.rows = [{id: 'full', entries: Array.from({length: 60}, (_, index) => ({...film, id: 'title-' + index}))}];
+    }
+    home.render();
+    const rails = home.find('Rails').props;
+    assert.equal(rails.rails[0].items.length, fail ? 5 : 15);
+    assert.deepEqual(Array.from(rails.rails.find(rail => rail.id === 'guide-preview').items, item => item.occurrenceKey),
+      [occurrenceKey(f.app.find('Browse').props.id, 'guide', 'open')], 'schedule metadata shares a single stable guide action');
+    if (fail) {
+      assert.equal(rails.rails.at(-1).items[0].accessibilityLabel, 'Retry fetch');
+      rails.onReady(); home.render();
+      Object.assign(f.catalogueState, {loading: true, error: ''});
+      home.render();
+      assert.ok(home.find('Rails'), 'retrying partial results keeps the visible catalogue mounted');
+    }
+  }
+});
+
 // Run the real component callbacks and effects without rendering native views.
 // The command double records intent; it cannot establish reader-owned focus.
-function fixture(inputKey, outcome = 'applied', platform = 'android') {
+function fixture(inputKey, outcome = 'applied', platform = 'android', readDetails) {
   let current, back;
   const requests = [];
+  const prompts = [];
+  const menuKeys = [];
+  const memoized = new Set();
   const requestKinds = [];
   const issue = (kind, key) => {
     requests.push(key); requestKinds.push(kind);
     return {cancel() {}, result: Promise.resolve({status: outcome})};
   };
-  const commands = {focusByKey: key => issue('focus', key), restoreFocusByKey: key => issue('restore', key)};
+  const commands = {focusByKey: key => issue('focus', key), restoreFocusByKey: key => issue('restore', key),
+    restoreScope: path => issue('scope', path.join('/'))};
   const react = {
+    memo: component => { memoized.add(component); return component; },
     createElement: (type, props, ...children) => ({type, props: {...props, children: children.flat(Infinity)}}),
     useState: initial => {
       const owner = current, i = owner.stateIndex++;
       if (!(i in owner.states)) { owner.states[i] = typeof initial === 'function' ? initial() : initial; }
-      return [owner.states[i], next => {
+      owner.setters[i] ??= next => {
         const value = typeof next === 'function' ? next(owner.states[i]) : next;
         if (!Object.is(value, owner.states[i])) { owner.states[i] = value; owner.dirty = true; }
-      }];
+      };
+      return [owner.states[i], owner.setters[i]];
     },
     useRef: initial => {
       const i = current.refIndex++;
       current.refs[i] ||= {current: initial};
       return current.refs[i];
     },
-    useMemo: callback => callback(), useCallback: callback => callback,
+    useMemo: callback => callback(),
+    useCallback: (callback, deps) => {
+      const slot = react.useRef(null);
+      if (!slot.current || deps.some((value, i) => !Object.is(value, slot.current.deps[i]))) {
+        slot.current = {callback, deps};
+      }
+      return slot.current.callback;
+    },
+    useLayoutEffect: (callback, deps) => react.useEffect(callback, deps),
     useEffect: (callback, deps) => {
       const owner = current, i = owner.effectIndex++, previous = owner.effects[i];
       if (!previous || deps.some((value, index) => !Object.is(value, previous.deps[index]))) {
@@ -145,14 +520,23 @@ function fixture(inputKey, outcome = 'applied', platform = 'android') {
       }
     },
   };
-  const focus = {kind: 'managed', occurrenceKey: inputKey};
+  let focus = {kind: 'managed', occurrenceKey: inputKey};
+  const library = {saved: [], watching: [], ready: true, error: ''};
+  const store = {toggle(value) {
+    library.saved = library.saved.some(saved => saved.id === value.id) ?
+      library.saved.filter(saved => saved.id !== value.id) : [value, ...library.saved];
+  }, progress(value, position, duration, ended) {
+    library.watching = library.watching.filter(entry => entry.film.id !== value.id);
+    if (!ended) library.watching.unshift({film: value, position, duration});
+  }, retry() {}};
   const catalogueState = {loading: false, error: '', ended: true, limitReached: false,
     rows: ['first', 'second'].map(id => ({id, title: id, entries: [film]}))};
-  let loadCalls = 0;
+  let loadCalls = 0, detailData;
   const imports = name => {
     if (name === 'react') { return react; }
     if (name === 'react-native') {
-      return {View: 'View', Text: 'Text', Image: 'Image', ScrollView: 'ScrollView', Platform: {OS: platform, isTV: true},
+      return {TVEventControl: {enableTVMenuKey: () => menuKeys.push(true), disableTVMenuKey: () => menuKeys.push(false)},
+        View: 'View', Text: 'Text', Image: 'Image', ScrollView: 'ScrollView', Alert: {alert: title => prompts.push(title)}, Platform: {OS: platform, isTV: true},
         useWindowDimensions: () => ({width: 1920}), BackHandler: {addEventListener: (_, callback) => {
           back = callback; return {remove() {}};
         }}};
@@ -162,12 +546,16 @@ function fixture(inputKey, outcome = 'applied', platform = 'android') {
         useFocusCommands: () => commands, useFocusReady: () => true, useFocusState: () => focus,
         useIsFocused: key => focus.kind === 'managed' && focus.occurrenceKey === key};
     }
-    if (name.endsWith('/theme')) { return {DesignTheme: 'Theme', useDesign: () => ({s: {}, u: 1})}; }
+    if (name.endsWith('/theme')) { return {DesignTheme: 'Theme', useDesign: () => ({s: cinemaStyles, u: 1})}; }
     if (name.startsWith('./components/')) {
       const component = name.split('/').at(-1);
+      if (component === 'HomePreviewCard') return {HomePreviewCard: component, HomePreviewProvider: 'HomePreviewProvider'};
       return {[component]: component};
     }
-    if (name === './artwork') { return {icons: {}, art: []}; }
+    if (name === './artwork') { return {icons: {}, portraits: {}, art: [], filmArtwork: value => value.art}; }
+    if (name === './useAppleTVMenu') {
+      return evaluate(`apps/probe/ott/src/useAppleTVMenu${platform === 'ios' ? '.ios' : ''}.ts`, imports);
+    }
     if (name === './navigation' || name === './android-focus-boundary') {
       return evaluate(`apps/probe/ott/src/${name.slice(2)}.ts`, imports);
     }
@@ -178,7 +566,13 @@ function fixture(inputKey, outcome = 'applied', platform = 'android') {
     if (name === './useCatalogue') {
       return {useCatalogue: () => ({state: catalogueState, loadMore: () => { loadCalls++; }, reload() {}, nextWindow() {}})};
     }
-    if (name === './tmdb') { return {fetchDetails: () => Promise.resolve({film: {...film, id: 'enriched-b', title: 'Enriched B'}})}; }
+    if (name === './detail-data') { return detailData ??= evaluate('apps/probe/ott/src/detail-data.ts', imports); }
+    if (name === './tmdb') { return {fetchDetails: readDetails ?? (() => Promise.resolve({
+      film: {...film, id: 'enriched-b', title: 'Enriched B'}, cast: [], related: [recommendation],
+    }))}; }
+    if (name === './useProfileLibrary') return {useProfileLibrary: () => ({library, store})};
+    if (name === './profile-library') return {libraryId: value => (value.source ?? 'fixture') + '/' + value.id};
+    if (name === './MyList') return {__esModule: true, default: 'MyList'};
     if (name === './browser-session') { return {readBrowserSession: () => ({mode: 'fixture', profile: 'Explorer'}), saveBrowserSession() {}}; }
     if (['./Profiles', './Settings', './Sidebar'].includes(name)) {
       const component = name.slice(2);
@@ -194,32 +588,55 @@ function fixture(inputKey, outcome = 'applied', platform = 'android') {
     AbortController, setTimeout: callback => { callback(); return 1; }, clearTimeout() {},
   }).default;
   function mount(component, props) {
-    const owner = {states: [], refs: [], effects: [], pending: []};
+    const owner = {states: [], setters: [], refs: [], effects: [], pending: [], renders: 0};
     const render = () => {
       let passes = 0;
       do {
         assert.ok(passes++ < 15, 'component effects must settle');
         current = owner; owner.dirty = false;
         owner.stateIndex = owner.refIndex = owner.effectIndex = 0;
+        owner.renders++;
         owner.tree = component(props);
         owner.pending.splice(0).forEach(run => run());
       } while (owner.dirty);
     };
     render();
-    return {render, tree: () => owner.tree,
+    return {render, dirty: () => owner.dirty, renders: () => owner.renders, tree: () => owner.tree, unmount: () => owner.effects.forEach(effect => effect?.cleanup?.()),
       find: (type, label) => nodes(owner.tree).find(node => node.type === type && (!label || node.props.label === label)),
-      layout: () => {
+      layout: (width = 1200, height = 800) => {
         nodes(owner.tree).filter(node => node.props.onLayout).forEach(node =>
-          node.props.onLayout({nativeEvent: {layout: {width: 1200, height: 800}}}));
+          node.props.onLayout({nativeEvent: {layout: {width, height}}}));
         render();
       }};
   }
-  const app = mount(load('src/Cinema'), {});
+  const observer = mount(load('src/Cinema'), {});
+  const routeProps = {...observer.tree().props};
+  const routeType = observer.tree().type;
+  const routes = mount(routeType, routeProps);
+  function update(force) {
+    do {
+      observer.render();
+      const next = observer.tree().props;
+      // The JSX double always supplies an empty children array, which real JSX omits.
+      const changed = Object.keys(next).some(key => key !== 'children' && !Object.is(next[key], routeProps[key]));
+      Object.assign(routeProps, next);
+      if (force || routes.dirty() || changed || !memoized.has(routeType)) routes.render();
+      force = false;
+    } while (observer.dirty());
+  }
+  const app = {...routes, render: () => update(true)};
   const component = (name, props) => mount(load(`src/${name}`), props);
-  return {app, component, requests, requestKinds, catalogueState, loadCalls: () => loadCalls,
+  return {app, component, mount, hooks: react, requests, requestKinds, prompts, menuKeys, catalogueState, loadCalls: () => loadCalls,
+    focusOn: (key, mount) => {
+      if (focus.occurrenceKey !== key || focus.mount !== mount) {
+        focus = {kind: 'managed', occurrenceKey: key, mount}; update(false);
+      }
+    },
     navigate: screen => {
       const sidebar = mount(evaluate('apps/probe/ott/src/Sidebar.tsx', imports).Sidebar, app.find('Sidebar').props);
-      sidebar.find('Action', screen).props.onPress();
+      const button = nodes(sidebar.tree()).find(node =>
+        node.type === 'SidebarButton' && node.props.id === occurrenceKey('nav', screen));
+      button.props.onPress();
       app.render();
     },
     ready: () => { app.find('Details').props.onReady(); app.render(); },
@@ -248,7 +665,25 @@ test('Search returns to the activated duplicate occurrence while input focus sta
     'an unavailable request must retain the existing manual-navigation notice');
 });
 
-test('category cards pass their scoped key and recommendation chains preserve that opener', () => {
+test('an unavailable entry leaves the catalogue viewport intact and its notice clears on Back', async () => {
+  const f = fixture('', 'unavailable');
+  f.navigate('Series');
+  const category = f.app.find('Catalogue').props;
+  category.onOpen(film, occurrenceKey(category.id, 'grid-2', film.id));
+  f.app.render();
+  f.ready();
+  await Promise.resolve();
+  f.app.render();
+  const notice = () => nodes(f.app.tree()).find(node => node.props.children.includes('Continue with your remote.'));
+  const {style, pointerEvents} = notice().props;
+  assert.equal(Object.assign({}, ...style).position, 'absolute', 'the notice must not shrink either route');
+  assert.equal(pointerEvents, 'none');
+  f.close();
+  assert.equal(f.app.find('Catalogue').props.active, true);
+  assert.equal(notice(), undefined, 'the next route must get its own entry result');
+});
+
+test('Back from nested recommendations visits each parent Details and then its exact grid opener', () => {
   const f = fixture(occurrenceKey('nav', 'Movies'));
   f.navigate('Movies');
   const category = f.component('Catalogue', f.app.find('Catalogue').props);
@@ -260,6 +695,7 @@ test('category cards pass their scoped key and recommendation chains preserve th
   const opener = rails.rails[0].items[0];
   assert.equal(opener.occurrenceKey, occurrenceKey('Explorer:fixture:Movies:Drama', 'grid-0', film.id));
   opener.onPress(); f.app.render(); f.ready();
+  const visits = [];
   for (let step = 0; step < 2; step++) {
     const props = f.app.find('Details').props;
     let activatedKey;
@@ -270,11 +706,137 @@ test('category cards pass their scoped key and recommendation chains preserve th
     const next = details.find('Rails').props.rails[0].items[0];
     next.onPress(); f.app.render();
     assert.equal(activatedKey, next.occurrenceKey);
+    visits.push({film: props.film, opener: activatedKey});
     f.ready();
   }
+  for (const visit of visits.reverse()) {
+    f.close();
+    const parent = f.app.find('Details').props;
+    assert.equal(parent.film.id, visit.film.id);
+    assert.equal(f.app.find('Catalogue').props.active, false);
+    const scope = nodes(f.app.tree()).find(node => node.props.id === 'details');
+    assert.equal(scope.props.entryReady, false);
+    assert.equal(scope.props.preferredKey, visit.opener);
+    f.ready();
+    assert.equal(f.requests.at(-1), visit.opener);
+    assert.equal(f.requestKinds.at(-1), 'restore');
+  }
   f.close();
+  assert.equal(f.app.find('Details'), undefined);
+  assert.equal(f.app.find('Catalogue').props.active, true);
   f.app.find('Catalogue').props.onReady(occurrenceKey('Movies', 'category', 'All'));
   assert.equal(f.requests.at(-1), opener.occurrenceKey);
+});
+
+test('returning Details waits for its recommendation data and the accepted rail before restoring', async () => {
+  const props = {film: {...film, source: 'tmdb'}, active: true, waitForRecommendations: true, onReady() {}};
+  const details = fixture('').component('Details', props);
+  details.layout();
+  assert.ok(details.find('RecommendationsPlaceholder'));
+  assert.equal(details.find('Rails').props.onReady, undefined, 'the initial empty rail cannot accept a restore');
+  await new Promise(resolve => setImmediate(resolve));
+  details.render();
+  assert.equal(details.find('RecommendationsPlaceholder'), undefined);
+  const accepted = details.find('Rails').props;
+  assert.equal(accepted.rails[0].items[0].occurrenceKey, occurrenceKey('details', film.id, 'related', recommendation.id));
+  assert.equal(accepted.onReady, props.onReady);
+});
+
+test('entering a cold nested title preserves fast Right before or after static layout', async () => {
+  const parent = {...film, source: 'tmdb'};
+  const child = {...recommendation, source: 'tmdb'};
+  for (const beforeLayout of [true, false]) {
+    let resolveDetails;
+    const f = fixture('', 'applied', 'android', () => new Promise(resolve => { resolveDetails = resolve; }));
+    f.app.find('Browse').props.onOpen(parent, occurrenceKey('home', parent.id)); f.app.render(); f.ready();
+    const opener = occurrenceKey('details', parent.id, 'related', child.id);
+    f.focusOn(opener);
+    f.app.find('Details').props.onOpen(child, opener); f.app.render();
+    const details = f.component('Details', f.app.find('Details').props);
+    const listKey = occurrenceKey('details', 'list');
+    const count = f.requests.length;
+    if (beforeLayout) f.focusOn(listKey);
+    details.layout();
+    assert.equal(f.requests.length, count + (beforeLayout ? 0 : 1), 'only an unentered route requests Play');
+    if (!beforeLayout) f.focusOn(listKey);
+    const afterRight = f.requests.length;
+    assert.ok(details.find('RecommendationsPlaceholder'));
+    assert.equal(details.find('Rails').props.onReady, undefined);
+    resolveDetails({film: child, cast: [], related: [parent]});
+    await new Promise(resolve => setImmediate(resolve));
+    details.render(); f.app.render();
+    assert.equal(details.find('RecommendationsPlaceholder'), undefined);
+    assert.equal(details.find('Rails').props.onReady, undefined);
+    assert.equal(f.requests.length, afterRight, 'accepting recommendations must not issue a focus command');
+  }
+});
+
+test('nested Details distinguishes previous-title focus from a new mount with the same control key', () => {
+  const listKey = occurrenceKey('details', 'list');
+  for (const newMount of [false, true]) {
+    const f = fixture('');
+    f.app.find('Browse').props.onOpen(film, 'opener'); f.app.render(); f.ready();
+    f.focusOn(listKey, '10');
+    // Semantic activation can leave input focus on the old title's My List.
+    f.app.find('Details').props.onOpen(recommendation, 'related-opener'); f.app.render();
+    if (newMount) f.focusOn(listKey, '11');
+    const count = f.requests.length;
+    const details = f.component('Details', f.app.find('Details').props);
+    details.layout();
+    assert.deepEqual(f.requests.slice(count), newMount ? [] : [occurrenceKey('details', 'play')]);
+  }
+});
+
+test('Back shows cached parent recommendations on the first render and restores their exact opener', async () => {
+  const parent = {...film, source: 'tmdb'};
+  const child = {...recommendation, source: 'tmdb'};
+  const requested = [];
+  const f = fixture('', 'applied', 'android', async value => {
+    requested.push(value.id);
+    return {film: value, cast: [], related: value.id === parent.id ? [child] : []};
+  });
+  f.app.find('Browse').props.onOpen(parent, 'opener'); f.app.render();
+  let details = f.component('Details', f.app.find('Details').props);
+  details.layout();
+  await new Promise(resolve => setImmediate(resolve)); details.render(); f.app.render();
+  const target = details.find('Rails').props.rails[0].items[0];
+  target.onPress(); details.unmount(); f.app.render();
+  details = f.component('Details', f.app.find('Details').props);
+  details.layout();
+  await new Promise(resolve => setImmediate(resolve)); details.render(); f.app.render();
+  f.close(); details.unmount();
+  details = f.component('Details', f.app.find('Details').props);
+  assert.equal(details.find('RecommendationsPlaceholder'), undefined);
+  assert.deepEqual(requested, [parent.id, child.id]);
+  details.layout();
+  const rail = details.find('Rails').props;
+  assert.equal(rail.rails[0].items[0].occurrenceKey, target.occurrenceKey);
+  rail.onReady();
+  assert.equal(f.requests.at(-1), target.occurrenceKey);
+  assert.equal(f.requestKinds.at(-1), 'restore');
+});
+
+test('the session details cache separates sources and retries aborted, failed and evicted requests', async () => {
+  let fail = false;
+  const api = evaluate('apps/probe/ott/src/detail-data.ts', () => ({fetchDetails: async value => {
+    if (fail) throw Error('offline');
+    return {film: value, cast: [], related: []};
+  }}));
+  const live = {...film, source: 'tmdb'};
+  const mock = {...live, source: 'tmdb-mock'};
+  const signal = new AbortController().signal;
+  const abort = new AbortController(); abort.abort();
+  await api.loadDetails(live, abort.signal);
+  assert.equal(api.cachedDetails(live), undefined);
+  fail = true;
+  await assert.rejects(api.loadDetails(live, signal), /offline/);
+  assert.equal(api.cachedDetails(live), undefined);
+  fail = false;
+  await api.loadDetails(live, signal);
+  assert.equal(api.cachedDetails(mock), undefined);
+  assert.deepEqual(api.cachedDetails(live).related, []);
+  for (let index = 0; index < 32; index++) await api.loadDetails({...live, id: 'other-' + index}, signal);
+  assert.equal(api.cachedDetails(live), undefined);
 });
 
 test('Android holds automatic page entry until its exact return request settles', async () => {
@@ -307,7 +869,7 @@ test('Hero opens enriched details but returns to its original rendered occurrenc
   const f = fixture(occurrenceKey('nav', 'Home'));
   const props = f.app.find('Browse').props;
   const hero = f.component('Hero', {id: props.id, film: {...film, source: 'tmdb'}, onOpen: props.onOpen});
-  await Promise.resolve(); hero.render();
+  await new Promise(resolve => setImmediate(resolve)); hero.render();
   const explore = hero.find('Action', 'Explore title');
   assert.equal(explore.props.id, occurrenceKey(props.id, 'hero', film.id));
   explore.props.onPress(); f.app.render();
@@ -347,3 +909,97 @@ for (const opener of ['Hero', 'preview']) {
     assert.deepEqual(f.requestKinds, ['focus', 'restore']);
   });
 }
+
+test('My List returns to its opener, and removing that title returns to the empty-state action', () => {
+  const f = fixture('');
+  f.navigate('Movies');
+  f.app.find('Catalogue').props.onOpen(film, 'catalogue-opener');
+  f.app.render(); f.ready();
+  f.component('Details', f.app.find('Details').props).find('Action', 'Add to My List').props.onPress();
+  f.close();
+  f.navigate('My List');
+  const page = () => f.app.find('MyList').props;
+  assert.deepEqual(Array.from(page().saved, item => item.id), [film.id]);
+  const saved = f.component('MyList', page());
+  saved.layout();
+  const card = saved.find('Rails').props.rails[0].items[0];
+  card.onPress(); f.app.render(); f.ready(); f.close();
+  page().onReady(card.occurrenceKey);
+  assert.equal(f.requests.at(-1), card.occurrenceKey);
+  assert.equal(f.requestKinds.at(-1), 'restore');
+  page().onOpen(film, card.occurrenceKey); f.app.render(); f.ready();
+  f.component('Details', f.app.find('Details').props).find('Action', 'Remove from My List').props.onPress();
+  f.close();
+  const nowEmpty = f.component('MyList', page());
+  assert.equal(f.requests.at(-1), nowEmpty.find('Action', 'Browse titles').props.id);
+  assert.equal(f.requestKinds.at(-1), 'focus');
+});
+
+test('ordinary Home and sidebar traversal skips the route tree and Back uses the observed sidebar boundary', () => {
+  const f = fixture('first-card');
+  const before = f.app.renders();
+  for (const key of ['second-card', 'third-card', 'fourth-card']) f.focusOn(key);
+  assert.equal(f.app.renders(), before);
+  f.focusOn(occurrenceKey('nav', 'Home'));
+  assert.equal(f.app.renders(), before + 1);
+  assert.equal(f.app.find('Sidebar').props.expanded, true);
+  f.focusOn(occurrenceKey('nav', 'Movies'));
+  assert.equal(f.app.renders(), before + 1);
+  f.close();
+  assert.deepEqual(f.prompts, ['Exit Itar?']);
+  f.focusOn('fourth-card');
+  assert.equal(f.app.find('Sidebar').props.expanded, false);
+  f.close();
+  assert.equal(f.requestKinds.at(-1), 'scope');
+  assert.equal(f.requests.at(-1), 'navigation');
+});
+
+test('returning from playback that inserted Continue Watching requests the original Preview picks card', () => {
+  const f = fixture('');
+  const home = () => f.app.find('Browse').props;
+  const key = occurrenceKey(home().id, 'home-previews', film.id);
+  home().onOpen(film, key);
+  f.app.render();
+  f.ready();
+  const details = f.app.find('Details').props;
+  details.onToggleSaved(film);
+  details.onPlay(film);
+  f.app.render();
+  f.app.find('Player').props.onCheckpoint(15, 600, false);
+  f.app.render();
+  f.close();
+  f.ready();
+  f.close();
+  assert.equal(home().continueWatching[0].film.id, film.id);
+  home().onReady(occurrenceKey(home().id, 'hero', film.id));
+  assert.equal(f.requestKinds.at(-1), 'restore');
+  assert.equal(f.requests.at(-1), key);
+});
+
+test('tvOS grants Menu to Details, player and guide, and releases it at the top-level sidebar and unmount', () => {
+  const sidebar = occurrenceKey('nav', 'Home');
+  const f = fixture(sidebar, 'applied', 'ios');
+  assert.deepEqual(f.menuKeys, []);
+  const home = f.app.find('Browse').props;
+  home.onOpen(film, 'home-card'); f.app.render();
+  f.app.find('Details').props.onOpen(recommendation, 'related-card'); f.app.render();
+  f.app.find('Details').props.onPlay(recommendation); f.app.render();
+  assert.deepEqual(f.menuKeys, [true], 'nested routes keep one Menu subscription');
+  f.close();
+  assert.equal(f.app.find('Details').props.film.id, recommendation.id);
+  f.close();
+  assert.equal(f.app.find('Details').props.film.id, film.id);
+  f.close();
+  assert.deepEqual(f.menuKeys, [true, false]);
+  home.onGuide('guide'); f.app.render();
+  assert.deepEqual(f.menuKeys, [true, false, true]);
+  f.app.find('Epg').props.onClose(); f.app.render();
+  assert.deepEqual(f.menuKeys, [true, false, true, false]);
+  f.focusOn('home-card');
+  f.focusOn(sidebar);
+  assert.deepEqual(f.menuKeys.slice(-2), [true, false], 'content can return to the sidebar');
+  f.navigate('Settings');
+  assert.equal(f.menuKeys.at(-1), true);
+  f.app.unmount();
+  assert.equal(f.menuKeys.at(-1), false);
+});

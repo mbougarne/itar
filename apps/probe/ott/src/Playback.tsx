@@ -1,5 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { AppState, BackHandler, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  AppState,
+  BackHandler,
+  Platform,
+  TVFocusGuideView,
+  Text,
+  View,
+  useTVEventHandler,
+  type HWEvent,
+} from 'react-native';
 import Video from 'react-native-video';
 import type { VideoRef } from 'react-native-video';
 import {
@@ -8,23 +17,35 @@ import {
   occurrenceKey,
   useFocusCommands,
   useFocusReady,
+  useScreenReaderEnabled,
 } from 'itar/react';
 import { IconAction } from './components/IconAction';
 import { icons } from './artwork';
 import { useDesign } from './theme';
 
+import { usePlaybackControls } from './usePlaybackControls';
 import { formatPlaybackTime } from './playback-time';
 
-const DEMO_STREAM =
-  'https://test-streams.mux.dev/x36xhzz/url_6/193039199_mp4_h264_aac_hq_7.m3u8';
+import { nativeDemoStream } from './demo-stream';
+import { PlaybackHistory, type PlayerProps } from './playback-history';
+
+// A full-width UIKit guide connects the centered transport to the top-right
+// actions. Only the actual controls are accessibility elements or receive focus.
+const appleTV = Platform.OS === 'ios' && Platform.isTV;
+const ControlBand = appleTV ? TVFocusGuideView : View;
 
 const timelineFocusStyle = {
   accentColor: '#FFFFFF',
   backgroundColor: '#176B7B',
 };
 
+const wakeFocusStyle = {
+  accentColor: 'transparent',
+  backgroundColor: 'transparent',
+};
+
 const source = {
-  uri: DEMO_STREAM,
+  uri: nativeDemoStream,
   type: 'm3u8',
   bufferConfig: {
     minBufferMs: 5000,
@@ -39,10 +60,9 @@ const source = {
 export default function Playback({
   title,
   onClose,
-}: {
-  title: string;
-  onClose: () => void;
-}) {
+  startPosition,
+  onCheckpoint,
+}: PlayerProps) {
   const { s } = useDesign();
   const video = useRef<VideoRef>(null);
   const [paused, setPaused] = useState(false);
@@ -51,6 +71,7 @@ export default function Playback({
     AppState.currentState === 'active',
   );
 
+  const [playing, setPlaying] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -61,18 +82,72 @@ export default function Playback({
   const position = useRef(0);
   const ended = useRef(false);
   const pendingSeek = useRef<number | null>(null);
+  const historyRef = useRef<PlaybackHistory | null>(null);
+
+  if (!historyRef.current)
+    historyRef.current = new PlaybackHistory(startPosition, onCheckpoint);
+
+  const history = historyRef.current;
+
+  useEffect(() => () => history.flush(), [history]);
+
   const commands = useFocusCommands();
   const ready = useFocusReady();
+  const reader = useScreenReaderEnabled();
+
+  const bandProps = appleTV
+    ? { autoFocus: reader === false, accessible: false }
+    : {};
+
+  const { visible, wake, cancelHide } = usePlaybackControls(
+    ready &&
+      loaded &&
+      playing &&
+      !buffering &&
+      !paused &&
+      !error &&
+      foreground &&
+      reader === false,
+  );
+
+  const onRemote = useCallback(
+    (event: HWEvent) => {
+      // Siri Remote trackpad swipes arrive without a key-down or key-up phase.
+      if (appleTV && /^swipe(up|down|left|right)$/i.test(event.eventType)) {
+        wake();
+
+        return;
+      }
+
+      if (
+        !/^(long)?(up|down|left|right|select|playPause)$/i.test(event.eventType)
+      ) {
+        return;
+      }
+
+      // Wait for release so a held wake key cannot act on newly mounted controls.
+      if (event.eventKeyAction === 0) {
+        cancelHide();
+      } else if (event.eventKeyAction === 1 || event.eventKeyAction == null) {
+        wake();
+      }
+    },
+    [cancelHide, wake],
+  );
+
+  useTVEventHandler(onRemote);
 
   useEffect(() => {
     if (!ready) {
       return;
     }
 
-    const request = commands.focusByKey(occurrenceKey('player', 'pause'));
+    const request = commands.focusByKey(
+      occurrenceKey('player', visible ? 'pause' : 'wake'),
+    );
 
     return () => request.cancel();
-  }, [commands, ready]);
+  }, [commands, ready, visible]);
 
   useEffect(() => {
     const event = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -93,6 +168,8 @@ export default function Playback({
   }, []);
 
   const seekTo = (value: number) => {
+    wake();
+
     if (!loaded || !video.current) {
       return;
     }
@@ -109,6 +186,8 @@ export default function Playback({
   const seek = (offset: number) => seekTo(position.current + offset);
 
   const togglePlayback = () => {
+    wake();
+
     if (
       paused &&
       loaded &&
@@ -141,9 +220,25 @@ export default function Playback({
         playInBackground={false}
         playWhenInactive={false}
         progressUpdateInterval={2000}
+        onPlaybackStateChanged={event => {
+          setPlaying(event.isPlaying);
+
+          if (event.isPlaying) history.playing();
+          else history.flush();
+        }}
         onLoad={event => {
           ended.current = false;
           setDuration(event.duration);
+
+          const resume = history.resumeAt(event.duration);
+
+          if (resume > 0) {
+            pendingSeek.current = resume;
+            position.current = resume;
+            setTime(resume);
+            video.current?.seek(resume);
+          }
+
           setLoaded(true);
           setError(false);
           setBuffering(false);
@@ -159,6 +254,7 @@ export default function Playback({
             pendingSeek.current = null;
             position.current = event.currentTime;
             setTime(event.currentTime);
+            history.progress(event.currentTime, duration);
           }
         }}
         onSeek={event => {
@@ -184,159 +280,189 @@ export default function Playback({
           }
 
           ended.current = true;
+          history.ended(duration);
           pendingSeek.current = null;
           position.current = duration;
           setTime(duration);
           setPaused(true);
         }}
       />
-      <View style={s.playerChrome}>
-        <View style={s.playerMeta}>
-          <View style={s.fill}>
-            <Text style={s.playerTitle}>Big Buck Bunny</Text>
-            <Text numberOfLines={1} style={s.muted}>
-              {title} · Demo playback
+      {visible ? (
+        // Static scopes share the default order. Their keys order the header
+        // before transport within this column, with the timeline ordered last.
+        <FocusScope id="playback" layout="column" style={s.fill}>
+          <ControlBand {...bandProps} style={s.playerHeader}>
+            <View style={s.fill}>
+              <Text style={s.playerTitle}>Big Buck Bunny</Text>
+              <Text numberOfLines={1} style={s.muted}>
+                {title} · Demo playback
+              </Text>
+            </View>
+            <FocusScope
+              id="header-actions"
+              layout="row"
+              boundary="parent"
+              style={s.playerControls}
+            >
+              <IconAction
+                order={0}
+                id={occurrenceKey('player', 'restart')}
+                label={error ? 'Retry stream' : 'Restart'}
+                icon={icons.restart}
+                onPress={() => {
+                  wake();
+
+                  if (error) {
+                    setAttempt(value => value + 1);
+                    setError(false);
+                    setLoaded(false);
+                    setBuffering(true);
+                    setTime(0);
+                    position.current = 0;
+                    pendingSeek.current = null;
+                    setDuration(0);
+                  } else {
+                    seekTo(0);
+                  }
+
+                  setPaused(false);
+                }}
+              />
+              <IconAction
+                order={1}
+                id={occurrenceKey('player', 'mute')}
+                label={muted ? 'Unmute' : 'Mute'}
+                icon={muted ? icons.muted : icons.volume}
+                onPress={() => {
+                  wake();
+                  setMuted(value => !value);
+                }}
+              />
+              <IconAction
+                order={2}
+                id={occurrenceKey('player', 'close')}
+                label="Close player"
+                icon={icons.close}
+                onPress={onClose}
+              />
+            </FocusScope>
+          </ControlBand>
+          <ControlBand {...bandProps} style={s.playerTransport}>
+            <FocusScope
+              id="transport"
+              layout="row"
+              boundary="parent"
+              style={s.playerControls}
+            >
+              <IconAction
+                order={0}
+                id={occurrenceKey('player', 'rewind')}
+                label="Rewind 10 seconds"
+                icon={icons.rewind}
+                enabled={loaded}
+                onPress={() => seek(-10)}
+              />
+              <IconAction
+                order={1}
+                id={occurrenceKey('player', 'pause')}
+                label={paused ? 'Play' : 'Pause'}
+                icon={paused ? icons.play : icons.pause}
+                size={88}
+                onPress={togglePlayback}
+              />
+              <IconAction
+                order={2}
+                id={occurrenceKey('player', 'forward')}
+                label="Forward 10 seconds"
+                icon={icons.forward}
+                enabled={loaded}
+                onPress={() => seek(10)}
+              />
+            </FocusScope>
+          </ControlBand>
+          <View style={s.playerChrome}>
+            <View style={s.playerMeta}>
+              <Text style={s.muted}>
+                {formatPlaybackTime(time)} / {formatPlaybackTime(duration)}
+              </Text>
+              <Text style={s.playerStatus}>
+                {error
+                  ? 'Playback unavailable'
+                  : !loaded
+                  ? 'Loading…'
+                  : buffering
+                  ? 'Buffering…'
+                  : paused
+                  ? 'Paused'
+                  : 'Playing'}
+              </Text>
+            </View>
+            {error && (
+              <Text style={s.muted}>
+                The public test stream could not load. Select Retry stream to
+                try again.
+              </Text>
+            )}
+            <Focusable
+              occurrenceKey={occurrenceKey('player', 'timeline')}
+              order={1}
+              displayLabel=""
+              enabled={loaded}
+              accessibilityLabel={`Timeline, ${formatPlaybackTime(
+                time,
+              )} of ${formatPlaybackTime(
+                duration,
+              )}. Left or right seeks 10 seconds. Select plays or pauses.`}
+              onAdjust={delta => seek(delta * 10)}
+              onPress={togglePlayback}
+              focusStyle={timelineFocusStyle}
+              style={s.timelineAction}
+            >
+              <View style={s.timelineInset}>
+                <View style={s.playerTrack}>
+                  <View
+                    style={[
+                      s.playerProgress,
+                      {
+                        width: `${
+                          duration ? Math.min(100, (time / duration) * 100) : 0
+                        }%`,
+                      },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      s.timelineThumb,
+                      {
+                        left: `${
+                          duration ? Math.min(100, (time / duration) * 100) : 0
+                        }%`,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
+            </Focusable>
+            <Text style={s.footer}>
+              Big Buck Bunny © 2008 Blender Foundation · CC BY 3.0 ·
+              peach.blender.org · creativecommons.org/licenses/by/3.0/ · HLS
+              hosted by Mux.
             </Text>
           </View>
-          <Text style={s.muted}>
-            {formatPlaybackTime(time)} / {formatPlaybackTime(duration)}
-          </Text>
-        </View>
-        {error && (
-          <Text style={s.muted}>
-            The public test stream could not load. Use the circular arrow to
-            retry, or close the player.
-          </Text>
-        )}
-        <View style={s.timeline}>
-          <Focusable
-            occurrenceKey={occurrenceKey('player', 'timeline')}
-            displayLabel=""
-            enabled={loaded}
-            accessibilityLabel={`Timeline, ${formatPlaybackTime(
-              time,
-            )} of ${formatPlaybackTime(
-              duration,
-            )}. Left or right seeks 10 seconds. Select plays or pauses.`}
-            onAdjust={delta => seek(delta * 10)}
-            onPress={togglePlayback}
-            focusStyle={timelineFocusStyle}
-            style={s.timelineAction}
-          />
-          <View
-            pointerEvents="none"
-            accessible={false}
-            importantForAccessibility="no-hide-descendants"
-            style={[s.iconOverlay, s.timelineInset]}
-          >
-            <View style={s.playerTrack}>
-              <View
-                style={[
-                  s.playerProgress,
-                  {
-                    width: `${
-                      duration ? Math.min(100, (time / duration) * 100) : 0
-                    }%`,
-                  },
-                ]}
-              />
-              <View
-                style={[
-                  s.timelineThumb,
-                  {
-                    left: `${
-                      duration ? Math.min(100, (time / duration) * 100) : 0
-                    }%`,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-        </View>
-        <FocusScope
-          id="controls"
-          layout="row"
-          boundary="parent"
-          style={s.playerControls}
-        >
-          <IconAction
-            order={0}
-            id={occurrenceKey('player', 'pause')}
-            label={paused ? 'Play' : 'Pause'}
-            icon={paused ? icons.play : icons.pause}
-            size={88}
-            onPress={togglePlayback}
-          />
-          <IconAction
-            order={1}
-            id={occurrenceKey('player', 'rewind')}
-            label="Rewind 10 seconds"
-            icon={icons.rewind}
-            enabled={loaded}
-            onPress={() => seek(-10)}
-          />
-          <IconAction
-            order={2}
-            id={occurrenceKey('player', 'forward')}
-            label="Forward 10 seconds"
-            icon={icons.forward}
-            enabled={loaded}
-            onPress={() => seek(10)}
-          />
-          <IconAction
-            order={3}
-            id={occurrenceKey('player', 'restart')}
-            label={error ? 'Retry stream' : 'Restart'}
-            icon={icons.restart}
-            onPress={() => {
-              if (error) {
-                setAttempt(value => value + 1);
-                setError(false);
-                setLoaded(false);
-                setBuffering(true);
-                setTime(0);
-                position.current = 0;
-                pendingSeek.current = null;
-                setDuration(0);
-              } else {
-                seekTo(0);
-              }
-
-              setPaused(false);
-            }}
-          />
-          <IconAction
-            order={4}
-            id={occurrenceKey('player', 'mute')}
-            label={muted ? 'Unmute' : 'Mute'}
-            icon={muted ? icons.muted : icons.volume}
-            onPress={() => setMuted(value => !value)}
-          />
-          <IconAction
-            order={5}
-            id={occurrenceKey('player', 'close')}
-            label="Close player"
-            icon={icons.close}
-            onPress={onClose}
-          />
-          <Text style={s.playerStatus}>
-            {error
-              ? 'Playback unavailable'
-              : !loaded
-              ? 'Loading…'
-              : buffering
-              ? 'Buffering…'
-              : paused
-              ? 'Paused'
-              : 'Playing'}
-          </Text>
         </FocusScope>
-        <Text style={s.footer}>
-          Big Buck Bunny © 2008 Blender Foundation · CC BY 3.0 ·
-          peach.blender.org · creativecommons.org/licenses/by/3.0/ · HLS hosted
-          by Mux.
-        </Text>
-      </View>
+      ) : (
+        <Focusable
+          occurrenceKey={occurrenceKey('player', 'wake')}
+          accessibilityLabel="Show player controls"
+          displayLabel=""
+          baseAccentColor="transparent"
+          focusStyle={wakeFocusStyle}
+          style={s.video}
+          onPress={wake}
+        >
+          <View />
+        </Focusable>
+      )}
     </View>
   );
 }

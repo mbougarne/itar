@@ -87,12 +87,12 @@ class WebEngine {
         if (!policy.isUndefined() && policy.typeOf().as<std::string>() != "number") {
           return static_cast<int>(BatchStatus::invalid);
         }
-        const auto entry = integer(field(value, "rowEntry", 0.0), 1);
+        const auto entry = integer(field(value, "rowEntry", 0.0), 2);
         if (field(value, "collection", false)) {
           const auto visual = value["horizontalAlignment"];
           if (!visual.isUndefined() && (visual.typeOf().as<std::string>() != "number" ||
               !record.scope || record.navigation.layout != Layout::row)) { return static_cast<int>(BatchStatus::invalid); }
-          const auto alignment = integer(field(value, "horizontalAlignment", 0.0), 1);
+          const auto alignment = integer(field(value, "horizontalAlignment", 0.0), 2);
           if (alignment && (!record.scope || record.navigation.layout != Layout::row)) { return static_cast<int>(BatchStatus::invalid); }
           alignments.emplace_back(key, alignment);
           catalog.push_back({OccurrenceKey{key}, OccurrenceKey{field(value, "parent", std::string{})},

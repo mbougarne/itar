@@ -6,7 +6,7 @@ import android.os.SystemClock
 
 /** Bounded copied-value inbox; host calls run only after engine entry returns. */
 internal class Dispatcher(private val root: SurfaceView) {
-    private data class Message(val op: Int, val values: LongArray, val key: String?, val at: Long, val command: String?)
+    private data class Message(val op: Int, val values: LongArray, val key: String?, val at: Long, val command: String?, val move: Long)
     private val inbox = ArrayDeque<Message>()
     private val handler = Handler(Looper.getMainLooper())
     private var active = false
@@ -29,12 +29,12 @@ internal class Dispatcher(private val root: SurfaceView) {
         batches++
         try { work() } finally { batches--; kick() }
     }
-    fun submit(op: Int, values: LongArray = longArrayOf(), key: String? = null, command: String? = null) {
+    fun submit(op: Int, values: LongArray = longArrayOf(), key: String? = null, command: String? = null, move: Long = 0) {
         if (root.closed) return
         if (inbox.size == 32) { root.close(); return }
         val boundedKey = if (key != null && key.length > 512) "" else key
         val at = when (op) { 7 -> values[2]; 9, 23 -> values[1]; 14, 18 -> values[0]; else -> SystemClock.uptimeMillis() }
-        inbox.addLast(Message(op, values.copyOf(), boundedKey, at, command))
+        inbox.addLast(Message(op, values.copyOf(), boundedKey, at, command, move))
         kick()
     }
     fun kick() {
@@ -59,6 +59,7 @@ internal class Dispatcher(private val root: SurfaceView) {
                         val id = root.commandRequests.entries.firstOrNull { it.value == message.command }?.key
                         if (id != null) {
                             val result = root.connection.exchange(13, longArrayOf(id))
+                            captureFocus { it.event("request", root.connection.lifetime, request = id, detail = requestStatus(result[1])) }
                             if (result[0] < 0) root.close() else root.onRequestRecord?.invoke(result)
                         }
                         continue
@@ -74,12 +75,19 @@ internal class Dispatcher(private val root: SurfaceView) {
                     if (message.op != 14) {
                         val time = root.connection.exchange(14, longArrayOf(at))
                         if (time[0] < 0) { root.close(); break }
-                        if (time[1] == 10L) root.onRequestRecord?.invoke(time.copyOf())
+                        if (time[1] == 10L) {
+                            captureFocus { it.event("request", root.connection.lifetime, request = time[2], detail = "expired") }
+                            root.onRequestRecord?.invoke(time.copyOf())
+                        }
                         if (root.closed) break
                     }
                     if (message.op == 9 || message.op == 23) {
                         val old = root.connection.exchange(5)[6]
-                        if (old != 0L) root.onRequestRecord?.invoke(root.connection.exchange(13, longArrayOf(old)))
+                        if (old != 0L && root.onRequestRecord != null) {
+                            val cancelled = root.connection.exchange(13, longArrayOf(old))
+                            captureFocus { it.event("request", root.connection.lifetime, request = old, detail = requestStatus(cancelled[1])) }
+                            root.onRequestRecord?.invoke(cancelled)
+                        }
                     }
                     val result = root.connection.exchange(message.op, values, message.key)
                     if (result[0] == -2L && (message.op == 9 || message.op == 23)) {
@@ -89,6 +97,21 @@ internal class Dispatcher(private val root: SurfaceView) {
                     }
                     val staleAvailability = result[0] == -1L && (message.op == 2 || message.op == 3 || message.op == 19 || message.op == 21)
                     if (result[0] < 0 && !staleAvailability) { root.close(); break }
+                    captureFocus { sink ->
+                        when (message.op) {
+                            7, 9, 23 -> sink.event("request", root.connection.lifetime, request = result[2], move = message.move,
+                                target = message.key?.takeUnless { root.scopes.containsKey(it) }, detail = requestStatus(result[1]))
+                            4 -> if (result[13] != 0L) sink.event("request", root.connection.lifetime,
+                                request = result[13], detail = requestStatus(result[12]))
+                            12, 13, 14, 16, 24 -> if (result[2] != 0L) sink.event("request", root.connection.lifetime,
+                                request = result[2], detail = requestStatus(result[1]))
+                        }
+                        if (message.op == 24) {
+                            val mount = root.targets.keys.firstOrNull { it.slot == values[4] && it.generation == values[5] && it.serial == values[6] }
+                            sink.event("host", values[0], request = values[1], effect = values[2], target = mount?.key,
+                                mount = values[6], detail = "mount measured")
+                        }
+                    }
                     if ((message.op == 9 || message.op == 23) && message.command != null) root.commandBegan(message.command, result)
                     else if (message.op == 4 && result[13] != 0L) root.onRequestRecord?.invoke(longArrayOf(0, result[12], result[13]))
                     else if (message.op in listOf(7, 9, 12, 13, 14, 16, 24) && result[2] != 0L) root.onRequestRecord?.invoke(result.copyOf())
@@ -105,7 +128,15 @@ internal class Dispatcher(private val root: SurfaceView) {
                 if (effect[1] != 0L) { invoke(effect); continue }
                 val notification = root.connection.exchange(15)
                 if (notification[0] < 0) { root.close(); break }
-                if (notification[1] != 0L) { root.onFocusRecord?.invoke(notification.copyOf()); continue }
+                if (notification[1] != 0L) {
+                    captureFocus { sink ->
+                        // Only the core may associate an observed focus with a request.
+                        sink.observation(root, notification[2], notification[3],
+                            notification[4], notification[5], notification[6], notification[7])
+                    }
+                    root.onFocusRecord?.invoke(notification.copyOf())
+                    continue
+                }
                 break
             }
             if (!root.closed && work >= 64) handler.post(continuation)
@@ -128,17 +159,30 @@ internal class Dispatcher(private val root: SurfaceView) {
         val target = root.targets.keys.firstOrNull {
             it.slot == effect[6] && it.generation == effect[7] && it.serial == effect[8]
         }?.let { root.live(it) }
+        captureFocus { sink ->
+            val detail = when (effect[5]) {
+                0L -> if (effect[12] == 0L && effect[8] != 0L) "reveal mounted" else "reveal collection"
+                1L -> "focus"
+                else -> "cancel"
+            }
+            sink.effectRecord(root, effect, "effect", detail)
+        }
         val issued = root.connection.exchange(11, token)
         if (issued[0] < 0) { root.close(); return }
-        if (issued[3] == 0L) return
+        if (issued[3] == 0L) {
+            captureFocus { it.effectRecord(root, effect, "host", "not issued") }
+            return
+        }
         if (effect[5] == 2L) {
             // Synchronous requestFocus has returned; exact old operation is already finished.
-            root.collections.cancel(effect)
+            val released = root.collections.cancel(effect)
+            captureFocus { it.effectRecord(root, effect, "host", if (released) "reveal cancelled" else "already finished") }
             submit(12, token + 4L)
             return
         }
         if (effect[5] == 0L) {
             val accepted = root.collections.invoke(effect)
+            captureFocus { it.effectRecord(root, effect, "host", if (accepted) "reveal accepted" else "reveal rejected") }
             submit(12, token + if (accepted) 0L else 1L)
             return
         }
@@ -150,6 +194,7 @@ internal class Dispatcher(private val root: SurfaceView) {
             }
         } finally {
             active = false
+            captureFocus { it.effectRecord(root, effect, "host", if (accepted) "focus accepted" else "focus rejected") }
             if (root.closed) root.connection.close()
             else {
                 submit(4, root.focusRecord(0))

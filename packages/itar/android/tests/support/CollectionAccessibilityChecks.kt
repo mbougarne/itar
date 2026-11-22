@@ -16,6 +16,7 @@ import com.facebook.react.bridge.JavaOnlyMap
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.uimanager.ReactAccessibilityDelegate.AccessibilityRole
 import com.facebook.react.views.scroll.ReactHorizontalScrollView
+import com.facebook.react.views.scroll.ReactHorizontalScrollViewManager
 import com.facebook.react.views.scroll.ReactScrollView
 
 /** Real RN scroll hosts, delegate metadata and accepted native collection publication. */
@@ -107,6 +108,30 @@ class CollectionAccessibilityChecks(context: Context, react: ReactContext) {
         check(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.id !in actions(rail))
         check(!rail.performAccessibilityAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, null))
         rail.isEnabled = true; projected()
+    }
+    fun rowInputFocus() {
+        // Keep the fixture's real horizontal overflow, with a fully visible child.
+        frame(cell, 400, 80); refresh()
+        check(rail.isFocusable && outer.isFocusable) { "Labelled scroll hosts must retain their input policy" }
+        rail.isFocusableInTouchMode = true
+        rail.contentDescription = null
+        check(rail.isFocusable && rail.canScrollHorizontally(1))
+        refresh()
+        check(!rail.isFocusable && outer.isFocusable && target.isFocusable && target.requestFocus())
+        val node = rail.createAccessibilityNodeInfo()
+        check(node.isScrollable && !node.isFocusable && node.collectionInfo?.columnCount == 17)
+        node.recycle(); projected()
+        rail.contentDescription = "Owned rail"; refresh()
+        check(rail.isFocusable && rail.isFocusableInTouchMode) { "Relabelling must restore the original host state" }
+        rail.contentDescription = null; rail.layoutDirection = View.LAYOUT_DIRECTION_RTL; refresh()
+        check(!rail.isFocusable && ViewCompat.getAccessibilityDelegate(rail) === railDelegate)
+        railScope.removeView(rail)
+        check(rail.isFocusable && rail.isFocusableInTouchMode) { "A recycled row must recover its original policy" }
+        railScope.addView(rail); frame(rail, 300, 80); refresh()
+        check(!rail.isFocusable)
+        ReactHorizontalScrollViewManager().setScrollEnabled(rail, false)
+        root.collectionAccessibilityChanged()
+        check(!rail.isFocusable) { "Cleanup must not undo a newer RN scrollEnabled=false" }
     }
     fun lifecycle() {
         // Query-time checks precede the deferred scope refresh.

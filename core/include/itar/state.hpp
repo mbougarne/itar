@@ -28,7 +28,7 @@ struct ApplyResult {
 };
 
 // One serialized owner; readers borrow the snapshot until the next mutation.
-// Publication is a no-throw swap after all resource preparation. No callbacks.
+// Publication cannot throw after resource preparation. No callbacks.
 class State {
  public:
   explicit State(

@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- An isolated window for native instrumentation, independent of Metro and React mounting. -->
+        <activity android:name="android.app.Activity" android:exported="false" />
+        <receiver
+            android:name="com.itar.adapter.OccoControl"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
+    </application>
+</manifest>

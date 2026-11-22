@@ -74,7 +74,7 @@ test('row-entry wire validation is atomic and a policy revision revokes preparat
   f.record({state: 'catalog', dataset: f.dataset}); f.record(f.prepare);
   const before = f.store.snapshot();
   const column = {...nodes[0], layout: 2, rowEntry: 1};
-  for (const invalid of [2, -1, 0.5, 'first', null]) {
+  for (const invalid of [3, -1, 0.5, 'first', null]) {
     assert.throws(() => f.store.publish(f.owner, [{...column, rowEntry: invalid}, ...nodes.slice(1)]), /row entry/);
     assert.equal(f.store.snapshot(), before);
   }

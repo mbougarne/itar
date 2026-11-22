@@ -42,6 +42,14 @@ internal class Input(private val root: SurfaceView) {
             it.slot == result[2] && it.generation == result[3] && it.serial == result[4]
         }?.let { root.live(it) } ?: focused
     }
+    private fun keyDirection(code: Int) = when (code) {
+        KeyEvent.KEYCODE_DPAD_LEFT -> 0L; KeyEvent.KEYCODE_DPAD_RIGHT -> 1L
+        KeyEvent.KEYCODE_DPAD_UP -> 2L; KeyEvent.KEYCODE_DPAD_DOWN -> 3L
+        else -> -1L
+    }
+    private fun directionName(value: Long) = when (value) {
+        0L -> "left"; 1L -> "right"; 2L -> "up"; else -> "down"
+    }
     fun dispatch(event: KeyEvent): Boolean {
         val press = activation
         if (event.action == KeyEvent.ACTION_UP && selectKey == event.keyCode) {
@@ -50,8 +58,11 @@ internal class Input(private val root: SurfaceView) {
             if (!event.isCanceled && press != null) root.live(press.mount)?.activateInput(press.mount, press.lifetime)
             return true
         }
-        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount > 0 && reader.isEnabled &&
-            (selectKey == event.keyCode || ownedKeys.contains(event.keyCode))) return true
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            val direction = keyDirection(event.keyCode)
+            if (direction >= 0) return directionDown(event, direction)
+            if (event.repeatCount > 0 && reader.isEnabled && selectKey == event.keyCode) return true
+        }
         if (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER ||
             event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
             val target = root.findFocus() as? TargetView
@@ -62,28 +73,54 @@ internal class Input(private val root: SurfaceView) {
             }
             return true
         }
+        captureFocus { sink ->
+            val direction = keyDirection(event.keyCode)
+            if (direction >= 0 && event.action == KeyEvent.ACTION_UP) {
+                sink.event("input", root.connection.lifetime, move = sink.move(event),
+                    owner = when {
+                        ownedKeys.contains(event.keyCode) -> "engine"
+                        reader.isEnabled -> "accessibility"
+                        else -> "host"
+                    }, direction = directionName(direction), detail = "surface up")
+            }
+        }
         if (event.action == KeyEvent.ACTION_UP && ownedKeys.remove(event.keyCode)) {
             root.dispatcher.submit(8)
             return true
         }
-        val value = when (event.keyCode) {
-            KeyEvent.KEYCODE_DPAD_LEFT -> 0L; KeyEvent.KEYCODE_DPAD_RIGHT -> 1L
-            KeyEvent.KEYCODE_DPAD_UP -> 2L; KeyEvent.KEYCODE_DPAD_DOWN -> 3L
-            else -> return false
-        }
-        if (event.action != KeyEvent.ACTION_DOWN || !owns(root.findFocus())) return false
-        ownedKeys.add(event.keyCode)
+        return false
+    }
+    private fun directionDown(event: KeyEvent, value: Long): Boolean {
+        val retainedRepeat = event.repeatCount > 0 && reader.isEnabled && ownedKeys.contains(event.keyCode)
         val target = root.findFocus() as? TargetView
+        val owned = !retainedRepeat && owns(target)
+        var move = 0L
+        captureFocus { sink ->
+            move = sink.move(event)
+            sink.event("input", root.connection.lifetime, move = move,
+                owner = when {
+                    reader.isEnabled -> "accessibility"
+                    !owned || (value < 2 && target?.adjustable == true) -> "host"
+                    else -> "engine"
+                },
+                direction = directionName(value),
+                detail = if (retainedRepeat) "surface retained repeat" else "surface down")
+        }
+        if (retainedRepeat) return true
+        if (!owned) return false
+        ownedKeys.add(event.keyCode)
         // Horizontal adjustment belongs to the control, not to navigation.
         if (value < 2 && target?.adjustable == true) {
             target.adjust(if (value == 0L) -1 else 1)
             return true
         }
+        // Capture a primitive in the batch closure, never a boxed mutable trace counter.
+        val requestMove = move
         root.dispatcher.batch {
             root.refreshGeometry()
             root.observe()
             val now = SystemClock.uptimeMillis()
-            root.dispatcher.submit(7, longArrayOf(value, 0, now, now + 3000))
+            root.dispatcher.submit(7, longArrayOf(value, 0, now, now + 3000), move = requestMove)
         }
         return true
     }

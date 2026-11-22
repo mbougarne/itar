@@ -14,11 +14,17 @@ struct CollectionEntry: Decodable, Equatable {
     var leadingExtent: Double? = nil
     var rowEntry: Int32? = nil
     var horizontalAlignment: String? = nil
-    func horizontalOffset(start: CGFloat, end: CGFloat, current: CGFloat, viewport: CGFloat, content: CGFloat, rtl: Bool) -> CGFloat {
+    func revealOffset(start: CGFloat, end: CGFloat, current: CGFloat, viewport: CGFloat, content: CGFloat, rtl: Bool = false) -> CGFloat {
         let desired: CGFloat
-        if horizontalAlignment == "leading" || end - start > viewport { desired = rtl ? end - viewport : start }
+        if horizontalAlignment == "leading" || horizontalAlignment == "pinned" || end - start > viewport { desired = rtl ? end - viewport : start }
         else { desired = start < current ? start : (end > current + viewport ? end - viewport : current) }
         return min(max(0, desired), max(0, content - viewport))
+    }
+    func verticalOffset(for index: Int32, current: CGFloat, viewport: CGFloat, content: CGFloat) -> CGFloat {
+        let start = offset(index)
+        let first = leadingExtent ?? 0
+        let height = index == 0 && first > 0 ? first : extent
+        return revealOffset(start: start, end: start + height, current: current, viewport: viewport, content: content)
     }
     func offset(_ index: Int32) -> Double {
         let first = leadingExtent ?? 0
@@ -36,11 +42,26 @@ struct CollectionDocument: Decodable {
               document.nodes.allSatisfy({ node in
                   let first = node.leadingExtent ?? 0
                   let alignment = node.horizontalAlignment
-                  return (alignment == nil || ((alignment == "nearest" || alignment == "leading") && node.scope && node.layout == 1)) &&
-                      (node.rowEntry == nil || node.rowEntry == 0 || node.rowEntry == 1) &&
+                  return (alignment == nil || ((alignment == "nearest" || alignment == "leading" || alignment == "pinned") && node.scope && node.layout == 1)) &&
+                      (node.rowEntry == nil || node.rowEntry == 0 || node.rowEntry == 1 || node.rowEntry == 2) &&
                       first.isFinite && first >= 0 && first <= 1_000_000 && (node.scope || first == 0)
               }) else { return nil }
         return document
+    }
+    // Fabric can retire the enclosing page before the next catalogue arrives.
+    // Keep declared collection identities, while making these roots ineligible
+    // and removing their edge to the retiring parent in the same transaction.
+    func detachRoots(under parents: Set<String>, handles: [String: ItarNode]) -> [EngineMutation] {
+        nodes.compactMap { entry in
+            guard entry.scope, parents.contains(entry.parent), let node = handles[entry.key], node.slot != 0 else { return nil }
+            var change = EngineMutation(kind: 1, key: entry.key, expected: node)
+            change.record.scope = 1
+            change.record.enabled = entry.enabled ? 1 : 0
+            change.record.order = entry.order
+            change.record.layout = entry.layout
+            change.record.boundary = 2
+            return change
+        }
     }
     func path(_ key: String) -> [CollectionEntry] {
         var result: [CollectionEntry] = []

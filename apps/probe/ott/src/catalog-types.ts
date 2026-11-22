@@ -44,6 +44,7 @@ export type Film = Readonly<{
   source?: 'tmdb' | 'tmdb-mock';
   posterUrl?: string | null;
   backdropUrl?: string | null;
+  titleLogoUrl?: string | null;
 }>;
 
 export type Rail = Readonly<{

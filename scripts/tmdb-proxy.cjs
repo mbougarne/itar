@@ -110,9 +110,14 @@ function createProxy({apiKey = '', mock = true, fetcher = fetch, allowWeb = fals
       } else if (url.pathname === '/v1/details') {
         const match = /^tmdb:(movie|series):(\d+)$/.exec(url.searchParams.get('id') || '');
         if (!match || !validId(match[2])) { send(400, {error: 'Invalid title identity'}); return; }
-        const result = await upstream(`/${match[1] === 'movie' ? 'movie' : 'tv'}/${match[2]}`, {append_to_response: `credits,recommendations,similar,${match[1] === 'movie' ? 'release_dates' : 'content_ratings'}`, language: 'en-US'}, controller.signal);
+        const result = await upstream(`/${match[1] === 'movie' ? 'movie' : 'tv'}/${match[2]}`, {include_image_language: 'en,null', append_to_response: `images,credits,recommendations,similar,${match[1] === 'movie' ? 'release_dates' : 'content_ratings'}`, language: 'en-US'}, controller.signal);
         const film = mapFilm(result, match[1], mock);
         if (!film) { throw new Error('TMDB returned invalid details.'); }
+        const logos = Array.isArray(result.images?.logos) ? result.images.logos : [];
+        for (const language of ['en', null]) {
+          const logo = logos.find(value => value?.iso_639_1 === language && image(value.file_path, 'w500'));
+          if (logo) { film.titleLogoUrl = image(logo.file_path, 'w500'); break; }
+        }
         const castIds = new Set();
         const rawCast = Array.isArray(result.credits?.cast) ? result.credits.cast.slice(0, 6) : [];
         const rawCrew = (Array.isArray(result.credits?.crew) ? result.credits.crew : []).filter(p => ['Director', 'Writer', 'Creator', 'Executive Producer'].includes(p.job)).slice(0, 2);

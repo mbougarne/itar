@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { FocusScope, occurrenceKey } from 'itar/react';
 import type { Film } from './catalog-types';
-import { fetchDetails } from './tmdb';
+import { cachedDetails, loadDetails } from './detail-data';
 import { Action } from './components/Action';
 import { Backdrop } from './components/Backdrop';
 import { useDesign } from './theme';
@@ -23,10 +23,13 @@ export default function Hero({
   highContrast: boolean;
 }) {
   const { s } = useDesign();
-  const [details, setDetails] = useState(film);
+
+  const [details, setDetails] = useState(
+    () => cachedDetails(film)?.film ?? film,
+  );
 
   useEffect(() => {
-    setDetails(film);
+    setDetails(cachedDetails(film)?.film ?? film);
 
     if (!film.source) {
       return;
@@ -34,7 +37,7 @@ export default function Hero({
 
     const request = new AbortController();
 
-    fetchDetails(film, request.signal).then(
+    loadDetails(film, request.signal).then(
       result => {
         if (!request.signal.aborted) {
           setDetails(result.film);

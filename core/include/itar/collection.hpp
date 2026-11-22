@@ -4,7 +4,7 @@
 
 namespace itar {
 
-enum class CollectionRowEntry { nearest, first };
+enum class CollectionRowEntry { nearest, first, remembered };
 
 // A bounded logical snapshot for the selected fixed-extent VirtualizedList
 // adapter. Scope entries are lists; a nested row is also an item of its parent.

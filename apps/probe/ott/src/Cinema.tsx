@@ -1,11 +1,26 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, BackHandler, Platform, Text, View } from 'react-native';
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  Platform,
+  Text,
+  View,
+} from 'react-native';
 import {
   FocusScope,
   occurrenceKey,
   useFocusCommands,
   useFocusReady,
   useFocusState,
+  type FocusState,
 } from 'itar/react';
 import Auth from './Auth';
 import Epg from './Epg';
@@ -14,24 +29,102 @@ import Catalogue from './Catalogue';
 import Search from './Search';
 import Details from './Details';
 import Player from './Player';
+import MyList from './MyList';
+import { libraryId } from './profile-library';
+import { useProfileLibrary } from './useProfileLibrary';
 import { Profiles } from './Profiles';
 import { Settings } from './Settings';
 import { Sidebar } from './Sidebar';
-import { screens, subtitles, type Screen } from './navigation';
+import {
+  detailControlKeys,
+  screens,
+  subtitles,
+  type Screen,
+} from './navigation';
 import { androidVerticalBoundary } from './android-focus-boundary';
 import { useDesign } from './theme';
+import { useAppleTVMenu } from './useAppleTVMenu';
 import type { ProviderMode, Film } from './catalog-types';
 import { readBrowserSession, saveBrowserSession } from './browser-session';
 
-export default function Cinema({
+type DetailsVisit = { film: Film; openerKey: string };
+
+const HomeBrowse = memo(Browse);
+
+const sidebarKeys = new Set(
+  [...screens, 'profile-switcher', 'signout'].map(name =>
+    occurrenceKey('nav', name),
+  ),
+);
+
+type CinemaProps = { onOpenProbes?: () => void };
+
+type HomeArrival = { key: string; onFocus: () => void };
+
+// Watch host input focus here. The route tree only needs the sidebar boundary,
+// and a new managed observation dismisses any outstanding navigation notice.
+export default function Cinema(props: CinemaProps) {
+  const focus = useFocusState();
+  const observedFocus = useRef(focus);
+  const homeArrival = useRef<HomeArrival | null>(null);
+
+  useLayoutEffect(() => {
+    observedFocus.current = focus;
+
+    const arrival = homeArrival.current;
+
+    if (
+      arrival &&
+      focus.kind === 'managed' &&
+      focus.occurrenceKey === arrival.key
+    ) {
+      homeArrival.current = null;
+      arrival.onFocus();
+    }
+  }, [focus]);
+
+  const [notice, setNotice] = useState('');
+
+  const expanded =
+    focus.kind === 'managed' &&
+    focus.occurrenceKey !== null &&
+    sidebarKeys.has(focus.occurrenceKey);
+
+  useEffect(() => {
+    if (focus.kind === 'managed') setNotice('');
+  }, [focus]);
+
+  return (
+    <CinemaRoutes
+      {...props}
+      expanded={expanded}
+      observedFocus={observedFocus}
+      homeArrival={homeArrival}
+      notice={notice}
+      setNotice={setNotice}
+    />
+  );
+}
+
+const CinemaRoutes = memo(function RouteTree({
   onOpenProbes,
-}: {
-  onOpenProbes?: () => void;
+  expanded,
+  observedFocus,
+  homeArrival,
+  notice,
+  setNotice,
+}: CinemaProps & {
+  expanded: boolean;
+  observedFocus: React.RefObject<FocusState>;
+  homeArrival: React.RefObject<HomeArrival | null>;
+  notice: string;
+  setNotice: (value: string) => void;
 }) {
   const { s } = useDesign();
   const [savedSession] = useState(readBrowserSession);
   const [authenticated, setAuthenticated] = useState(!!savedSession);
-  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideOpener, setGuideOpener] = useState<string>();
+  const guideOpen = !!guideOpener;
 
   const [mode, setMode] = useState<ProviderMode>(
     savedSession?.mode ?? (Platform.OS === 'web' ? 'fixture' : 'proxy'),
@@ -41,14 +134,19 @@ export default function Cinema({
     savedSession ? 'Home' : 'Profile',
   );
 
-  const [film, setFilm] = useState<Film | null>(null);
-  const [playing, setPlaying] = useState(false);
+  const [detailsHistory, setDetailsHistory] = useState<DetailsVisit[]>([]);
+  const visit = detailsHistory[detailsHistory.length - 1];
+  const film = visit?.film;
+  const [playingFilm, setPlayingFilm] = useState<Film>();
+  const playing = !!playingFilm;
   const [profile, setProfile] = useState(savedSession?.profile ?? 'Explorer');
+  const { library, store } = useProfileLibrary(profile);
   const [contrast, setContrast] = useState(false);
   const [slow, setSlow] = useState(false);
-  const [notice, setNotice] = useState('');
   const [entryVersion, setEntryVersion] = useState(0);
   const [entering, setEntering] = useState(true);
+  const [loadingHome, setLoadingHome] = useState(false);
+  const [homeEntryKey, setHomeEntryKey] = useState<string>();
   const [pendingEntry, setPendingEntry] = useState<(() => void) | null>(null);
   const exitPrompt = useRef(false);
   const fail = useRef(false);
@@ -69,80 +167,117 @@ export default function Cinema({
 
   const commands = useFocusCommands();
   const ready = useFocusReady();
-  const focus = useFocusState();
-
-  const expanded =
-    focus.kind === 'managed' &&
-    [...screens, 'profile-switcher', 'signout'].some(
-      name => focus.occurrenceKey === occurrenceKey('nav', name),
-    );
-
-  const filmRef = useRef(film);
-
-  useEffect(() => {
-    if (focus.kind === 'managed') {
-      setNotice('');
-    }
-  }, [focus]);
-
-  useEffect(() => {
-    filmRef.current = film;
-  }, [film]);
-
-  const returning = useRef(false);
-  const bookmark = useRef<string | null>(null);
+  const [returnKey, setReturnKey] = useState<string>();
   const entered = useRef('');
+  const focusBeforeEntry = useRef(observedFocus.current);
 
   const entryRequest = useRef<ReturnType<typeof commands.focusByKey> | null>(
     null,
   );
 
-  const beginEntry = useCallback((change: () => void) => {
-    // Keep Android's temporary fallback focus out of sidebar history while
-    // the previous content unmounts and the next target becomes ready.
-    entryRequest.current?.cancel();
-    entryRequest.current = null;
+  const homeLoadingStarted = useCallback(() => {
+    homeArrival.current = null;
+    setHomeEntryKey(undefined);
+    setLoadingHome(true);
+    // A retry replaces the failed Home entry with a new set of targets.
     entered.current = '';
     setEntering(true);
-    setPendingEntry(() => change);
-  }, []);
+  }, [homeArrival]);
+
+  const beginEntry = useCallback(
+    (change: () => void, openerKey?: string) => {
+      // Keep Android's temporary fallback focus out of sidebar history while
+      // the previous content unmounts and the next target becomes ready.
+      entryRequest.current?.cancel();
+      entryRequest.current = null;
+      homeArrival.current = null;
+      entered.current = '';
+      setEntering(true);
+      setReturnKey(openerKey);
+      setNotice('');
+      setPendingEntry(() => change);
+      setHomeEntryKey(undefined);
+    },
+    [homeArrival, setNotice],
+  );
 
   useEffect(() => {
     // Commit the sidebar and page entry guards before removing focused content.
     if (pendingEntry) {
+      focusBeforeEntry.current = observedFocus.current;
       pendingEntry();
       setPendingEntry(null);
     }
-  }, [pendingEntry]);
+  }, [pendingEntry, observedFocus]);
+
+  const page = `${profile}:${mode}:${screen}`;
 
   const openPlayer = useCallback(
-    () => beginEntry(() => setPlaying(true)),
+    (value: Film) => beginEntry(() => setPlayingFilm(value)),
     [beginEntry],
   );
 
   const closeFilm = useCallback(() => {
-    if (Platform.OS === 'android') returning.current = true;
+    if (visit) {
+      let opener: string | undefined = visit.openerKey;
 
-    beginEntry(() => setFilm(null));
-  }, [beginEntry]);
+      if (detailsHistory.length === 1) {
+        const id = libraryId(visit.film);
+
+        const watchingKey = occurrenceKey(
+          page,
+          'continue-watching',
+          visit.film.source ?? 'fixture',
+          visit.film.id,
+        );
+
+        // An unpinned title or a finished demo may have removed its own opener.
+        if (
+          (screen === 'My List' &&
+            !library.saved.some(saved => libraryId(saved) === id)) ||
+          (screen === 'Home' &&
+            opener === watchingKey &&
+            !library.watching.some(entry => libraryId(entry.film) === id))
+        ) {
+          opener = undefined;
+        }
+      }
+
+      beginEntry(
+        () => setDetailsHistory(history => history.slice(0, -1)),
+        opener,
+      );
+    }
+  }, [
+    beginEntry,
+    visit,
+    detailsHistory.length,
+    library.saved,
+    library.watching,
+    screen,
+    page,
+  ]);
 
   const closePlayer = useCallback(() => {
-    beginEntry(() => setPlaying(false));
+    beginEntry(() => setPlayingFilm(undefined));
   }, [beginEntry]);
+
+  const recordPlayback = useCallback(
+    (position: number, duration: number, finished: boolean) => {
+      if (playingFilm)
+        store.progress(playingFilm, position, duration, finished);
+    },
+    [playingFilm, store],
+  );
 
   const openFilm = useCallback(
     (value: Film, openerKey: string) => {
-      if (!filmRef.current) {
-        bookmark.current = openerKey;
-      }
-
-      beginEntry(() => setFilm(value));
-      setNotice('');
+      beginEntry(() =>
+        setDetailsHistory(history => [...history, { film: value, openerKey }]),
+      );
     },
     [beginEntry],
   );
-
-  const page = `${profile}:${mode}:${screen}`;
 
   const restoreNavigation = useCallback(() => {
     commands.restoreScope(['navigation']).result.then(result => {
@@ -150,9 +285,22 @@ export default function Cinema({
         setNotice('Navigation focus could not be restored.');
       }
     });
-  }, [commands]);
+  }, [commands, setNotice]);
 
-  useEffect(() => {
+  // At the top-level sidebar the Siri Remote's Menu button belongs to tvOS.
+  // The sign-in form manages its own Menu lifetime before authentication.
+  const hasBackRoute =
+    authenticated &&
+    (guideOpen ||
+      playing ||
+      !!film ||
+      screen === 'Profile' ||
+      screen === 'Settings' ||
+      !expanded);
+
+  useAppleTVMenu(hasBackRoute);
+
+  useLayoutEffect(() => {
     const handler = BackHandler.addEventListener('hardwareBackPress', () => {
       if (!authenticated || guideOpen) {
         return false;
@@ -171,7 +319,6 @@ export default function Cinema({
       }
 
       if (screen === 'Profile' || screen === 'Settings') {
-        returning.current = false;
         beginEntry(() => setScreen('Home'));
 
         return true;
@@ -182,10 +329,13 @@ export default function Cinema({
         entryRequest.current = null;
         entered.current = `${page}:${entryVersion}`;
         setEntering(false);
+        setLoadingHome(false);
         restoreNavigation();
 
         return true;
       }
+
+      if (Platform.OS === 'ios' && Platform.isTV) return false;
 
       if (!exitPrompt.current) {
         exitPrompt.current = true;
@@ -217,20 +367,7 @@ export default function Cinema({
     });
 
     return () => handler.remove();
-  }, [
-    authenticated,
-    guideOpen,
-    film,
-    playing,
-    screen,
-    expanded,
-    closeFilm,
-    closePlayer,
-    restoreNavigation,
-    beginEntry,
-    page,
-    entryVersion,
-  ]);
+  }, [authenticated, guideOpen, film, playing, screen, expanded, closeFilm, closePlayer, restoreNavigation, beginEntry, page, entryVersion]);
 
   useEffect(() => {
     if (
@@ -247,17 +384,7 @@ export default function Cinema({
     const request = commands.focusByKey(occurrenceKey('profiles', profile));
 
     return () => request.cancel();
-  }, [
-    commands,
-    ready,
-    authenticated,
-    guideOpen,
-    film,
-    playing,
-    screen,
-    profile,
-    page,
-  ]);
+  }, [commands, ready, authenticated, guideOpen, film, playing, screen, profile, page]);
 
   const collectionReady = useCallback(
     (initialKey?: string) => {
@@ -271,13 +398,8 @@ export default function Cinema({
         return;
       }
 
-      const restoring = !film && returning.current;
-
-      const key = film
-        ? occurrenceKey('details', 'play')
-        : restoring
-        ? bookmark.current
-        : initialKey;
+      const key =
+        returnKey ?? (film ? occurrenceKey('details', 'play') : initialKey);
 
       if (!key) {
         return;
@@ -285,21 +407,55 @@ export default function Cinema({
 
       entered.current = route;
 
-      if (Platform.OS !== 'android') returning.current = !!film;
+      // The snapshot changes when the host observes a different key or mount.
+      // Keep an early move on this screen, even across two Details visits.
+      const focus = observedFocus.current;
+
+      if (
+        film &&
+        !returnKey &&
+        focus !== focusBeforeEntry.current &&
+        focus.kind === 'managed' &&
+        focus.occurrenceKey &&
+        detailControlKeys.has(focus.occurrenceKey)
+      ) {
+        setEntering(false);
+
+        return;
+      }
 
       const request =
-        Platform.OS === 'android' && restoring
+        Platform.OS === 'android' && returnKey
           ? commands.restoreFocusByKey(key)
           : commands.focusByKey(key);
 
       entryRequest.current = request;
+
+      if (
+        Platform.OS === 'ios' &&
+        Platform.isTV &&
+        screen === 'Home' &&
+        !film &&
+        !returnKey &&
+        key !== occurrenceKey(page, 'load-more')
+      ) {
+        // Only a fresh input observation of this hero may open the sidebar
+        // before its command receipt. UIKit still owns the initial landing.
+        homeArrival.current = {
+          key,
+          onFocus: () => {
+            if (entryRequest.current === request) setEntering(false);
+          },
+        };
+      }
 
       request.result.then(result => {
         if (entryRequest.current !== request) {
           return;
         }
 
-        if (Platform.OS === 'android') returning.current = !!film;
+        homeArrival.current = null;
+        setReturnKey(undefined);
 
         entryRequest.current = null;
         setEntering(false);
@@ -309,30 +465,61 @@ export default function Cinema({
         }
       });
     },
-    [commands, film, page, playing, guideOpen, entryVersion, pendingEntry],
+    [
+      commands,
+      homeArrival,
+      observedFocus,
+      setNotice,
+      film,
+      page,
+      screen,
+      playing,
+      guideOpen,
+      entryVersion,
+      pendingEntry,
+      returnKey,
+    ],
   );
 
   const navigate = (name: Screen) => {
-    returning.current = false;
-
     beginEntry(() => {
       setEntryVersion(value => value + 1);
-      setFilm(null);
+      setDetailsHistory([]);
       setScreen(name);
     });
-
-    setNotice('');
   };
+
+  const homeReady = useCallback(
+    (key?: string) => {
+      if (loadingHome) {
+        if (!key) return;
+
+        setHomeEntryKey(key);
+        setLoadingHome(false);
+
+        return;
+      }
+
+      if (!homeEntryKey) collectionReady(key);
+    },
+    [loadingHome, homeEntryKey, collectionReady],
+  );
+
+  useEffect(() => {
+    // Dispatch after the loader and the scope preference have committed together.
+    if (!loadingHome && homeEntryKey && !film && screen === 'Home') {
+      collectionReady(homeEntryKey);
+    }
+  }, [loadingHome, homeEntryKey, film, screen, collectionReady]);
 
   const closeGuide = useCallback(() => {
-    beginEntry(() => setGuideOpen(false));
-  }, [beginEntry]);
+    beginEntry(() => setGuideOpener(undefined), guideOpener);
+  }, [beginEntry, guideOpener]);
 
-  const openGuide = (openerKey: string) => {
-    bookmark.current = openerKey;
-    returning.current = true;
-    beginEntry(() => setGuideOpen(true));
-  };
+  const openGuide = useCallback(
+    (openerKey: string) => beginEntry(() => setGuideOpener(openerKey)),
+    [beginEntry],
+  );
 
   if (!authenticated) {
     return (
@@ -364,8 +551,6 @@ export default function Cinema({
           profile={profile}
           highContrast={contrast}
           onSelect={name => {
-            returning.current = false;
-
             beginEntry(() => {
               setProfile(name);
               setScreen('Home');
@@ -376,9 +561,21 @@ export default function Cinema({
     );
   }
 
+  const showHomeLoader =
+    loadingHome && screen === 'Home' && !film && !playing && !guideOpen;
+
   return (
     <View style={s.fill}>
-      <View style={[s.shell, (playing || guideOpen) && s.hidden]}>
+      <View
+        {...(Platform.OS === 'web' && showHomeLoader
+          ? { inert: true, 'aria-hidden': true }
+          : {})}
+        accessibilityElementsHidden={showHomeLoader}
+        importantForAccessibility={
+          showHomeLoader ? 'no-hide-descendants' : 'auto'
+        }
+        style={[s.shell, (playing || guideOpen) && s.hidden]}
+      >
         <Sidebar
           active={!playing && !guideOpen && !entering}
           expanded={expanded}
@@ -389,11 +586,10 @@ export default function Cinema({
           onNavigate={navigate}
           onSignOut={() => {
             saveBrowserSession(null);
-            returning.current = false;
-            bookmark.current = null;
+            setReturnKey(undefined);
             entered.current = '';
-            setFilm(null);
-            setPlaying(false);
+            setDetailsHistory([]);
+            setPlayingFilm(undefined);
             setScreen('Profile');
             setAuthenticated(false);
           }}
@@ -409,14 +605,16 @@ export default function Cinema({
               Platform.OS === 'android' && !entering ? screen : undefined
             }
             active={!film && !playing && !guideOpen}
-            // Native reader entry stays available initially. Hold automatic
-            // fallback only during the explicit return, through confirmation.
+            // During Home entry or a return, only the intended target may
+            // receive Android's automatic fallback until the request settles.
             entryReady={
-              !entering || (Platform.OS === 'android' && !returning.current)
+              !showHomeLoader &&
+              (!entering ||
+                (Platform.OS === 'android' && !returnKey && !homeEntryKey))
             }
             preferredKey={
-              Platform.OS === 'android' && entering && returning.current
-                ? bookmark.current ?? undefined
+              Platform.OS === 'android' && entering
+                ? returnKey ?? homeEntryKey
                 : undefined
             }
             boundary="parent"
@@ -438,18 +636,34 @@ export default function Cinema({
                 </>
               )}
               {screen === 'Home' && (
-                <Browse {...options} kind="all" featured onGuide={openGuide} />
+                <HomeBrowse
+                  {...options}
+                  kind="all"
+                  featured
+                  continueWatching={library.watching}
+                  onGuide={openGuide}
+                  onHomeLoading={homeLoadingStarted}
+                  onReady={homeReady}
+                />
               )}
               {screen === 'Movies' && <Catalogue {...options} kind="movie" />}
               {screen === 'Series' && <Catalogue {...options} kind="series" />}
               {screen === 'Search' && <Search {...options} />}
+              {screen === 'My List' && (
+                <MyList
+                  {...options}
+                  saved={library.saved}
+                  error={library.error}
+                  ready={library.ready}
+                  onBrowse={() => navigate('Home')}
+                  onRetry={store.retry}
+                />
+              )}
               {screen === 'Settings' && (
                 <Settings
                   onReady={collectionReady}
                   mode={mode}
                   onMode={() => {
-                    returning.current = false;
-
                     beginEntry(() =>
                       setMode(value =>
                         value === 'proxy' ? 'fixture' : 'proxy',
@@ -478,34 +692,68 @@ export default function Cinema({
             }
             boundary="parent"
             active={!!film && !playing}
-            entryReady={Platform.OS === 'android' || !entering}
-            style={[s.fill, !film && s.hidden]}
+            entryReady={!entering || (Platform.OS === 'android' && !returnKey)}
+            preferredKey={
+              Platform.OS === 'android' && entering ? returnKey : undefined
+            }
+            style={[s.detailLayer, !film && s.hidden]}
           >
             {film && (
               <Details
                 active={!playing}
                 onReady={collectionReady}
+                waitForRecommendations={!!returnKey}
                 key={film.id}
                 film={film}
                 onOpen={openFilm}
                 onPlay={openPlayer}
+                saved={library.saved.some(
+                  item => libraryId(item) === libraryId(film),
+                )}
+                listReady={library.ready}
+                listError={library.error}
+                onToggleSaved={store.toggle}
+                resumeAvailable={library.watching.some(
+                  item => libraryId(item.film) === libraryId(film),
+                )}
                 highContrast={contrast}
               />
             )}
           </FocusScope>
-          {!!notice && <Text style={s.footer}>{notice}</Text>}
+          {!!notice && (
+            <Text pointerEvents="none" style={[s.footer, s.navigationNotice]}>
+              {notice}
+            </Text>
+          )}
         </View>
       </View>
+      {showHomeLoader && (
+        <View style={[s.hiddenPlayer, s.splash]}>
+          <ActivityIndicator accessible={false} color="#26D9F2" size="large" />
+          <Text accessibilityLiveRegion="polite" style={s.body}>
+            Loading Home…
+          </Text>
+        </View>
+      )}
       {guideOpen && (
         <View style={s.hiddenPlayer}>
           <Epg onClose={closeGuide} />
         </View>
       )}
-      {playing && film && (
+      {playingFilm && (
         <View style={s.hiddenPlayer}>
-          <Player title={film.title} onClose={closePlayer} />
+          <Player
+            title={playingFilm.title}
+            onClose={closePlayer}
+            onCheckpoint={recordPlayback}
+            startPosition={
+              library.watching.find(
+                item => libraryId(item.film) === libraryId(playingFilm),
+              )?.position
+            }
+          />
         </View>
       )}
     </View>
   );
-}
+});

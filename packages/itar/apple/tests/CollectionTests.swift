@@ -4,13 +4,20 @@ struct CollectionTests {
     static func check(_ condition: Bool) { precondition(condition) }
     static func run() throws {
         try rowEntry()
+        let column = CollectionEntry(key: "grid", parent: "", order: 0, scope: true,
+            enabled: true, layout: 2, extent: 174, leadingExtent: 600)
+        // Row 4 spans 1122...1296. A 660-point viewport at 530 only lacks its last 106 points.
+        precondition(column.verticalOffset(for: 4, current: 530, viewport: 660, content: 2500) == 636)
+        precondition(column.verticalOffset(for: 4, current: 700, viewport: 660, content: 2500) == 700)
+        precondition(column.verticalOffset(for: 4, current: 1350, viewport: 660, content: 2500) == 1122)
+        precondition(column.verticalOffset(for: 0, current: 250, viewport: 400, content: 2500) == 0)
         var row = CollectionEntry(key: "row", parent: "", order: 0, scope: true, enabled: true, layout: 1, extent: 100)
-        precondition(row.horizontalOffset(start: 400, end: 500, current: 100, viewport: 300, content: 1000, rtl: false) == 200)
-        precondition(row.horizontalOffset(start: 400, end: 800, current: 0, viewport: 300, content: 1000, rtl: false) == 400)
+        precondition(row.revealOffset(start: 400, end: 500, current: 100, viewport: 300, content: 1000, rtl: false) == 200)
+        precondition(row.revealOffset(start: 400, end: 800, current: 0, viewport: 300, content: 1000, rtl: false) == 400)
         row.horizontalAlignment = "leading"
-        precondition(row.horizontalOffset(start: 400, end: 500, current: 100, viewport: 300, content: 1000, rtl: false) == 400)
-        precondition(row.horizontalOffset(start: 500, end: 600, current: 700, viewport: 300, content: 1000, rtl: true) == 300)
-        precondition(row.horizontalOffset(start: 900, end: 1000, current: 300, viewport: 350, content: 1000, rtl: false) == 650)
+        precondition(row.revealOffset(start: 400, end: 500, current: 100, viewport: 300, content: 1000, rtl: false) == 400)
+        precondition(row.revealOffset(start: 500, end: 600, current: 700, viewport: 300, content: 1000, rtl: true) == 300)
+        precondition(row.revealOffset(start: 900, end: 1000, current: 300, viewport: 350, content: 1000, rtl: false) == 650)
         let connection = try EngineConnection(surface: 21, lifetime: 21, capacity: 8)
         defer { try? connection.close() }
         let text = """
@@ -21,7 +28,7 @@ struct CollectionTests {
         guard let document = CollectionDocument.decode(text) else { preconditionFailure("Valid catalog rejected") }
         let nearest = text.replacingOccurrences(of: "\"extent\":100", with: "\"extent\":100,\"rowEntry\":0")
         precondition(CollectionDocument.decode(nearest) != nil)
-        for value in ["-1", "2", "0.5", "\"first\""] {
+        for value in ["-1", "3", "0.5", "\"first\""] {
             precondition(CollectionDocument.decode(nearest.replacingOccurrences(of: "\"rowEntry\":0", with: "\"rowEntry\":\(value)")) == nil)
         }
         let aligned = text.replacingOccurrences(of: "\"extent\":100", with: "\"extent\":100,\"horizontalAlignment\":\"leading\"")
@@ -88,5 +95,10 @@ struct CollectionTests {
         mutation.expected = try connection.find("rail-2")
         check(try connection.apply([mutation], revision: connection.snapshot().revision).code == 0)
         check(try connection.directionQuery(3).target.slot == connection.find("rail-1").slot)
+        check(try connection.collections(document(3, 2)).code == 0)
+        _ = try connection.observe(ItarFocus(kind: 0, node: mutation.expected, mount: 1))
+        check(try connection.directionQuery(2).target.slot == source.slot)
+        _ = try connection.observe(ItarFocus(kind: 0, node: source, mount: 1))
+        check(try connection.directionQuery(3).target.slot == mutation.expected.slot)
     }
 }

@@ -34,6 +34,7 @@ public final class ItarTargetHost: UIButton {
     private let focusFill = CAShapeLayer()
     @objc public var focusBackgroundColor: UIColor? { didSet { applyFocusStyle() } }
     private let cardOutline = CAShapeLayer()
+    private var appliedTitleColor: UIColor?
     @objc public var displayLabel = "" { didSet {
         if presentationContent.subviews.isEmpty { setTitle(displayLabel, for: .normal) }
         else { presentationContentChanged() }
@@ -85,6 +86,15 @@ public final class ItarTargetHost: UIButton {
     public override func accessibilityIncrement() { _ = adjust(1, source: "accessibility") }
     public override func accessibilityDecrement() { _ = adjust(-1, source: "accessibility") }
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        #if ITAR_OCCO
+        if let emit = ItarFocusTrace.receive, let owner, let registration {
+            for press in presses where press.type == .select {
+                emit(["kind": "input", "surface": owner.lifetime, "move": ItarFocusTrace.move(for: press),
+                      "direction": "select", "owner": "host", "target": registration.key, "mount": registration.mount,
+                      "detail": "target down"])
+            }
+        }
+        #endif
         if presses.count == 1, let type = presses.first?.type,
            (type == .leftArrow || type == .rightArrow), adjust(type == .leftArrow ? -1 : 1) { return }
         super.pressesBegan(presses, with: event)
@@ -152,6 +162,12 @@ public final class ItarTargetHost: UIButton {
     public override var isHidden: Bool { didSet { if oldValue != isHidden { semanticsChanged() } } }
     public override var alpha: CGFloat { didSet { if oldValue != alpha { semanticsChanged() } } }
 
+    private func applyTitleColor(_ color: UIColor?) {
+        guard appliedTitleColor != color else { return }
+        appliedTitleColor = color
+        setTitleColor(color, for: .normal)
+    }
+
     func applyFocusStyle() {
         let focused = isFocused && window != nil && owner?.dispatcher?.closed == false && registration?.target === self
         let radius = cornerRadius.isFinite ? max(0, cornerRadius) : 6
@@ -165,14 +181,16 @@ public final class ItarTargetHost: UIButton {
         cardOutline.path = UIBezierPath(roundedRect: CGRect(x: 2, y: 2, width: max(0, bounds.width - 4), height: max(0, bounds.height - outlineInsetBottom - 4)), cornerRadius: radius).cgPath
         cardOutline.lineWidth = 4
         cardOutline.strokeColor = (focusColor ?? .cyan).cgColor
-        layer.borderWidth = card ? 0 : focused ? 5 : 1
-        layer.borderColor = (focused ? focusColor ?? .systemOrange : baseColor ?? .darkGray).cgColor
+        layer.borderWidth = focused && !card ? 5 : 0
+        layer.borderColor = focused && !card ? (focusColor ?? .systemOrange).cgColor : nil
+        applyTitleColor(focused ? focusColor ?? baseColor : baseColor)
     }
     func restoreBaseStyle() {
         focusFill.isHidden = true
         cardOutline.isHidden = true
-        layer.borderWidth = 1
-        layer.borderColor = (baseColor ?? .darkGray).cgColor
+        layer.borderWidth = 0
+        layer.borderColor = nil
+        applyTitleColor(baseColor)
     }
     public override func didUpdateFocus(in context: UIFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
         super.didUpdateFocus(in: context, with: coordinator)
@@ -181,12 +199,22 @@ public final class ItarTargetHost: UIButton {
         else { coordinator.addCoordinatedAnimations({ self.applyFocusStyle() }, completion: nil) }
     }
     @discardableResult func activate(_ source: String) -> Bool {
-        guard let owner, let registration, owner.live(registration) === self,
+        guard let owner, let registration,
               !label.isEmpty, targetEnabled, sequence < UInt64.max else { return false }
         if source == "input" {
-            guard isFocused, (UIFocusSystem.focusSystem(for: self)?.focusedItem as? UIView) === self else { return false }
+            guard isFocused else { return false }
+            // Sibling layout can invalidate the focused mount just before Select.
+            let mount = registration.mount
+            owner.commitPendingGeometry()
+            guard registration.mount == mount,
+                  (UIFocusSystem.focusSystem(for: self)?.focusedItem as? UIView) === self else { return false }
         }
+        guard owner.live(registration) === self else { return false }
         sequence += 1
+        #if ITAR_OCCO
+        ItarFocusTrace.receive?(["kind": "activation", "surface": owner.lifetime, "target": registration.key,
+                                 "mount": registration.mount, "channel": source, "detail": "native button activated"])
+        #endif
         onActivate?(["lifetime": String(owner.lifetime), "provider": owner.providerId,
                      "registration": registrationId, "occurrenceKey": registration.key,
                      "mount": String(registration.mount), "sequence": String(sequence), "source": source])

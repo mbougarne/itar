@@ -15,6 +15,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     internal var connection = Connection()
     private var serial = 0L
     private var epoch = 1L
+    private var invalidatedEpoch = 0L
     internal val targets = LinkedHashMap<Mount, WeakReference<TargetView>>()
     private val logicalTargets = LinkedHashMap<String, WeakReference<TargetView>>()
     internal val scopes = LinkedHashMap<String, WeakReference<ScopeView>>()
@@ -56,7 +57,12 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     private var refreshPosted = false
     var closed = false
         private set
-    private val focusObserver = ViewTreeObserver.OnGlobalFocusChangeListener { _, target -> observe(target); collections.focused(target) }
+    private val focusObserver = ViewTreeObserver.OnGlobalFocusChangeListener { _, target ->
+        // Capture callback evidence before dispatcher reconciliation can read a newer focus.
+        captureFocus { it.hostFocus(this, target, "input") }
+        observe(target)
+        collections.focused(target)
+    }
     private val scrollObserver = ViewTreeObserver.OnScrollChangedListener { geometryChanged() }
     private val layoutObserver = ViewTreeObserver.OnGlobalLayoutListener { orderedFocusChanged() }
     // A parent can move its children on screen without laying any of them out.
@@ -70,7 +76,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         if (!closed) dispatcher.batch {
             val pending = deferred.mapNotNull { it.get() }
             deferred.clear()
-            refreshGeometry()
+            refreshGeometry(rebuildProjections = false)
             pending.filter { it.isAttachedToWindow && it.surface === this }.forEach { it.commitProps() }
             rebuildOrderedFocus()
             collectionAccessibility.rebuild()
@@ -251,6 +257,9 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         if (result[0] == 0L) {
             target.committedBounds.set(sampledBounds)
             val mount = Mount(result[1], result[2], result[3], target.occurrenceKey)
+            captureFocus { sink ->
+                if (old != mount) sink.event("mount", connection.lifetime, target = mount.key, mount = mount.serial)
+            }
             target.mount = mount
             target.logicalMount = mount
             target.logicalOwner = WeakReference(this)
@@ -261,9 +270,10 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             logical?.key?.takeIf { it != target.occurrenceKey && logicalTargets[it]?.get() === target }?.let { logicalTargets.remove(it) }
             logicalTargets[target.occurrenceKey] = WeakReference(target)
             targets[mount] = WeakReference(target)
+            // A scroll can clip the current card before the host or reader chooses its next target.
             target.isFocusable = target.isEnabled && collection?.enabled != false && acceptsInput && scopeActive(target.scopeKey) &&
                 (measured || collections.retained(mount) || (old == mount && target.isFocused && hasWindowFocus() &&
-                    !readerOwnsInput && targetGeometry.partiallyVisibleInScroll(target, this)))
+                    targetGeometry.partiallyVisibleInScroll(target, this)))
             target.resumeCollectionAccessibility()
             target.resumeStyle()
             if (target.hasFocus()) observe(target)
@@ -281,6 +291,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         target.resetStyle()
         val old = target.mount ?: return
         target.mount = null // Host authority is revoked before any engine/configuration work.
+        captureFocus { it.event("unmount", connection.lifetime, target = old.key, mount = old.serial) }
         targets.remove(old)
         geometryObservation.clear()
         target.isFocusable = false
@@ -315,9 +326,20 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         if (closed) return
         orderedFocus.clear()
         geometryDirty = true
-        // One bounded inbox record even when a nested window has many cells.
-        val values = targets.keys.flatMap { it.values(epoch).toList() }.toLongArray()
-        if (values.isNotEmpty()) dispatcher.submit(26, values)
+        // Scroll and child layout callbacks can repeat before the next measurement.
+        // A fresh mount or a geometry refresh advances the epoch and needs its own invalidation.
+        if (invalidatedEpoch != epoch) {
+            invalidatedEpoch = epoch
+            val values = LongArray(targets.size * 4)
+            var offset = 0
+            for (mount in targets.keys) {
+                values[offset++] = mount.slot
+                values[offset++] = mount.generation
+                values[offset++] = mount.serial
+                values[offset++] = epoch
+            }
+            if (values.isNotEmpty()) dispatcher.submit(26, values)
+        }
         scheduleRefresh()
     }
     private fun scheduleRefresh() {
@@ -420,7 +442,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             retired.forEach { key -> scopes.remove(key)?.get()?.let { it.owner = null; it.node = longArrayOf(0, 0) } }
         }
     }
-    internal fun refreshGeometry() {
+    internal fun refreshGeometry(rebuildProjections: Boolean = true) {
         if (closed || refreshingGeometry) return
         if (dispatcher.busy) { scheduleRefresh(); return }
         if (!geometryObservation.changed(targets.values) && !geometryDirty) return
@@ -444,8 +466,10 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         refreshingGeometry = true
         try { dispatcher.batch { changed.forEach { register(it) } } }
         finally { refreshingGeometry = false }
-        rebuildOrderedFocus()
-        collectionAccessibility.rebuild()
+        if (rebuildProjections) {
+            rebuildOrderedFocus()
+            collectionAccessibility.rebuild()
+        }
     }
     private fun record(target: View?, channel: Long): LongArray {
         val mount = (target as? TargetView)?.takeIf { it.surface === this }?.mount
@@ -455,13 +479,31 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     internal fun focusRecord(channel: Long) = record(if (channel == 0L) rootView.findFocus()
         else accessibilityTarget?.get()?.takeIf { it.isAttachedToWindow && it.isAccessibilityFocused }
             ?: targets.values.mapNotNull { it.get() }.firstOrNull { it.isAccessibilityFocused }, channel)
-    internal fun accessibilityObserved(target: View) {
-        accessibilityTarget = if (target.isAccessibilityFocused) WeakReference(target) else null
+    internal fun accessibilityObserved(target: View, type: Int, direct: Boolean) {
+        val focused = target.isAccessibilityFocused
+        accessibilityTarget = if (focused) WeakReference(target) else null
+        captureFocus { sink ->
+            val acquired = type == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED
+            // A forwarded event identifies the immediate child, possibly an ancestor of the source.
+            // Record that boundary even when the originating descendant cannot be identified.
+            val mount = (target as? TargetView)?.takeIf { direct && it.surface === this }?.mount
+            val detail = if (direct) {
+                if (acquired) "accessibility focus acquired" else "accessibility focus cleared"
+            } else {
+                if (acquired) "forwarded accessibility focus acquired" else "forwarded accessibility focus cleared"
+            }
+            sink.event("callback", connection.lifetime, target = mount?.key, mount = mount?.serial ?: 0,
+                channel = "accessibility", detail = detail)
+            if (acquired) {
+                if (!direct) sink.forwardedAccessibilityFocus(this, target)
+                else if (focused) sink.hostFocus(this, target, "accessibility")
+            }
+        }
         observe(target, 1)
     }
     override fun requestSendAccessibilityEvent(child: View, event: AccessibilityEvent): Boolean {
         if (event.eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED ||
-            event.eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED) accessibilityObserved(child)
+            event.eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED) accessibilityObserved(child, event.eventType, direct = false)
         return super.requestSendAccessibilityEvent(child, event)
     }
     internal fun observe(target: View? = rootView.findFocus(), channel: Long = 0) {

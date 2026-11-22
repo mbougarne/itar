@@ -13,7 +13,7 @@ const {outputText} = ts.transpileModule(source, {
 // Exercise real handlers and effect dependencies; native reader/window behavior
 // remains an emulator/device check rather than a property of this hook harness.
 function fixture(platform) {
-  const states = [], refs = [], effects = [], pending = [], requests = [], keyboard = new Map();
+  const states = [], refs = [], effects = [], pending = [], requests = [], keyboard = new Map(), menuRoutes = [];
   const nativeTouchable = {Ripple: (color, borderless) => ({type: 'RippleAndroid', color, borderless})};
   let stateIndex = 0, refIndex = 0, effectIndex = 0, tree, focusCalls = 0, signIns = 0, back;
   const commands = {focusByKey: key => { requests.push(key); return {cancel() {}}; }};
@@ -42,6 +42,7 @@ function fixture(platform) {
     }
     if (name === 'itar/react') { return {FocusScope: 'FocusScope', occurrenceKey: (...parts) => parts.join('/'), useFocusReady: () => true, useFocusCommands: () => commands}; }
     if (name === './components/Action') { return {Action: 'Action'}; }
+    if (name === './useAppleTVMenu') { return {useAppleTVMenu: active => menuRoutes.push(active)}; }
     if (name === './theme') { return {useDesign: () => ({s: {}, u: 1})}; }
     throw new Error(`Unexpected import ${name}`);
   }});
@@ -58,7 +59,7 @@ function fixture(platform) {
   const find = (type, label) => nodes(tree).find(node => node.type === (type === 'TouchableNativeFeedback' ? nativeTouchable : type) &&
     (!label || (node.props.label ?? node.props.accessibilityLabel ?? node.props.title) === label));
   find('Action', 'Sign in').props.onPress(); render();
-  return {render, find, requests, keyboard, focusCalls: () => focusCalls, signIns: () => signIns, back: () => back?.(),
+  return {render, find, requests, keyboard, menuRoutes, focusCalls: () => focusCalls, signIns: () => signIns, back: () => back?.(),
     inputs: () => nodes(tree).filter(node => node.type === 'TextInput'),
     activate: field => { find('Action', `Edit ${field}`).props.onPress(); render(); }};
 }
@@ -101,6 +102,24 @@ test('Android keeps both native fields mounted through typing, blur, Done and ke
   assert.equal(f.inputs().length, 0);
 });
 
+test('Android form maps the accessibility activate action to Sign in, Back and Sign up', () => {
+  const f = fixture('android');
+  const activate = (button, name = 'activate') => {
+    assert.deepEqual(Array.from(button.props.accessibilityActions ?? [], action => action.name), ['activate']);
+    button.props.onAccessibilityAction({nativeEvent: {actionName: name}});
+  };
+  const submit = f.find('TouchableNativeFeedback', 'Sign in');
+  activate(submit, 'longpress');
+  assert.equal(f.signIns(), 0);
+  activate(submit);
+  assert.equal(f.signIns(), 1);
+  activate(f.find('TouchableNativeFeedback', 'Back')); f.render();
+  assert.equal(f.inputs().length, 0);
+  f.find('Action', 'Sign up').props.onPress(); f.render();
+  activate(f.find('TouchableNativeFeedback', 'Sign up'));
+  assert.equal(f.signIns(), 2);
+});
+
 for (const platform of ['ios', 'web']) {
   test(`${platform} retains its inline editor and keyboard-hide completion`, () => {
     const f = fixture(platform);
@@ -115,3 +134,14 @@ for (const platform of ['ios', 'web']) {
     assert.equal(f.requests.at(-1), 'auth/email');
   });
 }
+
+test('Welcome yields Menu, and the sign-in form and inline editor provide their own Back routes', () => {
+  const f = fixture('ios');
+  assert.deepEqual(f.menuRoutes, [false, true]);
+  f.activate('email');
+  assert.equal(f.menuRoutes.at(-1), true);
+  assert.equal(f.back(), true); f.render();
+  assert.equal(f.menuRoutes.at(-1), true, 'the form remains after the editor closes');
+  assert.equal(f.back(), true); f.render();
+  assert.equal(f.menuRoutes.at(-1), false, 'tvOS can leave from Welcome');
+});

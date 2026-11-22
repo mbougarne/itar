@@ -43,6 +43,9 @@ extension ItarSurfaceHost {
     func observedFocus(_ context: UIFocusUpdateContext) {
         entryWork?.cancel(); entryWork = nil
         let next = context.nextFocusedView
+        #if ITAR_OCCO
+        traceObservation(next, channel: "input")
+        #endif
         // Callback destination is the host fact, independent of the preference.
         if let next { dispatcher?.enqueue(.focus(classify(next), 0, nil)) }
         else { observeCurrent() } // A nil UIView is not proof that no non-view focus item exists.

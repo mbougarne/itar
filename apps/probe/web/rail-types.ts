@@ -16,7 +16,7 @@ export type RowProps = {
   renderItem?: VirtualizedFocusItemRenderer;
   decoration?: (item: VirtualizedFocusItem) => React.ReactNode;
   forced?: string;
-  alignment: 'nearest' | 'leading';
+  alignment: 'nearest' | 'leading' | 'pinned';
   active: boolean;
 };
 

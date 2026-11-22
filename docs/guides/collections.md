@@ -76,8 +76,8 @@ For one row, import `FocusVirtualizedList` and replace the rails component with 
 | `itemExtent` | Full width of a horizontal cell or height of a vertical one, including spacing. A rail can override its item width. |
 | `rowExtent` and `viewportExtent` | Row height and horizontal viewport width for nested rails. Size the container to fit the viewport. |
 | `viewportRows` | Visible row count, between 1 and 10, default 2. `viewportHeight` can specify the outer viewport's exact height. |
-| `rowEntry` | `nearest` selects the nearest eligible logical column when moving vertically. `first` starts at the first eligible title even if its cell needs to be realized. |
-| `horizontalAlignment` | `nearest` reveals as much as necessary. `leading` aligns the confirmed title with the start edge, bounded by scrollable content. |
+| `rowEntry` | `nearest` selects the nearest eligible logical column when moving vertically. `first` starts at the first eligible title even if its cell needs to be realized. `remembered` returns to the last eligible card observed in the destination row, falling back to its first eligible card. |
+| `horizontalAlignment` | `nearest` reveals as much as necessary. `leading` aligns the confirmed title with the start edge, bounded by scrollable content. `pinned` adds trailing space so even the final card can reach that edge. |
 | `renderItem` | Receives the item and its index within its row. Return text, an image, a decorative view, or `null` for label mode. If omitted, the cell uses `item.children`. |
 | `onReady` on rails | Signals readiness of the active collection's accepted model on native TV. Use it when coordinating a route transition. |
 

@@ -1,10 +1,17 @@
-import React, { useCallback, useContext, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { Platform, Text, View, useWindowDimensions } from 'react-native';
 import { FocusVirtualizedRails, occurrenceKey } from 'itar/react';
 import type { ProviderMode } from './catalog-types';
 import type { VirtualizedFocusItem, VirtualizedFocusRail } from 'itar/react';
 import { useDesign } from './theme';
 import { BrowserNavigation } from './browser-navigation';
+import { DevelopmentSettings } from './development-settings';
 
 const supportsCheckedState = Platform.OS === 'android' || Platform.OS === 'web';
 
@@ -36,6 +43,13 @@ export function Settings({
   const { s, u } = useDesign();
   const { width } = useWindowDimensions();
   const navigation = useContext(BrowserNavigation);
+  const development = useContext(DevelopmentSettings);
+  const refresh = development?.refresh;
+
+  useEffect(() => {
+    refresh?.();
+  }, [refresh]);
+
   const [height, setHeight] = useState(0);
   const viewport = Math.max(200 * u, width - 440 * u);
 
@@ -70,6 +84,7 @@ export function Settings({
         checked: armed,
         press: onArm,
       },
+      ...(development?.actions ?? []),
       ...(__DEV__ && onOpenProbes
         ? [
             {
@@ -147,6 +162,7 @@ export function Settings({
     id,
     mode,
     navigation,
+    development,
     contrast,
     slow,
     armed,

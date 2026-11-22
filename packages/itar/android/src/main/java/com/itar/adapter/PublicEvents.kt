@@ -6,11 +6,14 @@ internal fun SurfaceView.publishPublic(name: String, values: Map<String, String>
         allowDetached = name == "topSurfaceRecord")
 }
 
-internal fun SurfaceView.emitRequest(record: LongArray, command: String) {
-    val statuses = listOf("started", "joined", "busy", "unavailable", "stale", "invalid", "cancelled", "unchanged",
+private val requestStatuses = listOf("started", "joined", "busy", "unavailable", "stale", "invalid", "cancelled", "unchanged",
         "confirmed", "reconciled", "expired", "backward_time", "exhausted", "resync", "disposed", "issued", "waiting")
+
+internal fun requestStatus(code: Long) = requestStatuses.getOrNull(code.toInt()) ?: "invalid"
+
+internal fun SurfaceView.emitRequest(record: LongArray, command: String) {
     publishPublic("topRequestRecord", mapOf("lifetime" to connection.lifetime.toString(), "request" to record[2].toString(),
-        "status" to (statuses.getOrNull(record[1].toInt()) ?: "invalid"), "command" to command))
+        "status" to requestStatus(record[1]), "command" to command))
     if (record[1] in listOf(3L, 4L, 5L, 6L, 8L, 9L, 10L, 12L, 13L, 14L)) commandRequests.remove(record[2])
 }
 

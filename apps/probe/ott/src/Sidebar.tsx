@@ -1,9 +1,8 @@
 import React from 'react';
-import { Image, Platform, Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { FocusScope, occurrenceKey } from 'itar/react';
 import { art, icons } from './artwork';
-import { Action } from './components/Action';
-import { Picture } from './components/Picture';
+import { SidebarButton } from './components/SidebarButton';
 import { useDesign } from './theme';
 import { screens, type Screen } from './navigation';
 import type { ProviderMode } from './catalog-types';
@@ -65,60 +64,39 @@ export function Sidebar({
               {name === screen && (
                 <View accessible={false} style={s.routeMarker} />
               )}
-              <Action
+              <SidebarButton
                 id={occurrenceKey('nav', name)}
                 order={index}
-                label={name}
-                displayLabel={expanded ? name : ''}
+                title={name}
+                icon={icons[name]}
+                expanded={expanded}
                 onPress={() => onNavigate(name)}
                 highContrast={contrast}
-                style={[s.navAction, expanded && s.expandedNav]}
               />
-              <View pointerEvents="none" style={s.navIconSlot}>
-                <Image
-                  accessible={false}
-                  source={icons[name]}
-                  style={s.navIcon}
-                />
-              </View>
             </View>
           ))}
         </View>
         <View style={s.sidebarBottom}>
-          <View style={s.profileTag}>
-            <Action
-              order={6}
-              id={occurrenceKey('nav', 'profile-switcher')}
-              label={`${profile}, switch profile`}
-              displayLabel={expanded ? profile : ''}
-              onPress={() => onNavigate('Profile')}
-              highContrast={contrast}
-              style={[s.profileSwitcher, { width: (expanded ? 312 : 64) * u }]}
-            />
-            <View pointerEvents="none" style={s.switcherAvatar}>
-              <Picture
-                source={art[profile === 'Explorer' ? 0 : 3]}
-                style={s.avatar}
-                fallback=""
-              />
-            </View>
-          </View>
-          <View style={s.navRow}>
-            <Action
-              order={7}
-              id={occurrenceKey('nav', 'signout')}
-              label="Sign out"
-              displayLabel={expanded ? 'Sign out' : ''}
-              onPress={onSignOut}
-              style={[s.navAction, { width: (expanded ? 312 : 64) * u }]}
-            />
-            <View pointerEvents="none" style={s.navIconSlot}>
-              <Image
-                source={require('../assets/cinematic/icons/arrow-left.png')}
-                style={s.navIcon}
-              />
-            </View>
-          </View>
+          <SidebarButton
+            order={screens.length}
+            id={occurrenceKey('nav', 'profile-switcher')}
+            title={profile}
+            label={`${profile}, switch profile`}
+            icon={art[profile === 'Explorer' ? 0 : 3]}
+            avatar
+            expanded={expanded}
+            onPress={() => onNavigate('Profile')}
+            highContrast={contrast}
+          />
+          <SidebarButton
+            order={screens.length + 1}
+            id={occurrenceKey('nav', 'signout')}
+            title="Sign out"
+            icon={icons.signOut}
+            expanded={expanded}
+            onPress={onSignOut}
+            highContrast={contrast}
+          />
           {expanded && (
             <Text style={s.fixtureLabel}>
               {mode === 'proxy' ? 'TMDB CATALOGUE' : 'FIXTURE CATALOGUE'}

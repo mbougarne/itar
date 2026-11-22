@@ -67,20 +67,20 @@ function withRows(policy, run) {
   } finally { engine.delete(); }
 }
 test('shared collection policy selects logical first before a later mounted column', () => {
-  for (const policy of [0, 1]) withRows(policy, engine => {
+  for (const policy of [0, 1, 2]) withRows(policy, engine => {
     assert.equal(engine.direction(3, 3).status, 3);
     assert.deepEqual(engine.drain(), []);
     assert.equal(engine.direction(3, 0).status, 0);
-    if (policy === 1) {
+    if (policy !== 0) {
       const [reveal] = engine.drain();
       assert.equal(reveal.key, 'rail-1'); assert.equal(reveal.kind, 0);
       assert.equal(engine.issue(reveal.id).status, 15);
-      assert.equal(engine.sync(rows(1, true).reverse()), 0); // Mount/transport order is not a new logical dataset.
+      assert.equal(engine.sync(rows(policy, true).reverse()), 0); // Mount/transport order is not a new logical dataset.
       assert.equal(engine.realize(reveal.id, 'rail-1', 2).status, 0);
       confirm(engine, 'rail-1', 2);
     } else confirm(engine, 'rail-2');
     engine.release(); engine.direction(2, 0);
-    confirm(engine, policy ? 'header-0' : 'header-2');
+    confirm(engine, policy === 1 ? 'header-0' : 'header-2');
     engine.focus('header-1', 0); confirm(engine, 'header-1');
     engine.direction(1, 0); confirm(engine, 'header-2');
     engine.focus('header-1', 0); confirm(engine, 'header-1'); engine.unmanaged(0);
@@ -91,7 +91,7 @@ test('policy publication cancels old realization and invalid snapshots reject at
   engine.direction(3, 0); const [reveal] = engine.drain();
   assert.equal(reveal.key, 'rail-1'); assert.equal(engine.issue(reveal.id).status, 15);
   const pending = engine.snapshot().activeRequest;
-  for (const rowEntry of [-1, 2, 0.5, 'first', null, Number.NaN]) {
+  for (const rowEntry of [-1, 3, 0.5, 'first', null, Number.NaN]) {
     assert.notEqual(engine.sync(rows(rowEntry)), 0);
     assert.equal(engine.snapshot().activeRequest, pending);
   }
@@ -251,7 +251,7 @@ test('cycles, overlong keys and fractional protocol integers reject without chan
 test('visual alignment publication cancels old reveal without changing the selected key', () => withRows(1, engine => {
   engine.direction(3, 0); const [reveal] = engine.drain();
   assert.equal(engine.issue(reveal.id).status, 15);
-  for (const horizontalAlignment of [-1,2,0.5,null,'leading']) {
+  for (const horizontalAlignment of [-1,3,0.5,null,'leading']) {
     assert.notEqual(engine.sync(rows(1).map(node => node.key === 'rail' ? {...node, horizontalAlignment} : node)),0);
     assert.equal(engine.snapshot().activeRequest,reveal.request);
   }

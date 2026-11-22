@@ -46,6 +46,31 @@ A physical Chromecast HD on Android 14 was tested with TalkBack off and on. With
 
 On an Android 16/API 36 Google TV emulator, later Cinema checks covered sidebar traversal, passing the first offscreen row and returning to a nonfirst movie or series card, with TalkBack on and off. Separate reader-off Fabric tests exercised custom card content, activation, distant item reveal and dataset changes. Spoken output, physical remote behavior and long-session stability remain open. A previously reported app-not-responding event lacked a causal stack and did not recur on the bounded replay.
 
+## Record a focus incident with Occo
+
+Occo v0.1 records the Android TV **development build** of Itar Cinema. Freshly generated shells include it. If your checkout already has an older `apps/probe/android`, run `node scripts/wire-occo.cjs` from the repository root before rebuilding. For the Chromecast HD investigation, connect ADB to the TV and launch the development app with Metro as described above. Use `--active-arch-only` so the build matches the TV's ABI.
+
+1. Enable TalkBack, open Cinema **Settings** and select **Start Occo recording**. Return to the catalogue and press Down on the physical remote. Note the starting card and what TalkBack said.
+2. As soon as focus jumps, freeze the trace from a second terminal. This preserves the last events before you navigate away. To add a marker and keep recording instead, use the same command with `MARK` in place of `FREEZE`. The same controls are available from Cinema Settings.
+
+   ```sh
+   adb -s YOUR_ADB_SERIAL shell am broadcast -n com.itarprobe/com.itar.adapter.OccoControl -a com.itarprobe.occo.FREEZE
+   ```
+
+3. In Settings select **Inspect Occo recording** (or **Freeze and inspect Occo recording**). Use the D-pad to choose an event. Compare the requested occurrence and mount with the subsequent **input focus** and **accessibility focus**. A host can accept a request before the observation arrives. An unlinked observation after a cancellation is still evidence of where focus went.
+
+   If focus leaves a card, select the unmanaged observation on the channel you are investigating. When Android identifies the new view, Occo shows its native role and, when available, its screen bounds in pixels. A horizontal scroll container spanning a row is distinguishable from an individual button. Earlier recordings can still be opened, but these details are only available in captures that recorded them.
+
+4. Select **Export recording**. Copy the private file to your computer. Choose a new local filename for each incident.
+
+   ```sh
+   adb -s YOUR_ADB_SERIAL exec-out run-as com.itarprobe cat files/occo/latest.json > chromecast-down.json
+   ```
+
+5. On either computer, open [the local viewer](../../apps/probe/occo/viewer.html) from a checkout and choose the JSON file. A [synthetic example](../../apps/probe/occo/synthetic-example.json) is included. The viewer works offline. Stepping reads recorded events and never sends a command to a TV.
+
+**Reading gaps.** “Not observed” means the trace contains no matching input at that boundary. Android or the reader can act before Cinema receives a key. A dropped-event count means some evidence is missing. The recording captures occurrence keys, native mount identities and adapter events. Keep the actual remote sequence and spoken output with the file when sharing it.
+
 ## Fire TV running Fire OS
 
 Identify the exact **operating system and ABI** before trying the Android build; Amazon also ships a separate Vega OS runtime. The Android adapter declares API 24 as its minimum and the arm64 build above targets `arm64-v8a`. Those settings describe the binary. Compatibility with a particular Fire TV requires installation and testing on that device.

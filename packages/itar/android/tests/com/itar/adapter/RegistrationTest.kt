@@ -6,11 +6,26 @@ import android.view.View
 import com.itarprobe.MainActivity
 
 class RegistrationTest : ActivityInstrumentationTestCase2<MainActivity>(MainActivity::class.java) {
-    fun testAncestorMovementAndTranslatedGeometry() {
+    fun testAncestorMovementAndTranslatedGeometry() = geometry { run() }
+    fun testRepeatedScrollInvalidationIncludesLateMount() = geometry { repeatedScrollInvalidation() }
+    private fun geometry(check: GeometryChecks.() -> Unit) {
         instrumentation.setInTouchMode(false)
         val host = activity
         lateinit var fixture: GeometryChecks
         instrumentation.runOnMainSync { fixture = GeometryChecks(host); host.setContentView(fixture.root) }
+        instrumentation.waitForIdleSync()
+        var failure: Throwable? = null
+        instrumentation.runOnMainSync {
+            try { fixture.check() } catch (error: Throwable) { failure = error }
+            finally { fixture.root.close() }
+        }
+        failure?.let { throw it }
+    }
+    fun testPinnedShortRowKeepsLastCardAtSameSlotBeforeTheNextFrame() {
+        instrumentation.setInTouchMode(false)
+        val host = activity
+        lateinit var fixture: PinnedRowChecks
+        instrumentation.runOnMainSync { fixture = PinnedRowChecks(host); host.setContentView(fixture.root); fixture.publish() }
         instrumentation.waitForIdleSync()
         var failure: Throwable? = null
         instrumentation.runOnMainSync {

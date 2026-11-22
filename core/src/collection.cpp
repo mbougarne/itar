@@ -28,8 +28,9 @@ bool validCollectionNodes(std::span<const CollectionNode> nodes, RegistryLimits 
   if (nodes.size() > limits.capacity) { return false; }
   for (std::size_t i = 0; i < nodes.size(); ++i) {
     const auto& value = nodes[i];
-    if ((value.rowEntry != CollectionRowEntry::nearest && value.rowEntry != CollectionRowEntry::first) ||
-        (value.rowEntry == CollectionRowEntry::first &&
+    if ((value.rowEntry != CollectionRowEntry::nearest && value.rowEntry != CollectionRowEntry::first &&
+         value.rowEntry != CollectionRowEntry::remembered) ||
+        (value.rowEntry != CollectionRowEntry::nearest &&
          (!value.scope || value.layout != Layout::column || findNode(nodes, value.parent)))) {
       return false;
     }
@@ -165,7 +166,17 @@ Proposal proposeCollectionEntry(const State& state, std::span<const CollectionNo
       sourceRow->layout != Layout::row || targetRow->layout != Layout::row ||
       !sourceRow->parent || sourceRow->parent != targetRow->parent) { return proposal; }
   const auto* collection = find(targetRow->parent);
-  const auto entryOrder = collection && collection->rowEntry == CollectionRowEntry::first ? 0 : source->order;
+  const auto policy = collection ? collection->rowEntry : CollectionRowEntry::nearest;
+  if (policy == CollectionRowEntry::remembered) {
+    if (const auto* history = state.history(registry.find(targetRow->key))) {
+      const auto* item = find(*history);
+      const auto handle = registry.find(*history);
+      if (item && item->parent == targetRow->key && !item->scope && logicalTarget(state, handle)) {
+        return proposeTarget(state, handle, input);
+      }
+    }
+  }
+  const auto entryOrder = policy == CollectionRowEntry::nearest ? source->order : 0;
   const CollectionNode* best = nullptr;
   std::int64_t bestDistance = 0;
   for (const auto& item : nodes) {

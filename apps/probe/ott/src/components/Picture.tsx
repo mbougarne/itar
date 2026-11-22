@@ -33,6 +33,7 @@ export function Picture({
     <Image
       accessible={false}
       source={source}
+      fadeDuration={0}
       resizeMode="cover"
       style={style}
       onError={() => setFailed(true)}

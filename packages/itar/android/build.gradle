@@ -21,5 +21,11 @@ android {
     }
     externalNativeBuild { cmake { path 'CMakeLists.txt'; version '3.22.1' } }
     sourceSets.debug.java.srcDirs += file('tests/support')
+    // Only Cinema supplies a recorder, exclusively for its debug variant.
+    def noCapture = file('src/noCapture/java')
+    def capture = rootProject.findProperty('itarOccoCaptureDir')
+    buildTypes.configureEach { variant ->
+        sourceSets[variant.name].java.srcDir(variant.name == 'debug' && capture ? file(capture) : noCapture)
+    }
 }
 dependencies { implementation 'com.facebook.react:react-android' }

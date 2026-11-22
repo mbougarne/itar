@@ -1,10 +1,10 @@
 import React, {memo, useContext, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {FlatList, Platform, StyleSheet, View} from 'react-native';
+import {FlatList, PixelRatio, Platform, StyleSheet, View} from 'react-native';
 import type {FlatListProps, StyleProp, ViewStyle} from 'react-native';
 import {CollectionContext, CollectionDatasetContext, ScopeContext} from './api/contexts';
 import {nativeScopeKey, nativeTargetKey} from './api/types';
 import type {CollectionNode, CollectionStore} from './api/collections';
-import {Focusable, FocusScope, useFocusState} from './react';
+import {Focusable, FocusScope, useFocusState, useScreenReaderEnabled} from './react';
 import {headerScrollOffset} from './api/viewport';
 import type {FocusableProps} from './react';
 
@@ -15,13 +15,13 @@ export type VirtualizedFocusRail = Readonly<{id: string; items: readonly Virtual
   overlayTarget?: boolean; itemExtent?: number; itemStyle?: StyleProp<ViewStyle>}>;
 type FocusRailRow = VirtualizedFocusRail & {key: string};
 type Common = {id: string; itemExtent: number; viewportExtent: number; style?: StyleProp<ViewStyle>;
-  itemStyle?: StyleProp<ViewStyle>; renderItem?: VirtualizedFocusItemRenderer; testID?: string; horizontalAlignment?: 'nearest' | 'leading'};
+  itemStyle?: StyleProp<ViewStyle>; renderItem?: VirtualizedFocusItemRenderer; testID?: string; horizontalAlignment?: 'nearest' | 'leading' | 'pinned'};
 const supported = Platform.isTV && (Platform.OS === 'ios' || Platform.OS === 'android');
 function extent(value: number) {
   if (!Number.isFinite(value) || value <= 0 || value > 1000000) { throw new Error('List extents must be positive and at most 1000000'); }
 }
 function alignment(value: string) {
-  if (value !== 'nearest' && value !== 'leading') { throw new Error('horizontalAlignment must be nearest or leading'); }
+  if (value !== 'nearest' && value !== 'leading' && value !== 'pinned') { throw new Error('horizontalAlignment must be nearest, leading or pinned'); }
 }
 function list(key: string, parent: string, order: number, horizontal: boolean, size: number): CollectionNode {
   return {key, parent, order, scope: true, enabled: true, layout: horizontal ? 1 : 2, extent: size};
@@ -80,16 +80,26 @@ function renderer<T>(store: CollectionStore, collection: string, key: (item: T) 
     </View>;
   };
 }
-const ItemList = memo(function ItemListView({data, collection, horizontal, itemExtent, viewportExtent, itemStyle, testID, crossExtent, renderDecoration, renderItem, overlayTarget = false}: {
+const ItemList = memo(function ItemListView({data, collection, horizontal, itemExtent, viewportExtent, itemStyle, testID, crossExtent, renderDecoration, renderItem, overlayTarget = false, nestedRow = false, pinned = false, keepWindowAttached = false}: {
   data: readonly VirtualizedFocusItem[]; collection: string; horizontal: boolean; itemExtent: number;
   viewportExtent: number; itemStyle?: StyleProp<ViewStyle>; testID?: string; crossExtent?: number;
-  renderItem?: VirtualizedFocusItemRenderer; overlayTarget?: boolean; renderDecoration?: (item: VirtualizedFocusItem) => React.ReactNode;
+  renderItem?: VirtualizedFocusItemRenderer; overlayTarget?: boolean; nestedRow?: boolean; pinned?: boolean; keepWindowAttached?: boolean; renderDecoration?: (item: VirtualizedFocusItem) => React.ReactNode;
 }) {
   const store = useCollection();
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
   const Cell = useMemo(() => renderer<VirtualizedFocusItem>(store, collection, item => nativeTargetKey(item.occurrenceKey)), [store, collection]);
   const crossDimension = crossExtent === undefined ? undefined : horizontal ? {height: crossExtent} : {width: crossExtent};
+  const paddingEnd = pinned && horizontal && data.length > 1 ? Math.max(0, viewportExtent - itemExtent) : 0;
+  // A non-scrolling row is layout for its cards. Keep the native scroll host
+  // for collection reveal, but exclude the row itself from Android focus.
+  const fixedRow = nestedRow && Platform.OS === 'android' &&
+    PixelRatio.getPixelSizeForLayoutSize(data.length * itemExtent + paddingEnd) <= PixelRatio.getPixelSizeForLayoutSize(viewportExtent);
   return <FlatList data={data} horizontal={horizontal} testID={testID}
+    // With leading-edge pinning, the immediately preceding card is offscreen.
+    // Keep its native mount usable for reveal while it is in the React window.
+    removeClippedSubviews={keepWindowAttached && pinned && horizontal ? false : undefined}
+    contentContainerStyle={paddingEnd > 0 ? {paddingEnd} : undefined}
+    scrollEnabled={fixedRow ? false : undefined} importantForAccessibility={fixedRow ? 'no' : undefined}
     style={horizontal ? [styles.horizontalViewport, {width: viewportExtent}, crossDimension] : [styles.verticalViewport, {height: viewportExtent}, crossDimension]}
     showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false}
     keyExtractor={item => item.occurrenceKey} CellRendererComponent={Cell} extraData={snapshot.preparation}
@@ -113,12 +123,13 @@ export function FocusVirtualizedList({id, data, horizontal = true, itemExtent, v
   data: readonly VirtualizedFocusItem[]; horizontal?: boolean; crossExtent?: number;
 }) {
   const parent = useContext(ScopeContext);
+  const reader = useScreenReaderEnabled();
   const model = useMemo(() => {
     extent(itemExtent); extent(viewportExtent); alignment(horizontalAlignment);
     if (crossExtent !== undefined) { extent(crossExtent); }
     if (!id) { throw new Error('A virtualized list requires a stable id'); }
     const key = nativeScopeKey([...parent.path, id]);
-    return {id, key, data, horizontal, itemExtent, viewportExtent, crossExtent, renderItem,
+    return {id, key, data, horizontal, itemExtent, viewportExtent, crossExtent, renderItem, horizontalAlignment,
       nodes: [{...list(key, parent.key, 0, horizontal, itemExtent), ...(horizontal ? {horizontalAlignment} : {})}, ...items(data, key)]};
   }, [id, data, horizontal, itemExtent, viewportExtent, crossExtent, parent.path, parent.key, horizontalAlignment, renderItem]);
   const published = usePublished(model);
@@ -127,7 +138,8 @@ export function FocusVirtualizedList({id, data, horizontal = true, itemExtent, v
   return <CollectionDatasetContext.Provider value={published.dataset}>
     <FocusScope id={value.id} layout={value.horizontal ? 'row' : 'column'} boundary="parent" style={style}>
       <ItemList data={value.data} collection={value.key} horizontal={value.horizontal} itemExtent={value.itemExtent}
-        viewportExtent={value.viewportExtent} crossExtent={value.crossExtent} itemStyle={itemStyle} testID={testID} renderItem={value.renderItem} />
+        viewportExtent={value.viewportExtent} crossExtent={value.crossExtent} itemStyle={itemStyle} testID={testID} renderItem={value.renderItem}
+        pinned={value.horizontalAlignment === 'pinned'} keepWindowAttached={Platform.OS === 'android' && reader === false} />
     </FocusScope>
   </CollectionDatasetContext.Provider>;
 }
@@ -138,12 +150,35 @@ const styles = StyleSheet.create({
   horizontalItem: {height: 80}, verticalItem: {width: 220},
 });
 
+// Ordinary D-pad moves only update this subscriber. They do not render the outer
+// FlatList or replace its cell renderer, data and layout callbacks.
+function HeaderAlignment({rows, headerExtent, headerScope, viewport, scrollOffset, preparing}: {
+  rows: readonly FocusRailRow[]; headerExtent: number; headerScope?: string;
+  viewport: React.RefObject<FlatList<FocusRailRow> | null>; scrollOffset: React.RefObject<number>; preparing: boolean;
+}) {
+  const focus = useFocusState();
+  const alignedKey = useRef<string | null>(null);
+  React.useEffect(() => {
+    if (focus.kind !== 'managed') { return; }
+    const row = rows.find(candidate => candidate.items.some(item => item.occurrenceKey === focus.occurrenceKey));
+    if (!row) { alignedKey.current = null; return; }
+    if (preparing || alignedKey.current === focus.occurrenceKey) { return; }
+    alignedKey.current = focus.occurrenceKey;
+    const offset = headerScrollOffset(headerExtent, scrollOffset.current, row.id === headerScope);
+    if (offset !== scrollOffset.current) {
+      scrollOffset.current = offset;
+      viewport.current?.scrollToOffset({offset, animated: false});
+    }
+  }, [focus, preparing, rows, headerExtent, headerScope, scrollOffset, viewport]);
+  return null;
+}
+
 /** Two-level row-then-item realization with logical column entry. */
 export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewportExtent, viewportRows = 2,
   style, itemStyle, testID, viewportHeight, headerExtent = 0, listHeader, listHeaderExtent = 0,
   listHeaderItems, listHeaderScope, renderDecoration, renderItem, renderRailHeader, active = true, onReady, onEndReached, rowEntry = 'nearest', horizontalAlignment = 'nearest'}: Common & {
     /** Logical Up/Down entry into an adjacent rail on the native TV adapters. */
-    rowEntry?: 'nearest' | 'first';
+    rowEntry?: 'nearest' | 'first' | 'remembered';
     active?: boolean; onReady?: () => void; onEndReached?: () => void; rails: readonly VirtualizedFocusRail[]; rowExtent: number; viewportRows?: number; viewportHeight?: number; headerExtent?: number;
     /** A real leading collection row. Render its matching scope and focusable items
      * inside a horizontal ScrollView so offscreen return uses the normal reveal path. */
@@ -155,15 +190,17 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
   const parent = useContext(ScopeContext);
   const store = useCollection();
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
-  const focus = useFocusState();
+  const reader = useScreenReaderEnabled();
+  // Keep the bounded render window attached for Android's engine-owned row moves.
+  // The native screen reader keeps the platform's usual subtree clipping.
+  const keepRowsAttached = Platform.OS === 'android' && reader === false;
   const viewport = useRef<FlatList<FocusRailRow>>(null);
   const scrollOffset = useRef(0);
-  const alignedKey = useRef<string | null>(null);
   const model = useMemo(() => {
     alignment(horizontalAlignment);
-    if (rowEntry !== 'nearest' && rowEntry !== 'first') { throw new Error('rowEntry must be nearest or first'); }
-    if (rowEntry === 'first' && !supported) {
-      throw new Error('rowEntry first requires an Android TV or tvOS adapter');
+    if (rowEntry !== 'nearest' && rowEntry !== 'first' && rowEntry !== 'remembered') { throw new Error('rowEntry must be nearest, first or remembered'); }
+    if (rowEntry !== 'nearest' && !supported) {
+      throw new Error('Explicit rowEntry requires an Android TV or tvOS adapter');
     }
     extent(itemExtent); extent(rowExtent); extent(viewportExtent);
     if (viewportHeight !== undefined) { extent(viewportHeight); }
@@ -187,10 +224,11 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
       if (rail.itemExtent !== undefined) { extent(rail.itemExtent); }
       return {...rail, key: nativeScopeKey([...path, rail.id])};
     });
-    const nodes = [{...list(key, parent.key, 0, false, rowExtent), leadingExtent: listHeaderExtent, rowEntry: rowEntry === 'first' ? 1 as const : 0 as const}, ...rows.flatMap((row, index) =>
+    const policy = {nearest: 0, first: 1, remembered: 2} as const;
+    const nodes = [{...list(key, parent.key, 0, false, rowExtent), leadingExtent: listHeaderExtent, rowEntry: policy[rowEntry]}, ...rows.flatMap((row, index) =>
       [{...list(row.key, key, index, true, row.itemExtent ?? itemExtent), horizontalAlignment}, ...items(row.items, row.key)])];
     return {id, key, rows, nodes, itemExtent, rowExtent, viewportExtent, viewportRows, viewportHeight, headerExtent,
-      listHeader, listHeaderExtent, listHeaderScope, renderDecoration, renderItem, renderRailHeader};
+      listHeader, listHeaderExtent, listHeaderScope, renderDecoration, renderItem, renderRailHeader, horizontalAlignment};
   }, [id, rails, rowExtent, itemExtent, viewportExtent, viewportRows, viewportHeight, headerExtent, listHeader,
     listHeaderExtent, listHeaderItems, listHeaderScope, renderDecoration, renderItem, renderRailHeader, parent.path, parent.key, rowEntry, horizontalAlignment]);
   const published = usePublished(model, active);
@@ -203,21 +241,6 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
   }, [store, active, published, snapshot.dataset, snapshot.accepted, onReady]);
   const collection = published?.model.key ?? model.key;
   const Cell = useMemo(() => renderer<FocusRailRow>(store, collection, row => row.key), [store, collection]);
-  React.useEffect(() => {
-    const value = published?.model;
-    if (!active || !value || !value.listHeaderExtent || focus.kind !== 'managed') { return; }
-    const row = value.rows.find(candidate => candidate.items.some(item => item.occurrenceKey === focus.occurrenceKey));
-    if (!row) { alignedKey.current = null; return; }
-    if (snapshot.preparation || alignedKey.current === focus.occurrenceKey) { return; }
-    alignedKey.current = focus.occurrenceKey;
-    // Apply the application's Hero presentation only after actual host focus,
-    // without racing the collection's pending reveal or resetting deeper rows.
-    const offset = headerScrollOffset(value.listHeaderExtent, scrollOffset.current, row.id === value.listHeaderScope);
-    if (offset !== scrollOffset.current) {
-      scrollOffset.current = offset;
-      viewport.current?.scrollToOffset({offset, animated: false});
-    }
-  }, [active, published, focus, snapshot.preparation]);
   if (!published) { return <View style={style} testID={testID} />; }
   const value = published.model;
   const preparation = snapshot.preparation;
@@ -227,6 +250,7 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
         onEndReached={active ? onEndReached : undefined} onEndReachedThreshold={0.5} showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} data={value.rows} keyExtractor={row => row.id} testID={testID}
         style={{height: value.viewportHeight ?? value.rowExtent * value.viewportRows, width: value.viewportExtent}}
         CellRendererComponent={Cell} extraData={snapshot.preparation} additionalRenderRegions={store.regions(value.key)}
+        removeClippedSubviews={keepRowsAttached ? false : undefined}
         initialNumToRender={1} maxToRenderPerBatch={1} windowSize={3}
         getItemLayout={(_, index) => ({length: index === 0 && value.listHeaderExtent ? value.listHeaderExtent : value.rowExtent,
           offset: value.listHeaderExtent && index > 0 ? value.listHeaderExtent + value.rowExtent * (index - 1) : value.rowExtent * index, index})}
@@ -241,10 +265,13 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
           </View> :
           <FocusScope id={item.id} layout="row" boundary="parent" style={{height: value.rowExtent}}>
           {value.headerExtent > 0 && <View accessible={false} pointerEvents="none" style={{height: value.headerExtent}}>{value.renderRailHeader?.(item)}</View>}
-          <ItemList data={item.items} collection={item.key} horizontal itemExtent={item.itemExtent ?? value.itemExtent}
+          <ItemList data={item.items} collection={item.key} horizontal nestedRow itemExtent={item.itemExtent ?? value.itemExtent}
             viewportExtent={value.viewportExtent} crossExtent={value.rowExtent - value.headerExtent}
-            overlayTarget={item.overlayTarget} itemStyle={item.itemStyle ?? itemStyle} renderDecoration={value.renderDecoration} renderItem={value.renderItem} />
+            pinned={value.horizontalAlignment === 'pinned'} keepWindowAttached={keepRowsAttached} overlayTarget={item.overlayTarget} itemStyle={item.itemStyle ?? itemStyle} renderDecoration={value.renderDecoration} renderItem={value.renderItem} />
         </FocusScope>} />
+      {active && value.listHeaderExtent > 0 &&
+        <HeaderAlignment rows={value.rows} headerExtent={value.listHeaderExtent} headerScope={value.listHeaderScope}
+          preparing={!!preparation} viewport={viewport} scrollOffset={scrollOffset} />}
     </FocusScope>
   </CollectionDatasetContext.Provider>;
 }

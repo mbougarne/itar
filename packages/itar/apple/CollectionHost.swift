@@ -13,61 +13,119 @@ final class AppleCollections {
     private var prepared = false
     private var scrolled = false
     private var realized = false
+    private var requestedWindow = false
+    private var scrolledViewports: [UIScrollView] = []
+    private var confirmedViewports: [UIScrollView] = []
+    private weak var confirmedTarget: ItarTargetHost?
+    private var confirmedMount: UInt64 = 0
     private var source = ItarFocus()
     private var handles: [String: ItarNode] = [:]
     private var settling: DispatchWorkItem?
-    private struct Publication {
-        let source: AppleRegistration, focus: ItarFocus, dataset: String
-        let scopes: [(AppleScopeRegistration, ItarNode)]
+    // At most one entry per declared node, bounded by the catalogue capacity.
+    private struct PublishedHost {
+        weak var view: UIView?
+        weak var parent: ItarScopeHost?
+        let binding: AnyObject, node: ItarNode, mount: UInt64
+        var dataset: String
     }
-    private var publication: Publication?
+    private var publication: [String: PublishedHost] = [:]
     init(_ root: ItarSurfaceHost) { self.root = root }
+    func rootsToDetach(under parents: Set<String>) -> [EngineMutation] {
+        document?.detachRoots(under: parents, handles: handles) ?? []
+    }
     func entry(_ key: String) -> CollectionEntry? { document?.nodes.first { $0.key == key } }
     func entry(_ node: ItarNode) -> CollectionEntry? {
         document?.nodes.first { handles[$0.key].map { $0.slot == node.slot && $0.generation == node.generation } == true }
     }
-    func accepts(_ key: String, dataset: String, scope: Bool) -> Bool {
+    func accepts(_ target: ItarTargetHost) -> Bool {
+        accepts(target.occurrenceKey, dataset: target.collectionDataset, scope: false, view: target)
+    }
+    func accepts(_ scope: ItarScopeHost) -> Bool {
+        accepts(scope.scopeKey, dataset: scope.collectionDataset, scope: true, view: scope)
+    }
+    private func accepts(_ key: String, dataset: String, scope: Bool, view: UIView) -> Bool {
         guard let entry = entry(key) else { return dataset.isEmpty }
-        return entry.scope == scope && (dataset == self.dataset || acceptsPublication(key, dataset: dataset, scope: scope))
-    }
-    private func acceptsPublication(_ key: String, dataset: String, scope: Bool) -> Bool {
-        guard let lease = publication, dataset == lease.dataset, let root, root.acceptsInput, let target = lease.source.target,
-              root.registrations[lease.source.key] === lease.source, target.registration === lease.source,
-              target.owner === root, target.nearestSurface() === root, target.window === root.window,
-              target.occurrenceKey == lease.source.key, target.scopeKey == lease.source.scopeKey,
-              lease.source.node.slot == lease.focus.node.slot, lease.source.node.generation == lease.focus.node.generation,
-              lease.source.mount == lease.focus.mount, target.targetEnabled,
-              UIFocusSystem.focusSystem(for: root)?.focusedItem === target else { return false }
-        if !scope { return key == lease.source.key }
-        return lease.scopes.contains { registration, node in
-            guard registration.key == key, root.scopes[key] === registration, let view = registration.view else { return false }
-            return registration.node.slot == node.slot && registration.node.generation == node.generation &&
-                view.owner === root && view.nearestSurface() === root && view.window === root.window &&
-                view.scopeKey == key && view.collectionDataset == dataset
+        guard entry.scope == scope else { return false }
+        if dataset == self.dataset {
+            // Once this exact view has received current props, it cannot roll back.
+            if publication[key]?.view === view, publication[key]?.dataset != dataset { publication[key]?.dataset = dataset }
+            return true
         }
-    }
-    private func retainPublication(_ next: CollectionDocument) -> Publication? {
-        guard let root, let previous = document, previous.nodes.count == next.nodes.count,
-              zip(previous.nodes, next.nodes).contains(where: { old, new in (old.rowEntry ?? 0) != (new.rowEntry ?? 0) || old.horizontalAlignment != new.horizontalAlignment }),
-              zip(previous.nodes, next.nodes).allSatisfy({ old, new in
-                  var comparable = new; comparable.rowEntry = old.rowEntry; comparable.horizontalAlignment = old.horizontalAlignment; return comparable == old
-              }), let target = UIFocusSystem.focusSystem(for: root)?.focusedItem as? ItarTargetHost,
-              let source = target.registration, ownsSource(source) else { return nil }
-        var scopes: [(AppleScopeRegistration, ItarNode)] = []
-        for entry in previous.path(source.key) {
-            guard let scope = root.scopes[entry.parent], let view = scope.view,
-                  view.collectionDataset == previous.dataset else { return nil }
-            scopes.append((scope, scope.node))
+        guard let root, root.acceptsInput, publication[key]?.dataset == dataset else { return false }
+        var current = key, host: UIView? = view
+        for _ in 0..<3 {
+            guard let view = host, let saved = publication[current], saved.view === view,
+                  let node = handles[current], node.slot == saved.node.slot, node.generation == saved.node.generation,
+                  view.window === root.window, let item = self.entry(current),
+                  parentScope(of: view) === saved.parent, (saved.parent?.scopeKey ?? "") == item.parent else { return false }
+            if let target = view as? ItarTargetHost {
+                guard let binding = target.registration, binding === saved.binding, root.registrations[current] === binding,
+                      binding.target === target, binding.mount == saved.mount, target.owner === root, target.nearestSurface() === root,
+                      target.occurrenceKey == current, target.scopeKey == item.parent, target.targetEnabled else { return false }
+            } else {
+                guard let group = view as? ItarScopeHost, let binding = root.scopes[current],
+                      binding === saved.binding, binding.view === group, group.owner === root, group.nearestSurface() === root, group.active,
+                      (group.collectionDataset == self.dataset || group.collectionDataset == saved.dataset),
+                      group.scopeKey == current, group.parentKey == item.parent else { return false }
+            }
+            if self.entry(item.parent) == nil { return true }
+            current = item.parent; host = saved.parent
         }
-        // ownsSource verified actual host focus even while animation geometry is unsettled.
-        return Publication(source: source, focus: ItarFocus(kind: 0, node: source.node, mount: source.mount), dataset: previous.dataset, scopes: scopes)
+        return false
+    }
+    private func parentScope(of view: UIView) -> ItarScopeHost? {
+        var ancestor = view.superview
+        while let next = ancestor, !(next is ItarSurfaceHost) {
+            if let scope = next as? ItarScopeHost { return scope }
+            ancestor = next.superview
+        }
+        return nil
+    }
+    private func retainPublication(_ next: CollectionDocument) -> [String: PublishedHost] {
+        guard let root, let previous = document, root.acceptsInput else { return [:] }
+        let growing = next.nodes.count > previous.nodes.count
+        let focused = UIFocusSystem.focusSystem(for: root)?.focusedItem as? ItarTargetHost
+        let nextByKey = Dictionary(uniqueKeysWithValues: next.nodes.map { ($0.key, $0) })
+        var result: [String: PublishedHost] = [:]
+        for registration in root.registrations.values {
+            guard let target = registration.target, let item = entry(registration.key), let oldNode = handles[item.key],
+                  oldNode.slot == registration.node.slot, oldNode.generation == registration.node.generation,
+                  (target === focused && ownsSource(registration)) || (growing && root.live(registration) === target) else { continue }
+            // Fabric may still be showing the previous page when native accepts
+            // the append. Retain only existing views whose entire declaration
+            // and actual ancestry survive. Changed indices and recycled views wait.
+            var path: [(String, PublishedHost)] = []
+            var current: CollectionEntry? = item
+            var host: UIView = target
+            while let old = current, path.count < 3 {
+                guard var new = nextByKey[old.key] else { break }
+                new.rowEntry = old.rowEntry; new.horizontalAlignment = old.horizontalAlignment
+                let parent = parentScope(of: host)
+                guard old == new, (parent?.scopeKey ?? "") == old.parent,
+                      parent == nil || root.scopes[old.parent]?.view === parent else { break }
+                let saved: PublishedHost
+                if old.scope {
+                    guard let scope = host as? ItarScopeHost, let binding = root.scopes[old.key],
+                          binding.view === scope, accepts(scope) else { break }
+                    saved = PublishedHost(view: scope, parent: parent, binding: binding, node: binding.node, mount: 0, dataset: scope.collectionDataset)
+                } else {
+                    saved = PublishedHost(view: target, parent: parent, binding: registration, node: registration.node,
+                                          mount: registration.mount, dataset: target.collectionDataset)
+                }
+                path.append((old.key, saved))
+                current = entry(old.parent)
+                if let parent { host = parent }
+            }
+            if current == nil { for (key, binding) in path { result[key] = binding } }
+        }
+        return result
     }
     var dataset: String { document?.dataset ?? "0" }
     func ownsSource(_ registration: AppleRegistration) -> Bool {
         guard let root, let target = registration.target, root.acceptsInput,
               root.registrations[registration.key] === registration, target.registration === registration,
               target.owner === root, target.window === root.window, target.occurrenceKey == registration.key,
-              target.targetEnabled, !target.label.isEmpty, accepts(registration.key, dataset: target.collectionDataset, scope: false),
+              target.targetEnabled, !target.label.isEmpty, accepts(target),
               entry(registration.key)?.enabled == true, root.scopeActive(registration.scopeKey) else { return false }
         // Native focus animations can temporarily invalidate destination geometry.
         // A verified current source still owns ordered input during that interval.
@@ -109,7 +167,7 @@ final class AppleCollections {
             guard let owned = previousHandles[registration.key],
                   registration.node.slot == owned.slot, registration.node.generation == owned.generation else { continue }
             let removed = entry(registration.key) == nil
-            if let target = registration.target, removed || !accepts(registration.key, dataset: target.collectionDataset, scope: false) {
+            if let target = registration.target, removed || !accepts(target) {
                 target.isAccessibilityElement = false
                 if let loss = root.detachMount(target) { losses.append((loss.node, loss.mount, 0, 0)) }
             }
@@ -140,21 +198,30 @@ final class AppleCollections {
         guard self.dataset == dataset, pending == nil, let root, root.acceptsInput,
               !UIAccessibility.isVoiceOverRunning, let registration = target.registration,
               ownsSource(registration), let item = entry(registration.key), let list = entry(item.parent),
-              list.horizontalAlignment == "leading", let scope = root.scopes[list.key]?.view else { return }
+              (list.horizontalAlignment == "leading" || list.horizontalAlignment == "pinned"), let scope = root.scopes[list.key]?.view else { return }
         var parent = target.superview
         while let view = parent, view !== scope {
             if let scroll = view as? UIScrollView {
                 guard !scroll.isDragging, !scroll.isDecelerating else { return }
                 let bounds = target.convert(target.bounds, to: scroll)
                 var point = scroll.contentOffset
-                point.x = list.horizontalOffset(start: bounds.minX, end: bounds.maxX, current: point.x,
-                    viewport: scroll.bounds.width, content: scroll.contentSize.width,
-                    rtl: scroll.effectiveUserInterfaceLayoutDirection == .rightToLeft)
+                point.x = horizontalPosition(item, in: list, bounds: bounds, scroll: scroll)
+                guard point != scroll.contentOffset else { return }
                 scroll.setContentOffset(point, animated: false)
                 root.geometryChanged(); return
             }
             parent = view.superview
         }
+    }
+    private func horizontalPosition(_ item: CollectionEntry, in list: CollectionEntry, bounds: CGRect, scroll: UIScrollView) -> CGFloat {
+        let rtl = scroll.effectiveUserInterfaceLayoutDirection == .rightToLeft
+        if list.horizontalAlignment == "pinned" {
+            let maximum = max(0, scroll.contentSize.width - scroll.bounds.width)
+            let position = min(maximum, max(0, list.offset(item.order)))
+            return rtl ? maximum - position : position
+        }
+        return list.revealOffset(start: bounds.minX, end: bounds.maxX, current: scroll.contentOffset.x,
+            viewport: scroll.bounds.width, content: scroll.contentSize.width, rtl: rtl)
     }
     func invoke(_ effect: ItarEffect) -> Int32 {
         guard let root, root.acceptsInput, !UIAccessibility.isVoiceOverRunning,
@@ -170,8 +237,164 @@ final class AppleCollections {
         pending = effect; steps = path; step = 0
         source = root.classify(UIFocusSystem.focusSystem(for: root)?.focusedItem)
         prepared = false; scrolled = false; realized = false
-        prepare()
+        if mountedScrolls(for: effect) != nil {
+            // Run after the dispatcher returns, so cancellation and inline UIKit
+            // callbacks follow the same ordering as the render-window path.
+            let work = DispatchWorkItem { [weak self] in self?.settling = nil; self?.revealMounted(effect) }
+            settling = work
+            DispatchQueue.main.async(execute: work)
+        } else { prepare() }
         return 0
+    }
+    private struct MountedScroll {
+        let view: UIScrollView, list: CollectionEntry, item: CollectionEntry
+        var offset: CGPoint
+    }
+    private func viewport(for item: CollectionEntry, enclosing child: UIView, in root: ItarSurfaceHost) -> (ItarScopeHost, UIScrollView)? {
+        guard let list = entry(item.parent), let scope = root.scopes[list.key]?.view, scope.owner === root,
+              scope.scopeKey == list.key, scope.parentKey == list.parent, accepts(scope),
+              scope.layout == list.layout, list.layout == 1 || list.layout == 2 else { return nil }
+        var ancestor = child.superview, viewport: UIScrollView?
+        while let view = ancestor, view !== scope {
+            if view is ItarScopeHost || view is ItarSurfaceHost { return nil }
+            if let scroll = view as? UIScrollView {
+                guard viewport == nil else { return nil }
+                viewport = scroll
+            }
+            ancestor = view.superview
+        }
+        guard ancestor === scope, let scroll = viewport else { return nil }
+        return (scope, scroll)
+    }
+    private func rememberScroll(_ view: UIScrollView) {
+        if !scrolledViewports.contains(view), scrolledViewports.count < 2 { scrolledViewports.append(view) }
+    }
+    // An ordinary move inside a nearest-entry grid needs no extra scroll when
+    // the entire destination is already visible. Entry from outside the grid
+    // and clipped or moving targets retain UIKit’s normal reveal behavior.
+    private func staysVisible(_ target: ItarTargetHost, from previous: ItarTargetHost?, heading: UIFocusHeading,
+                              in list: CollectionEntry, scroll: UIScrollView, root: ItarSurfaceHost) -> Bool {
+        guard pending == nil, list.layout == 2, (list.rowEntry ?? 0) == 0,
+              heading == .up || heading == .down,
+              let previous, previous !== target, previous.owner === root,
+              let source = previous.registration, root.registrations[source.key] === source,
+              accepts(previous), previous.isDescendant(of: scroll),
+              let row = document?.path(source.key).first(where: { $0.parent == list.key }),
+              (list.leadingExtent ?? 0) == 0 || row.order != 0,
+              scroll.zoomScale == 1, scroll.adjustedContentInset == .zero else { return false }
+        return root.measured(target) != nil
+    }
+    // The engine may finish a reveal inside the focus observation callback.
+    func confirming(_ target: ItarTargetHost?, from previous: ItarTargetHost?, heading: UIFocusHeading) {
+        confirmedViewports.removeAll(); confirmedTarget = nil
+        guard let root, root.acceptsInput, !UIAccessibility.isVoiceOverRunning, let target,
+              target.owner === root, let registration = target.registration, let document else { return }
+        let revealed = realized && pending?.target.slot == registration.node.slot && pending?.target.generation == registration.node.generation
+        var child: UIView = target
+        for item in document.path(registration.key).reversed() {
+            guard let list = entry(item.parent), let (scope, scroll) = viewport(for: item, enclosing: child, in: root) else { break }
+            // A custom header supplies its own inner ScrollView. Only the lists
+            // created by the virtualized collection have adapter-owned scrolling.
+            let customHeader = list.order == 0 && (entry(list.parent)?.leadingExtent ?? 0) > 0
+            let aligned = child === target && (list.horizontalAlignment == "pinned" || list.horizontalAlignment == "leading")
+            let alreadyVisible = (item.order != 0 || (list.leadingExtent ?? 0) == 0) &&
+                staysVisible(target, from: previous, heading: heading, in: list, scroll: scroll, root: root)
+            if !customHeader && (aligned || alreadyVisible || (revealed && scrolledViewports.contains(scroll))) {
+                confirmedViewports.append(scroll)
+            }
+            child = scope
+        }
+        if !confirmedViewports.isEmpty { confirmedTarget = target; confirmedMount = registration.mount }
+    }
+    func finishFocusUpdate(_ context: UIFocusUpdateContext) {
+        defer { confirmedViewports.removeAll(); confirmedTarget = nil }
+        guard let root, root.acceptsInput, !UIAccessibility.isVoiceOverRunning, let target = confirmedTarget,
+              target === context.nextFocusedView, target !== context.previouslyFocusedView,
+              target.owner === root, target.registration?.mount == confirmedMount else { return }
+        // UIKit schedules its automatic centering after the focus update. Let
+        // the declared viewport keep Itar's placement for this scheduling turn.
+        // The remote, later user scrolling and assistive navigation stay native.
+        let paused = confirmedViewports.filter { scroll in
+            scroll.isScrollEnabled && !scroll.isTracking && !scroll.isDragging && !scroll.isDecelerating &&
+                scroll.window === root.window && target.isDescendant(of: scroll)
+        }
+        guard !paused.isEmpty else { return }
+        for scroll in paused { scroll.isScrollEnabled = false }
+        DispatchQueue.main.async { for scroll in paused { scroll.isScrollEnabled = true } }
+    }
+    private func owns(_ effect: ItarEffect) -> Bool {
+        guard let token = pending?.token else { return false }
+        return token.lifetime == effect.token.lifetime && token.request == effect.token.request && token.effect == effect.token.effect
+    }
+    private func mountedTarget(for effect: ItarEffect) -> ItarTargetHost? {
+        guard let root, root.acceptsInput, !UIAccessibility.isVoiceOverRunning,
+              owns(effect), effect.surface == root.lifetime,
+              UInt64(dataset) == effect.dataset, effect.mount != 0,
+              let key = steps.last?.key, let registration = root.registrations[key],
+              registration.node.slot == effect.target.slot, registration.node.generation == effect.target.generation,
+              registration.mount == effect.mount, let target = registration.target, target.registration === registration,
+              target.owner === root, target.window === root.window, target.occurrenceKey == key,
+              target.collectionDataset == dataset, target.scopeKey == steps.last?.parent,
+              target.targetEnabled, entry(key)?.enabled == true, root.scopeActive(target.scopeKey),
+              let focused = UIFocusSystem.focusSystem(for: root)?.focusedItem as? ItarTargetHost,
+              let origin = focused.registration, origin.node.slot == source.node.slot, origin.node.generation == source.node.generation,
+              origin.mount == source.mount, focused !== target, focused.collectionDataset == dataset, ownsSource(origin),
+              let outer = steps.first?.parent, document?.path(origin.key).first?.parent == outer,
+              let outerScope = root.scopes[outer]?.view, focused.isDescendant(of: outerScope) else { return nil }
+        return target
+    }
+    // Only scroll views physically between a declared item and its matching
+    // scope can move. Project the target through every clip, including the
+    // surface, before touching a viewport. Unknown layouts use RN preparation.
+    private func mountedScrolls(for effect: ItarEffect) -> [MountedScroll]? {
+        guard let root, let target = mountedTarget(for: effect) else { return nil }
+        var levels: [MountedScroll] = []
+        var child: UIView = target
+        for item in steps.reversed() {
+            guard let list = entry(item.parent), let (scope, scroll) = viewport(for: item, enclosing: child, in: root),
+                  scope.collectionDataset == dataset, !scroll.isDragging, !scroll.isDecelerating,
+                  scroll.zoomScale == 1, scroll.adjustedContentInset == .zero else { return nil }
+            levels.append(MountedScroll(view: scroll, list: list, item: item, offset: scroll.contentOffset))
+            child = scope
+        }
+        let fits = root.measured(target) { scroll, rect in
+            guard let index = levels.firstIndex(where: { $0.view === scroll }) else { return scroll.contentOffset }
+            let level = levels[index]
+            var point = scroll.contentOffset
+            if level.list.layout == 1 {
+                point.x = self.horizontalPosition(level.item, in: level.list, bounds: rect, scroll: scroll)
+            } else {
+                point.y = level.list.revealOffset(start: rect.minY, end: rect.maxY, current: point.y,
+                    viewport: scroll.bounds.height, content: scroll.contentSize.height)
+            }
+            levels[index].offset = point
+            return point
+        }
+        return fits == nil ? nil : levels.reversed()
+    }
+    private func revealMounted(_ effect: ItarEffect) {
+        guard let root, let owner = root.dispatcher, !owner.closed else { return }
+        root.observeCurrent(); owner.enqueue(.time(owner.clock()))
+        guard owns(effect),
+              (try? owner.connection.snapshot().active_request) == effect.token.request else { return }
+        if let planned = mountedScrolls(for: effect) {
+            _ = owner.hostCall {
+                for level in planned where level.view.contentOffset != level.offset {
+                    // An outer scroll can synchronously recycle the inner view.
+                    guard let current = mountedScrolls(for: effect)?.first(where: { $0.view === level.view }) else { return }
+                    #if ITAR_OCCO
+                    if ItarFocusTrace.receive != nil { root.traceEffect(effect, kind: "host", detail: "scroll to mounted item") }
+                    #endif
+                    rememberScroll(current.view)
+                    current.view.setContentOffset(current.offset, animated: false)
+                }
+            }
+            root.commitGeometry()
+        }
+        guard owns(effect) else { return }
+        guard let target = mountedTarget(for: effect), let registration = target.registration else { fail(); return }
+        if root.live(registration) === target { realize(effect, registration) }
+        else { prepare() }
     }
     private func emit(_ payload: [String: Any]) {
         guard let root, JSONSerialization.isValidJSONObject(payload),
@@ -182,11 +405,15 @@ final class AppleCollections {
     }
     private func prepare() {
         guard let root, let effect = pending, let document, steps.indices.contains(step) else { return }
+        requestedWindow = true
         let sourceKey = root.registrations.values.first { $0.node.slot == source.node.slot &&
             $0.node.generation == source.node.generation && $0.mount == source.mount }?.key
         func path(_ entries: [CollectionEntry]) -> [[String: Any]] {
             entries.map { ["collection": $0.parent, "key": $0.key, "index": $0.order] }
         }
+        #if ITAR_OCCO
+        if ItarFocusTrace.receive != nil { root.traceEffect(effect, kind: "host", detail: "requested render window") }
+        #endif
         emit(["state": "prepare", "dataset": document.dataset, "request": String(effect.token.request),
               "effect": String(effect.token.effect), "step": step, "key": steps[step].key,
               "path": path(steps), "source": path(sourceKey.map(document.path) ?? [])])
@@ -246,13 +473,18 @@ final class AppleCollections {
             if list.layout == 1 {
                 let rtl = scroll.effectiveUserInterfaceLayoutDirection == .rightToLeft
                 let start = rtl ? scroll.contentSize.width - offset - list.extent : offset
-                point.x = list.horizontalOffset(start: start, end: start + list.extent, current: point.x,
+                point.x = list.revealOffset(start: start, end: start + list.extent, current: point.x,
                     viewport: scroll.bounds.width, content: scroll.contentSize.width, rtl: rtl)
             } else {
-                point.y = min(max(0, offset), max(0, scroll.contentSize.height - scroll.bounds.height))
+                point.y = list.verticalOffset(for: steps[step].order, current: point.y,
+                    viewport: scroll.bounds.height, content: scroll.contentSize.height)
             }
             guard owner.hostCall({
                 scrolled = true
+                #if ITAR_OCCO
+                if ItarFocusTrace.receive != nil { root.traceEffect(effect, kind: "host", detail: "scroll to item") }
+                #endif
+                if scroll.contentOffset != point { rememberScroll(scroll) }
                 scroll.setContentOffset(point, animated: false)
                 root.geometryChanged()
             }) else { return }
@@ -270,7 +502,16 @@ final class AppleCollections {
         guard let registration = root.registrations[steps[step].key],
               registration.node.slot == effect.target.slot, registration.node.generation == effect.target.generation,
               registration.target?.collectionDataset == dataset, root.live(registration) != nil else { return }
+        realize(effect, registration)
+    }
+    private func realize(_ effect: ItarEffect, _ registration: AppleRegistration) {
+        guard let root else { return }
         realized = true
+        #if ITAR_OCCO
+        ItarFocusTrace.receive?(["kind": "host", "surface": root.lifetime, "request": effect.token.request,
+                                 "effect": effect.token.effect, "target": registration.key, "mount": registration.mount,
+                                 "detail": "mount measured"])
+        #endif
         root.dispatcher?.enqueue(.realize(effect, registration.mount))
     }
     private func fail() {
@@ -289,11 +530,13 @@ final class AppleCollections {
     }
     func release() {
         settling?.cancel(); settling = nil
+        scrolledViewports.removeAll()
         let effect = pending
         pending = nil; steps.removeAll(); prepared = false; scrolled = false; realized = false
-        if let effect { emit(["state": "release", "request": String(effect.token.request), "effect": String(effect.token.effect)]) }
+        if requestedWindow, let effect { emit(["state": "release", "request": String(effect.token.request), "effect": String(effect.token.effect)]) }
+        requestedWindow = false
     }
-    func close() { release(); publication = nil; document = nil; handles.removeAll() }
+    func close() { release(); confirmedViewports.removeAll(); confirmedTarget = nil; publication.removeAll(); document = nil; handles.removeAll() }
 }
 
 extension ItarSurfaceHost {
@@ -315,7 +558,7 @@ extension ItarSurfaceHost {
               let source = collections.entry(origin.key), let sourceRow = collections.entry(source.parent),
               let target = collections.entry(proposal.target), let targetRow = collections.entry(target.parent),
               sourceRow.key != targetRow.key, sourceRow.layout == 1, targetRow.layout == 1,
-              sourceRow.parent == targetRow.parent, collections.entry(sourceRow.parent)?.rowEntry == 1 else { return nil }
+              sourceRow.parent == targetRow.parent, let policy = collections.entry(sourceRow.parent)?.rowEntry, policy != 0 else { return nil }
         if let registration = next.registration, registration.node.slot == proposal.target.slot,
            registration.node.generation == proposal.target.generation, live(registration) === next { return true }
         let dataset = collections.dataset, declaration = collectionData, sequence = eventSequence, lifetime = lifetime, mount = origin.mount
@@ -340,15 +583,18 @@ extension ItarSurfaceHost {
     var dispatcherIsPumping: Bool { dispatcher?.pumping == true }
     func collectionDirection(_ presses: Set<UIPress>) -> Int32? {
         guard acceptsInput, !UIAccessibility.isVoiceOverRunning, presses.count == 1,
-              let type = presses.first?.type, let owner = dispatcher, !owner.pumping,
-              let snapshot = try? owner.connection.snapshot(),
+              let type = presses.first?.type, let owner = dispatcher, !owner.pumping else { return nil }
+        let direction: Int32
+        switch type { case .leftArrow: direction = 0; case .rightArrow: direction = 1
+        case .upArrow: direction = 2; case .downArrow: direction = 3; default: return nil }
+        // UIKit evaluates mounted candidates during this press, before the next
+        // main turn. Publish any pending bounds, including for host-owned moves.
+        commitPendingGeometry()
+        guard let snapshot = try? owner.connection.snapshot(),
               let registration = registrations.values.first(where: { $0.node.slot == snapshot.input.node.slot &&
                   $0.node.generation == snapshot.input.node.generation && $0.mount == snapshot.input.mount }),
               collections.entry(registration.key) != nil,
               collections.ownsSource(registration) else { return nil }
-        let direction: Int32
-        switch type { case .leftArrow: direction = 0; case .rightArrow: direction = 1
-        case .upArrow: direction = 2; case .downArrow: direction = 3; default: return nil }
         guard let proposal = try? owner.connection.directionQuery(direction) else { return nil }
         guard proposal.kind == 1 || snapshot.active_request != 0 else { return nil }
         return direction

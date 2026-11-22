@@ -21,6 +21,19 @@ class ReaderRevealTest : ActivityInstrumentationTestCase2<MainActivity>(MainActi
     fun testNestedDirectionalObservation() = observe(false, true)
     fun testNestedDirectionalBothObservation() = observe(false, true, outerDirectional = true)
     fun testNestedNativeAliasHandlers() = observe(false, true, true)
+    fun testScrollRetainsPartiallyVisibleInputFocus() {
+        val host = readerHost()
+        lateinit var fixture: RowEntryHostChecks
+        main {
+            fixture = RowEntryHostChecks(host)
+            host.setContentView(fixture.root)
+            fixture.publish(1)
+        }
+        try {
+            instrumentation.waitForIdleSync()
+            main { fixture.readerScroll() }
+        } finally { main { fixture.root.close() } }
+    }
     private fun main(block: () -> Unit) {
         var failure: Throwable? = null
         instrumentation.runOnMainSync { try { block() } catch (error: Throwable) { failure = error } }
@@ -43,13 +56,17 @@ class ReaderRevealTest : ActivityInstrumentationTestCase2<MainActivity>(MainActi
             }
         } finally { main { fixture.root.removeCallbacks(frame) } }
     }
-    private fun observe(managed: Boolean, directionalOnly: Boolean? = null, nativeAliases: Boolean = false,
-        outerDirectional: Boolean = false) {
+    private fun readerHost(): MainActivity {
         instrumentation.setInTouchMode(false)
         val host = activity
         val reader = host.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
         check(reader.isEnabled && reader.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
             .any { it.id.contains("talkback", ignoreCase = true) }) { "Run ReaderRevealTest with TalkBack enabled" }
+        return host
+    }
+    private fun observe(managed: Boolean, directionalOnly: Boolean? = null, nativeAliases: Boolean = false,
+        outerDirectional: Boolean = false) {
+        val host = readerHost()
         lateinit var fixture: ReaderRevealChecks
         lateinit var container: ViewGroup
         var previous = emptyList<Pair<View, ViewGroup.LayoutParams>>()
