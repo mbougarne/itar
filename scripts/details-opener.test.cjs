@@ -1033,3 +1033,14 @@ test('tvOS grants Menu to Details, player and guide, and releases it at the top-
   f.app.unmount();
   assert.equal(f.menuKeys.at(-1), false);
 });
+
+test('web Home returns through the ordered shell to its remembered card after sidebar entry', () => {
+  const f = fixture('last-card', 'applied', 'web');
+  const page = nodes(f.app.tree()).find(n => n.type === 'FocusScope' && n.props.id === 'page');
+  const details = nodes(f.app.tree()).find(n => n.type === 'FocusScope' && n.props.id === 'details');
+  assert.equal(page.props.order, 1);
+  assert.equal(details.props.order, 1);
+  assert.equal(page.props.restoreOnEntry, true);
+  f.close();
+  assert.equal(f.requests.at(-1), 'shell/navigation');
+});

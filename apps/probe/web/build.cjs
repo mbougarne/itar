@@ -153,6 +153,7 @@ function writeShell(target, outdir, endpoint = defaultProxyURL) {
           title: 'Itar Cinema',
           icon: 'icon.png',
           resolution: '1920x1080',
+          disableBackHistoryAPI: true,
           accessibility: { supportsAudioGuidance: true },
         },
         null,
@@ -168,7 +169,7 @@ async function buildSite(target = 'browser', occo = false) {
   }
 
   const endpoint =
-    target === 'tizen'
+    target !== 'browser'
       ? proxyURL(process.env.ITAR_TMDB_PROXY_URL)
       : defaultProxyURL;
 

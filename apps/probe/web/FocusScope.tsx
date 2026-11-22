@@ -14,6 +14,7 @@ export function FocusScope({
   children,
   active = true,
   layout = 'spatial',
+  order = 0,
   boundary = 'stop',
   entryReady = true,
   restoreOnEntry = false,
@@ -21,7 +22,7 @@ export function FocusScope({
   preferredKey,
   style,
   testID,
-}: React.ComponentProps<typeof NativeScope>) {
+}: React.ComponentProps<typeof NativeScope> & { order?: number }) {
   const store = useWebStore();
 
   if (useContext(FocusContentContext)) {
@@ -44,6 +45,7 @@ export function FocusScope({
   useLayoutEffect(() => {
     store.update(record, {
       active: enabled,
+      order,
       entryReady,
       restoreOnEntry,
       trap,
@@ -54,6 +56,7 @@ export function FocusScope({
   }, [
     store,
     record,
+    order,
     enabled,
     entryReady,
     restoreOnEntry,

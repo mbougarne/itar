@@ -433,3 +433,33 @@ test('unchanged bounds reuse the Wasm snapshot; layout, mount and policy changes
   store.flush();
   assert.equal(published.at(-1).find(node => node.key === 'a').enabled, false);
 });
+
+test('Right crosses ordered regions and restores the card even when overscan extends behind the menu', async t => {
+  const { store, target, active } = fixture(t);
+
+  store.register({ ...createNode('menu', 'row', true), layout: 2, order: 0 });
+
+  store.register({
+    ...createNode('content', 'row', true),
+    order: 1,
+    restoreOnEntry: true,
+  });
+
+  const menu = target('menu-item', 0, 'menu');
+  const overscan = target('offscreen', 0, 'content');
+
+  overscan.element.getBoundingClientRect = () => ({
+    x: -310,
+    y: -146,
+    width: 422,
+    height: 237,
+  });
+
+  const card = target('last-card', 1, 'content');
+
+  assert.equal((await store.request('last-card').result).status, 'applied');
+  assert.equal((await store.request('menu-item').result).status, 'applied');
+  assert.equal(active(), menu.element);
+  store.direction(1);
+  assert.equal(active(), card.element);
+});

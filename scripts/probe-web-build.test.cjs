@@ -42,6 +42,7 @@ test('TV staging manifests reference local entry and correctly sized test icons'
       if (target === 'webos') {
         const manifest = JSON.parse(fs.readFileSync(path.join(outdir, 'appinfo.json'), 'utf8'));
         assert.equal(manifest.type, 'web');
+        assert.equal(manifest.disableBackHistoryAPI, true);
         assert.ok(fs.existsSync(path.join(outdir, manifest.main)));
         assert.ok(fs.existsSync(path.join(outdir, manifest.icon)));
       } else if (target === 'tizen') {
@@ -55,7 +56,7 @@ test('TV staging manifests reference local entry and correctly sized test icons'
   } finally { fs.rmSync(directory, {recursive: true, force: true}); }
 });
 
-function platform() {
+function platform(webOSSystem) {
   const source = fs.readFileSync(path.join(__dirname, '../apps/probe/web/platform.ts'), 'utf8');
   const {code} = esbuild.transformSync(source, {loader: 'ts', format: 'cjs'});
   const handlers = new Set();
@@ -63,7 +64,7 @@ function platform() {
   const context = {module: {exports: {}}, require: () => ({}),
     document: {addEventListener: (_, listener, capture) => { captureModes.push(capture); handlers.add(listener); },
       removeEventListener: (_, listener, capture) => { captureModes.push(capture); handlers.delete(listener); }},
-    window: {alert() {}, confirm: () => false, close() {}},
+    window: {webOSSystem, alert() {}, confirm: () => false, close() {}},
   };
   vm.runInNewContext(code, context);
   return {...context.module.exports, handlers, captureModes};
@@ -99,4 +100,19 @@ test('an Alert action does not also dispatch onDismiss', () => {
   Alert.alert('Exit', 'Use Home', [{text: 'Cancel', onPress: () => { calls += 1; }}],
     {onDismiss: () => { calls += 1; }});
   assert.equal(calls, 1);
+});
+
+test('LG Back reaches the system only after all screen handlers decline it', () => {
+  let exits = 0;
+  const {BackHandler, handlers} = platform({platformBack: () => { exits++; }});
+  BackHandler.addEventListener('hardwareBackPress', () => false);
+  const player = BackHandler.addEventListener('hardwareBackPress', () => true);
+  const send = () => handlers.forEach(handler => handler({
+    keyCode: 461, preventDefault() {}, stopPropagation() {},
+  }));
+  send();
+  assert.equal(exits, 0);
+  player.remove();
+  send();
+  assert.equal(exits, 1);
 });

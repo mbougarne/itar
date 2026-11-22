@@ -6,6 +6,7 @@ import {
   initializeFocusEngine,
   setDirectionalNavigationEnabled,
 } from './focus';
+import { hasSystemBack } from './platform';
 import './styles.css';
 
 declare const __OCCO__: boolean;
@@ -27,7 +28,9 @@ function BrowserApp() {
   }
 
   return (
-    <BrowserNavigation.Provider value={{ enabled, toggle }}>
+    <BrowserNavigation.Provider
+      value={{ enabled, toggle, systemBackAtRoot: hasSystemBack() }}
+    >
       <Development>
         <App />
       </Development>
