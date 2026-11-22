@@ -1,9 +1,14 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, {
+  memo,
+  useSyncExternalStore,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { View } from 'react-native';
 import { nativeTargetKey } from '../../../packages/itar/src/api/types';
 import { horizontalScrollOffset } from '../../../packages/itar/src/api/viewport';
 import { useWebStore } from './focus-context';
-import { useFocusState } from './focus-hooks';
 import { directionalNavigationEnabled } from './focus-store';
 import { Focusable } from './Focusable';
 import { FocusScope } from './FocusScope';
@@ -11,7 +16,7 @@ import { htmlStyles, itemStyles } from './rail-styles';
 import type { RowProps } from './rail-types';
 import { visibleIndices } from './window';
 
-export function Rail({
+export const Rail = memo(function RailRow({
   rail,
   height,
   width,
@@ -26,7 +31,6 @@ export function Rail({
 }: RowProps) {
   const [start, setStart] = useState(0);
   const scroll = useRef<HTMLDivElement>(null);
-  const focus = useFocusState();
   const store = useWebStore();
   const previousAlignment = useRef(alignment);
   const pinned = alignment === 'pinned';
@@ -35,9 +39,11 @@ export function Rail({
     rail.items.length * extent +
     (pinned && rail.items.length ? Math.max(0, width - extent) : 0);
 
-  const focused = rail.items.findIndex(
-    item => item.occurrenceKey === focus.occurrenceKey,
-  );
+  const focused = useSyncExternalStore(store.subscribe, () => {
+    const key = store.snapshot().occurrenceKey;
+
+    return rail.items.findIndex(item => item.occurrenceKey === key);
+  });
 
   const requested = rail.items.findIndex(
     item => nativeTargetKey(item.occurrenceKey) === forced,
@@ -193,4 +199,4 @@ export function Rail({
       </div>
     </FocusScope>
   );
-}
+});

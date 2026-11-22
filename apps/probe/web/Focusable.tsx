@@ -4,7 +4,7 @@ import type { FocusableProps } from '../../../packages/itar/src/react';
 import { nativeTargetKey } from '../../../packages/itar/src/api/types';
 import { FocusContentContext } from '../../../packages/itar/src/api/contexts';
 import { useWebStore, WebScopeContext } from './focus-context';
-import { createNode } from './focus-store';
+import { createNode, webTrace } from './focus-store';
 
 export function Focusable({
   occurrenceKey: publicKey,
@@ -112,6 +112,14 @@ export function Focusable({
       testID={testID}
       onPress={() => {
         if (enabled && scope.active) {
+          webTrace?.event({
+            kind: 'activation',
+            surface: store.lifetime,
+            target: key,
+            mount: String(record.mount),
+            detail: 'semantic',
+          });
+
           onPress?.({
             occurrenceKey: publicKey,
             contentId,

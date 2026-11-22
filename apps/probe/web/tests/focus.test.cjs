@@ -27,8 +27,12 @@ function load(name) {
   return loaded.exports;
 }
 
-const { WebFocusStore, createNode, setDirectionalNavigationEnabled } =
-  load('focus-store');
+const {
+  WebFocusStore,
+  createNode,
+  setDirectionalNavigationEnabled,
+  setWebTrace,
+} = load('focus-store');
 
 const { visibleIndices } = load('window');
 let wasm;
@@ -336,4 +340,96 @@ test('collection commits reveal retained focus without issuing a new focus move'
       'retired/inactive or superseded commits must not scroll',
     );
   }
+});
+
+test('Occo preserves a cancelled reveal and a later independent DOM observation', async t => {
+  const events = [];
+
+  setWebTrace({ event: e => events.push(e), move: () => undefined });
+  t.after(() => setWebTrace());
+
+  const f = fixture(t);
+
+  f.target('a', 0);
+
+  f.store.collection(
+    {},
+    { nodes: [{ ...createNode('b', 'row'), order: 1 }], reveal: () => true },
+  );
+
+  await f.store.request('a').result;
+
+  const p = f.store.request('b');
+
+  await Promise.resolve();
+  p.cancel();
+
+  const receipt = await p.result;
+  const b = f.target('b', 1);
+
+  f.store.flush();
+  f.store.observe(b.element, 0, true);
+
+  const steps = events.filter(e => e.request === receipt.request);
+
+  assert.ok(
+    steps.some(e => e.kind === 'host' && e.detail === 'reveal accepted'),
+  );
+
+  assert.ok(steps.some(e => e.kind === 'request' && e.detail === 'cancelled'));
+
+  const observed = events.at(-1);
+
+  assert.equal(observed.kind, 'observation');
+  assert.equal(observed.target, 'b');
+  assert.equal(observed.mount, String(b.mount));
+  assert.notEqual(observed.request, receipt.request);
+  assert.equal(observed.channel, 'input');
+});
+
+test('unchanged bounds reuse the Wasm snapshot; layout, mount and policy changes republish', async t => {
+  const { store, target } = fixture(t);
+  const a = target('a', 0);
+  const b = target('b', 1);
+  const sync = store.engine.sync.bind(store.engine);
+  const published = [];
+
+  store.engine.sync = nodes => {
+    published.push(
+      nodes.map(({ key, x, mounted, enabled }) => ({
+        key,
+        x,
+        mounted,
+        enabled,
+      })),
+    );
+
+    return sync(nodes);
+  };
+
+  await Promise.resolve();
+
+  const previous = published.length;
+
+  store.flush();
+  store.update(a, { enabled: true });
+  store.flush();
+  assert.equal(published.length, previous);
+
+  b.element.getBoundingClientRect = () => ({
+    x: 250,
+    y: 0,
+    width: 80,
+    height: 50,
+  });
+
+  store.flush();
+  assert.equal(published.length, previous + 1);
+  assert.equal(published.at(-1).find(node => node.key === 'b').x, 250);
+  b.element.isConnected = false;
+  store.flush();
+  assert.equal(published.at(-1).find(node => node.key === 'b').mounted, false);
+  store.update(a, { enabled: false });
+  store.flush();
+  assert.equal(published.at(-1).find(node => node.key === 'a').enabled, false);
 });

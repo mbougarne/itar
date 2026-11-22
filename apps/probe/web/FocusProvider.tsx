@@ -4,7 +4,11 @@ import type { FocusProvider as NativeProvider } from '../../../packages/itar/src
 import createItarEngine from '../../../build/web-engine/itar-web.js';
 import wasmBinary from '../../../build/web-engine/itar-web.wasm';
 import type { EngineModule } from './engine-types';
-import { WebFocusStore, directionalNavigationEnabled } from './focus-store';
+import {
+  WebFocusStore,
+  directionalNavigationEnabled,
+  webTrace,
+} from './focus-store';
 import { StoreContext, WebScopeContext } from './focus-context';
 
 let engineModule: EngineModule;
@@ -41,13 +45,17 @@ export function FocusProvider({
 
     const focus = () => {
       store.flush();
-      store.observe(document.activeElement);
+      store.observe(document.activeElement, 0, true);
     };
 
     const blur = () =>
       queueMicrotask(() => {
         if (store.available()) {
-          store.observe(document.activeElement);
+          store.observe(
+            document.activeElement,
+            0,
+            !!webTrace && !element.contains(document.activeElement),
+          );
         }
       });
 
@@ -93,7 +101,11 @@ export function FocusProvider({
 
       event.preventDefault();
       event.stopPropagation();
-      store.direction(direction < 0 ? legacy : direction);
+
+      store.direction(
+        direction < 0 ? legacy : direction,
+        webTrace?.move(event),
+      );
     };
 
     const keyup = (event: KeyboardEvent) => {
