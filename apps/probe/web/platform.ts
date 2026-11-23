@@ -1,6 +1,7 @@
 import type { AlertButton, AlertOptions } from 'react-native';
 
 export * from 'react-native-web';
+
 export { View as TVFocusGuideView } from 'react-native-web';
 
 type BackListener = () => boolean | null | undefined;
