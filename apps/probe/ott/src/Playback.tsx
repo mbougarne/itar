@@ -19,6 +19,7 @@ import {
   useFocusReady,
   useScreenReaderEnabled,
 } from 'itar/react';
+import { captionAccessible } from './tv-accessibility';
 import { IconAction } from './components/IconAction';
 import { icons } from './artwork';
 import { useDesign } from './theme';
@@ -95,9 +96,8 @@ export default function Playback({
   const ready = useFocusReady();
   const reader = useScreenReaderEnabled();
 
-  const bandProps = appleTV
-    ? { autoFocus: reader === false, accessible: false }
-    : {};
+  const readerLayout = appleTV && reader === true;
+  const bandProps = appleTV ? { autoFocus: true, accessible: false } : {};
 
   const { visible, wake, cancelHide } = usePlaybackControls(
     ready &&
@@ -138,7 +138,7 @@ export default function Playback({
   useTVEventHandler(onRemote);
 
   useEffect(() => {
-    if (!ready) {
+    if (!ready || readerLayout) {
       return;
     }
 
@@ -147,7 +147,7 @@ export default function Playback({
     );
 
     return () => request.cancel();
-  }, [commands, ready, visible]);
+  }, [commands, ready, visible, readerLayout]);
 
   useEffect(() => {
     const event = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -211,6 +211,8 @@ export default function Playback({
         source={source}
         style={s.video}
         resizeMode="contain"
+        accessible={false}
+        accessibilityElementsHidden={appleTV}
         controls={false}
         focusable={false}
         showNotificationControls={false}
@@ -290,11 +292,25 @@ export default function Playback({
       {visible ? (
         // Static scopes share the default order. Their keys order the header
         // before transport within this column, with the timeline ordered last.
-        <FocusScope id="playback" layout="column" style={s.fill}>
+        <FocusScope
+          id="playback"
+          layout="column"
+          style={s.fill}
+          accessibilityPaneTitle={readerLayout ? 'Player' : undefined}
+          preferredKey={
+            readerLayout ? occurrenceKey('player', 'pause') : undefined
+          }
+        >
           <ControlBand {...bandProps} style={s.playerHeader}>
             <View style={s.fill}>
-              <Text style={s.playerTitle}>Big Buck Bunny</Text>
-              <Text numberOfLines={1} style={s.muted}>
+              <Text accessible={captionAccessible} style={s.playerTitle}>
+                Big Buck Bunny
+              </Text>
+              <Text
+                accessible={captionAccessible}
+                numberOfLines={1}
+                style={s.muted}
+              >
                 {title} · Demo playback
               </Text>
             </View>
@@ -308,6 +324,9 @@ export default function Playback({
                 order={0}
                 id={occurrenceKey('player', 'restart')}
                 label={error ? 'Retry stream' : 'Restart'}
+                tvDescription={
+                  error ? 'The public test stream could not load.' : undefined
+                }
                 icon={icons.restart}
                 onPress={() => {
                   wake();
@@ -366,6 +385,15 @@ export default function Playback({
                 order={1}
                 id={occurrenceKey('player', 'pause')}
                 label={paused ? 'Play' : 'Pause'}
+                tvDescription={`Big Buck Bunny demo for ${title}. ${
+                  error
+                    ? 'Playback unavailable.'
+                    : !loaded
+                    ? 'Loading.'
+                    : buffering
+                    ? 'Buffering.'
+                    : ''
+                }`}
                 icon={paused ? icons.play : icons.pause}
                 size={88}
                 onPress={togglePlayback}
@@ -382,10 +410,10 @@ export default function Playback({
           </ControlBand>
           <View style={s.playerChrome}>
             <View style={s.playerMeta}>
-              <Text style={s.muted}>
+              <Text accessible={captionAccessible} style={s.muted}>
                 {formatPlaybackTime(time)} / {formatPlaybackTime(duration)}
               </Text>
-              <Text style={s.playerStatus}>
+              <Text accessible={captionAccessible} style={s.playerStatus}>
                 {error
                   ? 'Playback unavailable'
                   : !loaded
@@ -398,7 +426,7 @@ export default function Playback({
               </Text>
             </View>
             {error && (
-              <Text style={s.muted}>
+              <Text accessible={captionAccessible} style={s.muted}>
                 The public test stream could not load. Select Retry stream to
                 try again.
               </Text>
@@ -443,7 +471,7 @@ export default function Playback({
                 </View>
               </View>
             </Focusable>
-            <Text style={s.footer}>
+            <Text accessible={captionAccessible} style={s.footer}>
               Big Buck Bunny © 2008 Blender Foundation · CC BY 3.0 ·
               peach.blender.org · creativecommons.org/licenses/by/3.0/ · HLS
               hosted by Mux.

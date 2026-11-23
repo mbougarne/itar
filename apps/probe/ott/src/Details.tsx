@@ -1,7 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform, Text, View, type ImageSourcePropType } from 'react-native';
-import { FocusScope, FocusVirtualizedRails, occurrenceKey } from 'itar/react';
+import {
+  AccessibilityInfo,
+  Platform,
+  Text,
+  View,
+  type ImageSourcePropType,
+} from 'react-native';
+import {
+  FocusScope,
+  FocusVirtualizedRails,
+  occurrenceKey,
+  useScreenReaderEnabled,
+} from 'itar/react';
 import type { VirtualizedFocusItem, VirtualizedFocusRail } from 'itar/react';
+import { captionAccessible, tvControlLabel } from './tv-accessibility';
 import { cast, films } from './catalog';
 import type { CastMember, Film } from './catalog-types';
 import { Action } from './components/Action';
@@ -46,6 +58,7 @@ export default function Details({
   waitForRecommendations?: boolean;
 }) {
   const { s, u } = useDesign();
+  const reader = useScreenReaderEnabled();
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [data, setData] = useState(() => cachedDetails(film));
   const info = data?.film ?? film;
@@ -183,8 +196,25 @@ export default function Details({
               : portraits[member.id],
           });
 
-          return make(key, `${member.name}, ${member.role}`, () =>
-            setPerson(member),
+          return make(
+            key,
+            tvControlLabel(
+              `${member.name}, ${member.role}`,
+              person?.id === member.id ? bio : undefined,
+            ),
+            () => {
+              if (
+                person?.id === member.id &&
+                bio &&
+                reader &&
+                captionAccessible === false
+              ) {
+                AccessibilityInfo.announceForAccessibility(bio);
+              } else if (person?.id !== member.id) {
+                setBio('');
+                setPerson(member);
+              }
+            },
           );
         })
       : related.map(value => {
@@ -214,6 +244,9 @@ export default function Details({
   }, [
     tab,
     castTab,
+    person,
+    bio,
+    reader,
     people,
     related,
     film.id,
@@ -244,7 +277,11 @@ export default function Details({
             }}
             fallback={castTab ? 'Portrait unavailable' : 'Artwork unavailable'}
           />
-          <Text numberOfLines={1} style={[s.detailCardCaption, s.detailText]}>
+          <Text
+            accessible={captionAccessible}
+            numberOfLines={1}
+            style={[s.detailCardCaption, s.detailText]}
+          >
             {visual.title}
           </Text>
         </View>
@@ -261,6 +298,38 @@ export default function Details({
     ],
   );
 
+  const information = [
+    (info.status || 'Status unavailable') +
+      (info.seasons
+        ? ` · ${info.seasons} seasons · ${info.episodes ?? '—'} episodes`
+        : ''),
+    `Languages: ${info.languages || 'Not provided'} · Countries: ${
+      info.countries || 'Not provided'
+    }`,
+    `Studios: ${info.studios || 'Not provided'}`,
+    `TMDB rating: ${
+      info.votes
+        ? `${info.rating?.toFixed(
+            1,
+          )} / 10 from ${info.votes.toLocaleString()} votes`
+        : 'Not yet rated'
+    }`,
+    'Subtitles: availability not provided · Audio description: availability not provided',
+    'Title metadata does not describe the tracks available in the demo video.',
+  ].filter(Boolean);
+
+  const playAction = (
+    <Action
+      id={occurrenceKey('details', 'play')}
+      label={resumeAvailable ? 'Resume demo' : 'Play demo'}
+      tvDescription={`${info.title}. Big Buck Bunny demo playback.`}
+      displayLabel={resumeAvailable ? '▶  Resume demo' : '▶  Play demo'}
+      onPress={() => onPlay(info)}
+      highContrast={highContrast}
+      style={s.primaryCta}
+    />
+  );
+
   return (
     <View style={s.detailContent}>
       <View style={s.pageBackdrop} pointerEvents="none">
@@ -273,15 +342,24 @@ export default function Details({
       </View>
       <View style={s.detailTop}>
         <View style={s.heroCopy}>
-          <Text numberOfLines={2} style={[s.heroTitle, s.detailText]}>
+          <Text
+            accessible={captionAccessible}
+            accessibilityRole="header"
+            numberOfLines={2}
+            style={[s.heroTitle, s.detailText]}
+          >
             {info.title}
           </Text>
           <Metadata film={info} />
-          <Text style={s.muted}>
+          <Text accessible={captionAccessible} style={s.muted}>
             {info.category}
             {info.tagline ? ` · ${info.tagline}` : ''}
           </Text>
-          <Text numberOfLines={3} style={[s.body, s.detailText]}>
+          <Text
+            accessible={captionAccessible}
+            numberOfLines={3}
+            style={[s.body, s.detailText]}
+          >
             {info.synopsis}
           </Text>
           <FocusScope
@@ -290,19 +368,13 @@ export default function Details({
             boundary="parent"
             style={s.heroActions}
           >
-            <Action
-              id={occurrenceKey('details', 'play')}
-              label={resumeAvailable ? 'Resume demo' : 'Play demo'}
-              displayLabel={resumeAvailable ? '▶  Resume demo' : '▶  Play demo'}
-              onPress={() => onPlay(info)}
-              highContrast={highContrast}
-              style={s.primaryCta}
-            />
+            {playAction}
             <Action
               order={1}
               id={occurrenceKey('details', 'list')}
               label={saved ? 'Remove from My List' : 'Add to My List'}
               displayLabel={saved ? '✓  In My List' : '＋  My List'}
+              tvDescription={listError}
               enabled={listReady}
               onPress={() => onToggleSaved(info)}
               highContrast={highContrast}
@@ -312,17 +384,22 @@ export default function Details({
               order={2}
               id={occurrenceKey('details', 'like')}
               label="Like"
+              tvDescription="Focus-only demo control."
               icon={icons.like}
               onPress={() => {}}
               highContrast={highContrast}
             />
           </FocusScope>
-          <Text style={s.footer}>
+          <Text accessible={captionAccessible} style={s.footer}>
             Big Buck Bunny{Platform.OS === 'web' ? ' 4K UHD' : ''} demo playback
             · Like is a focus-only control
           </Text>
           {!!listError && (
-            <Text accessibilityLiveRegion="polite" style={s.muted}>
+            <Text
+              accessible={captionAccessible}
+              accessibilityLiveRegion="polite"
+              style={s.muted}
+            >
               {listError}
             </Text>
           )}
@@ -340,8 +417,42 @@ export default function Details({
             order={index}
             id={occurrenceKey('details', 'tab', name)}
             label={`${name}${tab === name ? ', selected' : ''}`}
+            tvDescription={
+              name === 'Information'
+                ? 'Select to read the synopsis and title information.'
+                : tab === name
+                ? loading
+                  ? 'Loading title information'
+                  : !model.rails[0].items.length
+                  ? `No ${name.toLowerCase()} available for this title.`
+                  : undefined
+                : undefined
+            }
             displayLabel={name}
             onPress={() => {
+              if (
+                name === 'Information' &&
+                captionAccessible === false &&
+                reader
+              ) {
+                AccessibilityInfo.announceForAccessibility(
+                  [
+                    info.title,
+                    info.year,
+                    info.kind,
+                    info.category,
+                    info.tagline,
+                    info.runtime && `${info.runtime} minutes`,
+                    info.certification || 'Age rating unavailable',
+                    info.synopsis,
+                    ...information,
+                    'Demo video: Big Buck Bunny, Blender Foundation. Creative Commons Attribution 3.0. Stream hosted by Mux.',
+                  ]
+                    .filter(Boolean)
+                    .join('. '),
+                );
+              }
+
               setTab(name);
               setPerson(null);
             }}
@@ -352,10 +463,13 @@ export default function Details({
       </FocusScope>
       {error ? (
         <View style={s.row}>
-          <Text style={s.muted}>{error}</Text>
+          <Text accessible={captionAccessible} style={s.muted}>
+            {error}
+          </Text>
           <Action
             id={occurrenceKey('details', 'retry')}
             label="Retry details"
+            tvDescription={error}
             onPress={() => {
               setError('');
               setAttempt(value => value + 1);
@@ -365,7 +479,9 @@ export default function Details({
       ) : (
         loading &&
         !loadingRecommendations && (
-          <Text style={s.muted}>Loading title information…</Text>
+          <Text accessible={captionAccessible} style={s.muted}>
+            Loading title information…
+          </Text>
         )
       )}
       <View
@@ -374,37 +490,21 @@ export default function Details({
       >
         {tab === 'Information' ? (
           <View style={s.information}>
-            <Text style={s.body}>
-              {info.status || 'Status unavailable'}
-              {info.seasons
-                ? ` · ${info.seasons} seasons · ${
-                    info.episodes ?? '—'
-                  } episodes`
-                : ''}
-            </Text>
-            <Text style={s.muted}>
-              Languages: {info.languages || 'Not provided'} · Countries:{' '}
-              {info.countries || 'Not provided'}
-            </Text>
-            <Text style={s.muted}>
-              Studios: {info.studios || 'Not provided'}
-            </Text>
-            <Text style={s.muted}>
-              TMDB rating:{' '}
-              {info.votes
-                ? `${info.rating?.toFixed(
-                    1,
-                  )} / 10 from ${info.votes.toLocaleString()} votes`
-                : 'Not yet rated'}
-            </Text>
-            <Text style={s.muted}>
-              Subtitles: availability not provided · Audio description:
-              availability not provided
-            </Text>
-            <Text style={s.footer}>
-              Title metadata does not describe the tracks available in the demo
-              video.
-            </Text>
+            {information.map((line, index) => (
+              <Text
+                accessible={captionAccessible}
+                key={line}
+                style={
+                  index === 0
+                    ? s.body
+                    : index === information.length - 1
+                    ? s.footer
+                    : s.muted
+                }
+              >
+                {line}
+              </Text>
+            ))}
           </View>
         ) : (
           <View
@@ -419,7 +519,7 @@ export default function Details({
                 id="title-content"
                 active={active}
                 rails={model.rails}
-                horizontalAlignment={castTab ? 'nearest' : 'leading'}
+                horizontalAlignment={castTab ? 'nearest' : 'pinned'}
                 onReady={
                   waitForRecommendations && !loading ? onReady : undefined
                 }
@@ -432,16 +532,20 @@ export default function Details({
             )}
             {loadingRecommendations && <RecommendationsPlaceholder />}
             {!loading && !error && !model.rails[0].items.length && (
-              <Text style={s.muted}>
+              <Text accessible={captionAccessible} style={s.muted}>
                 No {tab.toLowerCase()} available for this title.
               </Text>
             )}
             {person && (
               <View style={s.biographyPanel}>
-                <Text style={s.body}>
+                <Text accessible={captionAccessible} style={s.body}>
                   {person.name} · {person.role}
                 </Text>
-                <Text numberOfLines={3} style={s.muted}>
+                <Text
+                  accessible={captionAccessible}
+                  numberOfLines={3}
+                  style={s.muted}
+                >
                   {bio}
                 </Text>
               </View>
