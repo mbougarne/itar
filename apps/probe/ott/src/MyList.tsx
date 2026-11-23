@@ -12,6 +12,7 @@ import {
   occurrenceKey,
   type VirtualizedFocusItem,
 } from 'itar/react';
+import { captionAccessible } from './tv-accessibility';
 import { libraryId } from './profile-library';
 import type { Film } from './catalog-types';
 import { filmArtwork } from './artwork';
@@ -135,7 +136,11 @@ export default function MyList({
             style={{ width, height: (width * 9) / 16 }}
             fallback="Artwork unavailable"
           />
-          <Text numberOfLines={1} style={s.detailCardCaption}>
+          <Text
+            accessible={captionAccessible}
+            numberOfLines={1}
+            style={s.detailCardCaption}
+          >
             {film.title}
           </Text>
         </View>
@@ -147,7 +152,11 @@ export default function MyList({
   return (
     <View style={s.fill}>
       {!!error && (
-        <Text accessibilityLiveRegion="polite" style={s.muted}>
+        <Text
+          accessible={captionAccessible}
+          accessibilityLiveRegion="polite"
+          style={s.muted}
+        >
           {error}
         </Text>
       )}
@@ -155,18 +164,20 @@ export default function MyList({
         <Action
           id={occurrenceKey(id, 'retry')}
           label="Retry local library"
+          tvDescription={error}
           onPress={onRetry}
         />
       )}
       {!ready && !error && <Text style={s.muted}>Loading My List…</Text>}
       {ready && !saved.length && (
         <>
-          <Text style={s.body}>
+          <Text accessible={captionAccessible} style={s.body}>
             Save a title from its details to watch it later.
           </Text>
           <Action
             id={occurrenceKey(id, 'browse')}
             label="Browse titles"
+            tvDescription="My List is empty. Save a title from its details to watch it later."
             onPress={onBrowse}
           />
         </>

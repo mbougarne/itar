@@ -1,6 +1,7 @@
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Focusable } from 'itar/react';
+import { tvControlLabel } from '../tv-accessibility';
 import { useDesign } from '../theme';
 
 const accents = {
@@ -18,9 +19,11 @@ export function Action({
   style,
   order = 0,
   displayLabel,
+  tvDescription,
   children,
 }: {
   displayLabel?: string;
+  tvDescription?: string;
   children?: React.ReactNode;
   order?: number;
   id: string;
@@ -40,7 +43,7 @@ export function Action({
       order={order}
       occurrenceKey={id}
       contentId={contentId}
-      accessibilityLabel={label}
+      accessibilityLabel={tvControlLabel(label, tvDescription)}
       enabled={enabled}
       onPress={onPress}
       baseAccentColor="#BDC8D3"

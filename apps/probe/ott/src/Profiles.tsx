@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, Text, View } from 'react-native';
+import { Image, Platform, Text, View } from 'react-native';
 import { Focusable, FocusScope, occurrenceKey } from 'itar/react';
 import { Picture } from './components/Picture';
 import { art, icons } from './artwork';
@@ -17,13 +17,19 @@ export function Profiles({
   highContrast: boolean;
 }) {
   const { s, u } = useDesign();
+  const appleTV = Platform.OS === 'ios' && Platform.isTV;
   const names = ['Explorer', 'Stargazer'];
   const focusStyle = { accentColor: highContrast ? '#FFFFFF' : '#26D9F2' };
 
   return (
     <View style={s.profilePage}>
-      <Text style={s.chooserTitle}>Who’s exploring?</Text>
-      <Text style={[s.subtitle, s.centered]}>
+      <Text accessible={appleTV ? false : undefined} style={s.chooserTitle}>
+        Who’s exploring?
+      </Text>
+      <Text
+        accessible={appleTV ? false : undefined}
+        style={[s.subtitle, s.centered]}
+      >
         Choose a profile for your saved titles and watch history.
       </Text>
       <FocusScope id="choices" layout="row" boundary="stop" style={s.profiles}>
@@ -48,7 +54,13 @@ export function Profiles({
                   index === 2
                     ? 'Add a New Profile, unavailable in this showcase'
                     : name === profile
-                    ? `${name}, current profile`
+                    ? `${name}, current profile${
+                        appleTV
+                          ? '. Choose a profile for your saved titles and watch history.'
+                          : ''
+                      }`
+                    : appleTV
+                    ? `${name}, profile`
                     : name
                 }
                 displayLabel={name}
@@ -68,13 +80,18 @@ export function Profiles({
             {name === profile && (
               <View style={s.currentProfile}>
                 <Image source={icons.check} style={s.check} />
-                <Text style={s.muted}>Current profile</Text>
+                <Text accessible={appleTV ? false : undefined} style={s.muted}>
+                  Current profile
+                </Text>
               </View>
             )}
           </View>
         ))}
       </FocusScope>
-      <Text style={[s.footer, s.centered]}>
+      <Text
+        accessible={appleTV ? false : undefined}
+        style={[s.footer, s.centered]}
+      >
         New profiles aren’t available in this demo.
       </Text>
     </View>

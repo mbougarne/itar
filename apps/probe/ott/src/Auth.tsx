@@ -13,7 +13,9 @@ import {
   occurrenceKey,
   useFocusCommands,
   useFocusReady,
+  useScreenReaderEnabled,
 } from 'itar/react';
+import { captionAccessible } from './tv-accessibility';
 import { BrowserNavigation } from './browser-navigation';
 import { Action } from './components/Action';
 import { useDesign } from './theme';
@@ -31,11 +33,20 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
   const passwordInput = useRef<TextInput>(null);
   const commands = useFocusCommands();
   const ready = useFocusReady();
+  const reader = useScreenReaderEnabled();
+
+  const readerLayout =
+    Platform.OS === 'ios' && Platform.isTV && reader === true;
 
   useAppleTVMenu(!!form);
 
   useEffect(() => {
-    if (!ready || editing || (Platform.OS === 'android' && form)) {
+    if (
+      !ready ||
+      editing ||
+      readerLayout ||
+      (Platform.OS === 'android' && form)
+    ) {
       return;
     }
 
@@ -44,7 +55,7 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
     );
 
     return () => request.cancel();
-  }, [commands, ready, form, editing]);
+  }, [commands, ready, form, editing, readerLayout]);
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -131,12 +142,29 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
   }
 
   return (
-    <FocusScope id="welcome" layout="spatial" style={s.auth}>
-      <Text style={s.splashBrand}>
-        <Text style={s.brandStrong}>ITAR</Text> CINEMA
+    <FocusScope
+      id="welcome"
+      layout="spatial"
+      style={s.auth}
+      accessibilityPaneTitle={
+        readerLayout && !editing ? form || 'Itar Cinema' : undefined
+      }
+      preferredKey={
+        readerLayout && !editing
+          ? occurrenceKey('auth', form ? returnTarget.current : 'signin')
+          : undefined
+      }
+    >
+      <Text accessible={captionAccessible} style={s.splashBrand}>
+        <Text accessible={captionAccessible} style={s.brandStrong}>
+          ITAR
+        </Text>{' '}
+        CINEMA
       </Text>
-      <Text style={s.heroTitle}>{form || 'A world of stories.'}</Text>
-      <Text style={s.body}>
+      <Text accessible={captionAccessible} style={s.heroTitle}>
+        {form || 'A world of stories.'}
+      </Text>
+      <Text accessible={captionAccessible} style={s.body}>
         {form
           ? 'Demo account · Any email and password will work.'
           : 'Find your next favourite. Explore films, series and what’s on TV.'}
@@ -145,7 +173,7 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
         <>
           {(['email', 'password'] as const).map(field => (
             <View key={field}>
-              <Text style={s.muted}>
+              <Text accessible={captionAccessible} style={s.muted}>
                 {field === 'email' ? 'Email' : 'Password'}
               </Text>
               {Platform.OS === 'android' || editing === field ? (
@@ -182,6 +210,11 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
                 <Action
                   id={occurrenceKey('auth', field)}
                   label={`Edit ${field}`}
+                  tvDescription={
+                    field === 'email'
+                      ? 'Demo account. Any email and password will work.'
+                      : undefined
+                  }
                   displayLabel={
                     field === 'email'
                       ? email || 'Enter any email'
@@ -228,7 +261,12 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
                       { width: action.width * u },
                     ]}
                   >
-                    <Text style={[s.body, s.centered]}>{action.label}</Text>
+                    <Text
+                      accessible={captionAccessible}
+                      style={[s.body, s.centered]}
+                    >
+                      {action.label}
+                    </Text>
                   </View>
                 </TouchableNativeFeedback>
               ))}
@@ -243,6 +281,7 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
               <Action
                 id={occurrenceKey('auth', 'submit')}
                 label={form}
+                tvDescription="No account is created. Your entries stay on this device for this session."
                 onPress={onSignIn}
                 style={[s.primaryCta, { width: 640 * u }]}
               />
@@ -254,7 +293,7 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
               />
             </FocusScope>
           )}
-          <Text style={s.footer}>
+          <Text accessible={captionAccessible} style={s.footer}>
             No account is created. These values stay in memory and are never
             sent or saved.
           </Text>
@@ -276,6 +315,7 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
             order={1}
             id={occurrenceKey('auth', 'signup')}
             label="Sign up"
+            tvDescription="Itar Cinema demo account."
             onPress={() => openForm('Sign up')}
             style={s.primaryCta}
           />

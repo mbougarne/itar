@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { captionAccessible, tvControlLabel } from '../ott/src/tv-accessibility';
 import { eventDetails, eventTitle, recordingSummary } from './timeline';
 import type { OccoRecording } from './timeline';
 
@@ -8,11 +9,13 @@ const pageSize = 4;
 function Action({
   label,
   selected,
+  description,
   onPress,
   disabled = false,
 }: {
   label: string;
   selected?: boolean;
+  description?: string;
   onPress: () => void;
   disabled?: boolean;
 }) {
@@ -21,7 +24,7 @@ function Action({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={tvControlLabel(label, description)}
       accessibilityState={{ selected, disabled }}
       disabled={disabled}
       focusable={!disabled}
@@ -35,7 +38,11 @@ function Action({
         disabled && styles.disabled,
       ]}
     >
-      <Text style={styles.label} numberOfLines={2}>
+      <Text
+        accessible={captionAccessible}
+        style={styles.label}
+        numberOfLines={2}
+      >
         {label}
       </Text>
     </Pressable>
@@ -77,7 +84,7 @@ function Details({ fields }: { fields: [string, string][] }) {
         scrollEventThrottle={32}
       >
         {fields.map(([label, value]) => (
-          <Text key={label} style={styles.line}>
+          <Text accessible={captionAccessible} key={label} style={styles.line}>
             <Text style={styles.field}>{label} </Text>
             {value}
           </Text>
@@ -106,7 +113,12 @@ export function OccoTimeline({ recording }: { recording: OccoRecording }) {
 
   return (
     <View style={styles.timeline}>
-      <Text style={styles.status}>{recordingSummary(recording)}</Text>
+      <Text
+        accessible={events.length ? captionAccessible : undefined}
+        style={styles.status}
+      >
+        {recordingSummary(recording)}
+      </Text>
       {events.length > 0 && (
         <View style={styles.body}>
           <View style={styles.events}>
@@ -132,6 +144,16 @@ export function OccoTimeline({ recording }: { recording: OccoRecording }) {
               <Action
                 key={event.seq}
                 label={eventTitle(event)}
+                description={
+                  captionAccessible === false && first + offset === index
+                    ? [
+                        recordingSummary(recording),
+                        ...eventDetails(recording, index).map(
+                          ([field, value]) => `${field}: ${value}`,
+                        ),
+                      ].join('. ')
+                    : undefined
+                }
                 selected={first + offset === index}
                 onPress={() => setCursor(first + offset)}
               />

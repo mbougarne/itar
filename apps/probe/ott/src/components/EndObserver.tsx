@@ -1,18 +1,23 @@
 import { useEffect } from 'react';
-import { useIsFocused } from 'itar/react';
+import { useFocusState } from 'itar/react';
 
 export function EndObserver({
-  id,
+  keys,
   active,
   blocked,
   onEnd,
 }: {
-  id: string;
+  keys: readonly string[];
   active: boolean;
   blocked: boolean;
   onEnd: () => void;
 }) {
-  const focused = useIsFocused(id);
+  const focus = useFocusState();
+
+  const focused =
+    focus.kind === 'managed' &&
+    !!focus.occurrenceKey &&
+    keys.includes(focus.occurrenceKey);
 
   useEffect(() => {
     if (focused && active && !blocked) {

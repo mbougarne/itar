@@ -113,7 +113,8 @@ export function HomePreviewCard({
   const { u } = useDesign();
   // The collection has a fixed stride. Expand the image inside its reserved
   // slot so the target retains its identity and its neighbors keep their order.
-  const cardWidth = focused ? width : width * 0.87;
+  const stableArtwork = Platform.OS === 'ios' && Platform.isTV && !active;
+  const cardWidth = focused || stableArtwork ? width : width * 0.87;
 
   const poster = (
     <Picture

@@ -86,6 +86,7 @@ test('Cinema sidebar and icon controls keep one spoken name while presenting the
     if (name === 'react-native') return {View: 'View', Text: 'Text', Image: 'Image'};
     if (name === 'itar/react') return {Focusable: 'Focusable'};
     if (name.endsWith('/theme')) return {useDesign: () => ({s: {}, u: 1})};
+    if (name.endsWith('/tv-accessibility')) return load('apps/probe/ott/src/tv-accessibility.ts', () => ({Platform: {OS: 'android'}}));
     if (name === './Action') return {Action};
     throw new Error('Unexpected Cinema import ' + name);
   };

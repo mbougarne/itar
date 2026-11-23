@@ -13,6 +13,13 @@ import { useDesign } from './theme';
 import { BrowserNavigation } from './browser-navigation';
 import { DevelopmentSettings } from './development-settings';
 
+const appleTV = Platform.OS === 'ios' && Platform.isTV;
+
+const sessionNote = 'Focus and request settings last for this session.';
+
+const attribution =
+  'This product uses the TMDB API but is not endorsed or certified by TMDB.';
+
 const supportsCheckedState = Platform.OS === 'android' || Platform.OS === 'web';
 
 export function Settings({
@@ -135,7 +142,16 @@ export function Settings({
           accessibilityLabel:
             supportsCheckedState && 'checked' in value
               ? value.label
-              : `${value.label}: ${value.value}`,
+              : [
+                  `${value.label}: ${value.value}`,
+                  appleTV && value.title,
+                  appleTV &&
+                    value.key === 'contrast' &&
+                    `Settings. ${sessionNote}`,
+                  appleTV && value.key === 'source' && attribution,
+                ]
+                  .filter(Boolean)
+                  .join('. '),
           accessibilityRole:
             supportsCheckedState && 'checked' in value
               ? ('switch' as const)
@@ -177,7 +193,9 @@ export function Settings({
 
   const header = useCallback(
     (rail: VirtualizedFocusRail) => (
-      <Text style={s.virtualHeading}>{model.titles.get(rail.id)}</Text>
+      <Text accessible={appleTV ? false : undefined} style={s.virtualHeading}>
+        {model.titles.get(rail.id)}
+      </Text>
     ),
     [model.titles, s.virtualHeading],
   );
@@ -217,9 +235,8 @@ export function Settings({
           />
         )}
       </View>
-      <Text style={s.footer}>
-        Focus and request settings last for this session. This product uses the
-        TMDB API but is not endorsed or certified by TMDB.
+      <Text accessible={appleTV ? false : undefined} style={s.footer}>
+        {sessionNote} {attribution}
       </Text>
     </View>
   );

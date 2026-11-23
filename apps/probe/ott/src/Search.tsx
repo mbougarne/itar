@@ -6,6 +6,7 @@ import {
   useFocusCommands,
   useFocusState,
 } from 'itar/react';
+import { captionAccessible } from './tv-accessibility';
 import Browse from './Browse';
 import { Action } from './components/Action';
 import { Header } from './components/Header';
@@ -71,12 +72,17 @@ export default function Search({
     <View style={s.search}>
       <View style={s.keyboardPanel}>
         <View style={s.query}>
-          <Text style={s.queryText} numberOfLines={2}>
+          <Text
+            accessible={captionAccessible}
+            style={s.queryText}
+            numberOfLines={2}
+          >
             {text || 'Choose letters below'}
           </Text>
         </View>
         <FocusScope
           id="keyboard"
+          restoreOnEntry={Platform.OS === 'ios' && Platform.isTV}
           layout="spatial"
           boundary="parent"
           style={s.keyboard}
@@ -95,6 +101,13 @@ export default function Search({
                   key={letter}
                   id={occurrenceKey(id, 'key', letter)}
                   label={letter}
+                  tvDescription={
+                    letter === 'A'
+                      ? text
+                        ? `Search: ${text}`
+                        : 'Search. Choose letters with your remote.'
+                      : undefined
+                  }
                   style={s.key}
                   onPress={() =>
                     setText(value => (value + letter).slice(0, 36))
@@ -114,6 +127,13 @@ export default function Search({
               order={0}
               id={occurrenceKey(id, 'space')}
               label="Space"
+              tvDescription={
+                text
+                  ? `Current query: ${text}. ${
+                      text.length === 36 ? 'Maximum length reached.' : ''
+                    }`
+                  : 'Choose letters to search for a title or genre.'
+              }
               style={s.editAction}
               onPress={() => setText(value => (value + ' ').slice(0, 36))}
               highContrast={highContrast}
@@ -143,7 +163,7 @@ export default function Search({
             />
           </FocusScope>
         </FocusScope>
-        <Text style={s.footer}>
+        <Text accessible={captionAccessible} style={s.footer}>
           {text.length === 36
             ? 'Maximum query length reached (36 characters).'
             : 'Choose letters with your remote.'}

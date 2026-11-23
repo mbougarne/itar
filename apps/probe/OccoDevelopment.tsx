@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { captionAccessible, tvControlLabel } from './ott/src/tv-accessibility';
 import { DevelopmentSettings } from './ott/src/development-settings';
 import type { DevelopmentAction } from './ott/src/development-settings';
 import { OccoTimeline } from './occo/OccoTimeline';
@@ -114,6 +115,7 @@ export function OccoDevelopment({ children }: React.PropsWithChildren) {
             <View style={styles.controls}>
               <Button
                 title="Export recording"
+                accessibilityLabel={tvControlLabel('Export recording', message)}
                 onPress={() =>
                   run(async native => {
                     const path = await native.exportRecording();
@@ -133,7 +135,11 @@ export function OccoDevelopment({ children }: React.PropsWithChildren) {
               />
             </View>
             {!!message && (
-              <Text accessibilityLiveRegion="polite" style={styles.message}>
+              <Text
+                accessible={captionAccessible}
+                accessibilityLiveRegion="polite"
+                style={styles.message}
+              >
                 {message}
               </Text>
             )}

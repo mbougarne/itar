@@ -12,9 +12,11 @@ import {
   FocusVirtualizedRails,
   occurrenceKey,
   useIsFocused,
+  useScreenReaderEnabled,
   useFocusCommands,
 } from 'itar/react';
 import type { VirtualizedFocusItem, VirtualizedFocusRail } from 'itar/react';
+import { tvControlLabel } from './tv-accessibility';
 import { hero } from './catalog';
 import { useCatalogue } from './useCatalogue';
 import { Picture } from './components/Picture';
@@ -117,10 +119,21 @@ export default function Browse({
   );
 
   const fiveColumns = grid || searchResults;
+  // Give the row name to its first card so VoiceOver cannot land on a
+  // neighboring row's visual heading while the remote is idle.
+  const nameHomeRows = featured && Platform.OS === 'ios' && Platform.isTV;
+  const reader = useScreenReaderEnabled();
+
+  const appleGrid =
+    Platform.OS === 'ios' && Platform.isTV && fiveColumns && reader === false;
+
   const browserNavigation = useContext(BrowserNavigation);
 
   const autoPageGrid =
-    Platform.OS === 'web' && fiveColumns && browserNavigation?.enabled === true;
+    appleGrid ||
+    (Platform.OS === 'web' &&
+      fiveColumns &&
+      browserNavigation?.enabled === true);
 
   const columns = fiveColumns ? 5 : 4;
   const cardGap = 24 * u;
@@ -248,15 +261,28 @@ export default function Browse({
 
           visuals.set(key, { film, poster, preview, watching });
 
+          const label =
+            `${film.title}, ${film.kind === 'movie' ? 'Movie' : 'Series'}` +
+            (watching && watching.duration > 0
+              ? `, ${Math.round(
+                  (watching.position / watching.duration) * 100,
+                )}% watched`
+              : '');
+
+          let section: string | undefined;
+
+          if (nameHomeRows && index === 0) section = rail.title;
+
+          if (searchResults && rail === displayedRows[0] && index === 0) {
+            section = query.trim()
+              ? `Results for ${query}`
+              : 'Suggested titles';
+          }
+
           return {
             ...make(
               key,
-              `${film.title}, ${film.kind === 'movie' ? 'Movie' : 'Series'}` +
-                (watching && watching.duration > 0
-                  ? `, ${Math.round(
-                      (watching.position / watching.duration) * 100,
-                    )}% watched`
-                  : ''),
+              tvControlLabel(label, section),
               () => onOpen(film, key),
               film.id,
             ),
@@ -317,6 +343,14 @@ export default function Browse({
         items: [
           {
             ...action,
+            displayLabel: action.accessibilityLabel,
+            accessibilityLabel: tvControlLabel(
+              action.accessibilityLabel,
+              state.error ||
+                (initial && state.ended
+                  ? 'No matching stories. Try a different title or genre.'
+                  : undefined),
+            ),
             // Keep a filter focused during the first fetch. A focused retry
             // stays mounted and eligible until its result is ready.
             enabled:
@@ -329,6 +363,7 @@ export default function Browse({
     return { rails, visuals, titles };
   }, [
     displayedRows,
+    nameHomeRows,
     autoPageGrid,
     grid,
     cardGap,
@@ -358,6 +393,7 @@ export default function Browse({
     retry,
     retryFocused,
     searchResults,
+    query,
     onOpen,
   ]);
 
@@ -453,6 +489,7 @@ export default function Browse({
 
       return title ? (
         <Text
+          accessible={nameHomeRows ? false : undefined}
           accessibilityRole="header"
           style={[s.virtualHeading, featured && s.homeInset]}
         >
@@ -460,7 +497,7 @@ export default function Browse({
         </Text>
       ) : null;
     },
-    [model.titles, s.virtualHeading, featured, s.homeInset],
+    [model.titles, s.virtualHeading, featured, s.homeInset, nameHomeRows],
   );
 
   const reportReady = useCallback(() => {
@@ -518,21 +555,22 @@ export default function Browse({
           }
         }}
       >
-        {!featured &&
-          endKeys.map(key => (
-            <EndObserver
-              key={key}
-              id={key}
-              active={active}
-              blocked={!!state.error}
-              onEnd={loadMore}
-            />
-          ))}
+        {!featured && (
+          <EndObserver
+            keys={endKeys}
+            active={active}
+            blocked={!!state.error}
+            onEnd={loadMore}
+          />
+        )}
         {height > 0 && !loadingHome && (
           <FocusVirtualizedRails
             active={active}
             onEndReached={
-              !featured && !state.error && !(autoPageGrid && retryFocused)
+              !featured &&
+              !appleGrid &&
+              !state.error &&
+              !(autoPageGrid && retryFocused)
                 ? loadMore
                 : undefined
             }
@@ -566,7 +604,10 @@ export default function Browse({
                 ? [
                     {
                       occurrenceKey: occurrenceKey(id, 'hero', featuredFilm.id),
-                      accessibilityLabel: 'Explore title',
+                      accessibilityLabel: tvControlLabel(
+                        'Explore title',
+                        featuredFilm.title,
+                      ),
                     },
                     ...(onGuide
                       ? [
