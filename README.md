@@ -97,7 +97,7 @@ Here `occurrenceKey('watchlist', 'arrival')` identifies the card the viewer acti
 | Target | What testers can try | What still needs evidence |
 | --- | --- | --- |
 | Android TV / Google TV | Kotlin/JNI adapter, React Native Fabric components, fixed-extent collections. Google TV emulator scenarios cover directional navigation and selected TalkBack returns. | Chromecast HD testing reported TalkBack focus jumps during Down/loading. Physical remote, speech and long-session checks remain open. |
-| Apple TV / tvOS | Swift/UIKit adapter, focus preferences and collection realization. The Cinema app has run on Apple TV HD, with targeted regressions exercised in the simulator. | Repeat the Home and Settings flows with the physical Siri Remote and VoiceOver, including visible focus and spoken output. |
+| Apple TV / tvOS | Cinema passed on physical Apple TV HD with VoiceOver on and off, including remote navigation, nested Back restoration and player controls. | Repeat on other Apple TV models and tvOS versions. |
 | Fire TV / Fire OS | The Android path is available to evaluate on Android-based Fire TV devices. | Independent physical Fire OS remote and VoiceView testing. Fire TV devices running Vega OS require a different runtime investigation. |
 | Desktop browser, Samsung Tizen, LG webOS | Cinema navigation passed on physical Samsung and LG TVs with Voice Guide and Audio Guidance enabled, respectively. Chromium exercises the same DOM/Wasm adapter. | Coverage on other TV models and browser versions. |
 | Other TV runtimes | Vega OS, VIDAA, Xbox and PlayStation are under investigation. | No adapter has been validated for these targets. Roku is outside the project scope. |
