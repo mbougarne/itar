@@ -7,7 +7,7 @@ import NativeScope from './specs/ItarScopeNativeComponent';
 import NativeTarget from './specs/ItarTargetNativeComponent';
 import {FocusStore} from './api/store';
 import {CollectionStore} from './api/collections';
-import {CollectionContext, CollectionDatasetContext, ScopeContext, FocusContentContext} from './api/contexts';
+import {CollectionContext, CollectionDatasetContext, ScopeContext, PaneTargetContext, FocusContentContext} from './api/contexts';
 import {nativeScopeKey, nativeTargetKey} from './api/types';
 import type {ProviderProps, ScopeProps, TargetProps} from './api/component-props';
 import type {FocusChannel} from './api/types';
@@ -68,11 +68,15 @@ export function FocusScope({id, active = true, layout = 'spatial', boundary = 's
     const path = [...parent.path, id];
     return {path, key: nativeScopeKey(path), active: parent.active && active};
   }, [parent, id, active]);
-  const content = <ScopeContext.Provider value={context}>{children}</ScopeContext.Provider>;
+  const inheritedPane = useContext(PaneTargetContext);
+  const paneTarget = !context.active ? undefined : accessibilityPaneTitle ? preferredKey : inheritedPane;
+  const content = <ScopeContext.Provider value={context}>
+    <PaneTargetContext.Provider value={paneTarget}>{children}</PaneTargetContext.Provider>
+  </ScopeContext.Provider>;
   return supported ? <NativeScope scopeKey={context.key} parentScopeKey={parent.key} active={context.active}
     collectionDataset={collectionDataset}
     layout={layout} boundary={boundary} trap={trap} entryReady={entryReady} restoreOnEntry={restoreOnEntry}
-    paneTitle={Platform.OS === 'android' ? accessibilityPaneTitle ?? '' : ''}
+    paneTitle={accessibilityPaneTitle ?? ''}
     preferredKey={preferredKey === undefined ? '' : nativeTargetKey(preferredKey)} style={style} testID={testID}>
     {content}
   </NativeScope> : <View style={style} testID={testID}>{content}</View>;

@@ -194,15 +194,25 @@ final class AppleCollections {
             }
         }
     }
-    func align(_ target: ItarTargetHost, dataset: String) {
+    func align(_ target: ItarTargetHost, dataset: String, observedReaderFocus: Bool = false, inputHeading: UIFocusHeading = [], paneEntry: Bool = false) {
         guard self.dataset == dataset, pending == nil, let root, root.acceptsInput,
-              !UIAccessibility.isVoiceOverRunning, let registration = target.registration,
-              ownsSource(registration), let item = entry(registration.key), let list = entry(item.parent),
+              let registration = target.registration, let item = entry(registration.key), let list = entry(item.parent),
               (list.horizontalAlignment == "leading" || list.horizontalAlignment == "pinned"), let scope = root.scopes[list.key]?.view else { return }
+        if UIAccessibility.isVoiceOverRunning {
+            // In navigation mode UIKit can confirm a D-pad move without exposing
+            // a separate VoiceOver cursor. Exploration may supply its own cursor.
+            let cursor = UIAccessibility.focusedElement(using: .notificationVoiceOver)
+            let followedInput = cursor == nil && (!inputHeading.isEmpty || paneEntry) &&
+                (UIFocusSystem.focusSystem(for: root)?.focusedItem as? UIView) === target
+            guard list.horizontalAlignment == "pinned", root.mounted(registration) === target,
+                  observedReaderFocus || target.accessibilityElementIsFocused() ||
+                    (cursor as? ItarTargetHost) === target || followedInput else { return }
+        } else if !ownsSource(registration) { return }
         var parent = target.superview
         while let view = parent, view !== scope {
             if let scroll = view as? UIScrollView {
-                guard !scroll.isDragging, !scroll.isDecelerating else { return }
+                guard scroll.isScrollEnabled || list.horizontalAlignment == "pinned",
+                      !scroll.isTracking, !scroll.isDragging, !scroll.isDecelerating else { return }
                 let bounds = target.convert(target.bounds, to: scroll)
                 var point = scroll.contentOffset
                 point.x = horizontalPosition(item, in: list, bounds: bounds, scroll: scroll)
@@ -213,6 +223,13 @@ final class AppleCollections {
             parent = view.superview
         }
     }
+    func isPinnedViewport(_ scroll: UIScrollView, for target: ItarTargetHost) -> Bool {
+        guard let root, let item = entry(target.occurrenceKey),
+              entry(item.parent)?.horizontalAlignment == "pinned",
+              let (_, viewport) = viewport(for: item, enclosing: target, in: root) else { return false }
+        return viewport === scroll
+    }
+
     private func horizontalPosition(_ item: CollectionEntry, in list: CollectionEntry, bounds: CGRect, scroll: UIScrollView) -> CGFloat {
         let rtl = scroll.effectiveUserInterfaceLayoutDirection == .rightToLeft
         if list.horizontalAlignment == "pinned" {
@@ -269,13 +286,13 @@ final class AppleCollections {
     private func rememberScroll(_ view: UIScrollView) {
         if !scrolledViewports.contains(view), scrolledViewports.count < 2 { scrolledViewports.append(view) }
     }
-    // An ordinary move inside a nearest-entry grid needs no extra scroll when
-    // the entire destination is already visible. Entry from outside the grid
-    // and clipped or moving targets retain UIKit’s normal reveal behavior.
+    // Row-entry policy chooses a card. If both rows share a viewport and
+    // the chosen card already fits, UIKit has no vertical reveal to perform.
     private func staysVisible(_ target: ItarTargetHost, from previous: ItarTargetHost?, heading: UIFocusHeading,
                               in list: CollectionEntry, scroll: UIScrollView, root: ItarSurfaceHost) -> Bool {
-        guard pending == nil, list.layout == 2, (list.rowEntry ?? 0) == 0,
-              heading == .up || heading == .down,
+        let requestedRowEntry = heading.isEmpty && root.preferred === target &&
+            previous?.scopeKey != target.scopeKey && entry(target.scopeKey)?.horizontalAlignment == "pinned"
+        guard list.layout == 2, heading == .up || heading == .down || requestedRowEntry,
               let previous, previous !== target, previous.owner === root,
               let source = previous.registration, root.registrations[source.key] === source,
               accepts(previous), previous.isDescendant(of: scroll),
@@ -287,9 +304,12 @@ final class AppleCollections {
     // The engine may finish a reveal inside the focus observation callback.
     func confirming(_ target: ItarTargetHost?, from previous: ItarTargetHost?, heading: UIFocusHeading) {
         confirmedViewports.removeAll(); confirmedTarget = nil
-        guard let root, root.acceptsInput, !UIAccessibility.isVoiceOverRunning, let target,
+        guard let root, root.acceptsInput, let target,
               target.owner === root, let registration = target.registration, let document else { return }
+        let reader = UIAccessibility.isVoiceOverRunning
         let revealed = realized && pending?.target.slot == registration.node.slot && pending?.target.generation == registration.node.generation
+        let sameRow = previous?.owner === root && previous?.registration?.scopeKey == registration.scopeKey
+        let pinned = entry(registration.scopeKey)?.horizontalAlignment == "pinned"
         var child: UIView = target
         for item in document.path(registration.key).reversed() {
             guard let list = entry(item.parent), let (scope, scroll) = viewport(for: item, enclosing: child, in: root) else { break }
@@ -297,9 +317,21 @@ final class AppleCollections {
             // created by the virtualized collection have adapter-owned scrolling.
             let customHeader = list.order == 0 && (entry(list.parent)?.leadingExtent ?? 0) > 0
             let aligned = child === target && (list.horizontalAlignment == "pinned" || list.horizontalAlignment == "leading")
+            if reader {
+                // Keep UIKit's own vertical reveal. Only suppress the automatic
+                // horizontal centering of a row with an explicit pinned anchor.
+                if aligned && pinned { confirmedViewports.append(scroll) }
+                break
+            }
             let alreadyVisible = (item.order != 0 || (list.leadingExtent ?? 0) == 0) &&
                 staysVisible(target, from: previous, heading: heading, in: list, scroll: scroll, root: root)
-            if !customHeader && (aligned || alreadyVisible || (revealed && scrolledViewports.contains(scroll))) {
+            // A sideways move cannot require a vertical scroll once the whole card fits.
+            // A scope restore from outside a pinned collection also has no vertical intent.
+            let lateral = sameRow && (heading == .left || heading == .right || (revealed && pinned))
+            let restored = pinned && root.preferred === target && previous?.owner === root &&
+                previous?.isDescendant(of: scroll) == false
+            let keepRowPosition = list.layout == 2 && (lateral || restored) && root.measured(target) != nil
+            if !customHeader && (aligned || alreadyVisible || keepRowPosition || (revealed && scrolledViewports.contains(scroll))) {
                 confirmedViewports.append(scroll)
             }
             child = scope
@@ -308,7 +340,7 @@ final class AppleCollections {
     }
     func finishFocusUpdate(_ context: UIFocusUpdateContext) {
         defer { confirmedViewports.removeAll(); confirmedTarget = nil }
-        guard let root, root.acceptsInput, !UIAccessibility.isVoiceOverRunning, let target = confirmedTarget,
+        guard let root, root.acceptsInput, let target = confirmedTarget,
               target === context.nextFocusedView, target !== context.previouslyFocusedView,
               target.owner === root, target.registration?.mount == confirmedMount else { return }
         // UIKit schedules its automatic centering after the focus update. Let
@@ -347,10 +379,52 @@ final class AppleCollections {
     // scope can move. Project the target through every clip, including the
     // surface, before touching a viewport. Unknown layouts use RN preparation.
     private func mountedScrolls(for effect: ItarEffect) -> [MountedScroll]? {
-        guard let root, let target = mountedTarget(for: effect) else { return nil }
+        guard let target = mountedTarget(for: effect) else { return nil }
+        return mountedScrolls(to: target, path: steps)
+    }
+
+    // UIKit centers a newly focused item even when it is fully on screen.
+    // Preserve the visible row during this pane handoff. Subsequent gestures
+    // use the outer list's ordinary scrolling.
+    func presentPane(_ target: ItarTargetHost, update: () -> Void) {
+        guard let root, let reg = target.registration, root.live(reg) === target,
+              entry(reg.scopeKey)?.horizontalAlignment == "pinned",
+              let path = document?.path(reg.key), let scrolls = mountedScrolls(to: target, path: path) else {
+            update()
+            return
+        }
+        let visible = scrolls.filter { $0.list.layout == 2 && $0.view.contentOffset == $0.offset &&
+            $0.view.isScrollEnabled && !$0.view.isTracking && !$0.view.isDragging && !$0.view.isDecelerating }
+        for level in visible { level.view.isScrollEnabled = false }
+        update()
+        if !visible.isEmpty { DispatchQueue.main.async { for level in visible { level.view.isScrollEnabled = true } } }
+    }
+
+    // Revealing an explicitly presented pane only moves its declared collection
+    // viewports. Directional exploration stays with VoiceOver.
+    func revealPaneTarget(_ target: ItarTargetHost) {
+        guard let document, let registration = target.registration,
+              target.collectionDataset == dataset, root?.mounted(registration) === target else { return }
+        let path = document.path(registration.key)
+        guard !path.isEmpty, let planned = mountedScrolls(to: target, path: path) else { return }
+        var moved = false
+        for level in planned where level.view.contentOffset != level.offset {
+            guard root?.mounted(registration) === target,
+                  let current = mountedScrolls(to: target, path: path)?.first(where: { $0.view === level.view }) else { break }
+            let before = current.view.contentOffset
+            current.view.setContentOffset(current.offset, animated: false)
+            moved = moved || current.view.contentOffset != before
+        }
+        // Pane discovery runs during a geometry commit. Re-measure the actual
+        // new viewport once that commit has released its reentrancy guard.
+        if moved { DispatchQueue.main.async { [weak root] in root?.geometryChanged() } }
+    }
+
+    private func mountedScrolls(to target: ItarTargetHost, path: [CollectionEntry]) -> [MountedScroll]? {
+        guard let root else { return nil }
         var levels: [MountedScroll] = []
         var child: UIView = target
-        for item in steps.reversed() {
+        for item in path.reversed() {
             guard let list = entry(item.parent), let (scope, scroll) = viewport(for: item, enclosing: child, in: root),
                   scope.collectionDataset == dataset, !scroll.isDragging, !scroll.isDecelerating,
                   scroll.zoomScale == 1, scroll.adjustedContentInset == .zero else { return nil }
@@ -596,7 +670,14 @@ extension ItarSurfaceHost {
               collections.entry(registration.key) != nil,
               collections.ownsSource(registration) else { return nil }
         guard let proposal = try? owner.connection.directionQuery(direction) else { return nil }
-        guard proposal.kind == 1 || snapshot.active_request != 0 else { return nil }
+        if proposal.kind == 1 || snapshot.active_request != 0 { return direction }
+        // A collection edge can face controls outside UIKit's geometric search
+        // corridor. Honor an explicit restore-on-entry scope selected by C++.
+        guard proposal.kind == 0, let destination = registrations.values.first(where: {
+            $0.node.slot == proposal.target.slot && $0.node.generation == proposal.target.generation
+        }), destination.scopeKey != registration.scopeKey, destination.target?.collectionDataset == "",
+              restoringScope(entering: destination.scopeKey, from: registration.scopeKey) != nil,
+              live(destination) != nil else { return nil }
         return direction
     }
 }

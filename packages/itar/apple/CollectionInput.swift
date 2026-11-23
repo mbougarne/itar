@@ -1,7 +1,7 @@
 import UIKit
 
-// Discrete remote arrows are claimed only for unrealized collection moves.
-// Ready destinations, other controls and accessibility retain UIKit ownership.
+// The engine handles collection reveals and explicit scope entry at a collection edge.
+// UIKit owns ordinary mounted moves and VoiceOver navigation.
 final class CollectionInput: UITapGestureRecognizer, UIGestureRecognizerDelegate {
     private weak var root: ItarSurfaceHost?
     private var direction: Int32?

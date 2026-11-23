@@ -24,7 +24,7 @@ export type ScopeProps<Style> = {
   children: React.ReactNode;
   /** Restore valid native history (then preference) on directional scope entry. */
   restoreOnEntry?: boolean;
-  /** Android route/pane semantics, exposed only while active and ready. */
+  /** Announce an active, ready pane on Android. On tvOS, a preferredKey also supplies its VoiceOver entry target. */
   accessibilityPaneTitle?: string;
   style?: Style;
   testID?: string;

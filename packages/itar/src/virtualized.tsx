@@ -1,7 +1,7 @@
 import React, {memo, useContext, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {FlatList, PixelRatio, Platform, StyleSheet, View} from 'react-native';
 import type {FlatListProps, StyleProp, ViewStyle} from 'react-native';
-import {CollectionContext, CollectionDatasetContext, ScopeContext} from './api/contexts';
+import {CollectionContext, CollectionDatasetContext, PaneTargetContext, ScopeContext} from './api/contexts';
 import {nativeScopeKey, nativeTargetKey} from './api/types';
 import type {CollectionNode, CollectionStore} from './api/collections';
 import {Focusable, FocusScope, useFocusState, useScreenReaderEnabled} from './react';
@@ -77,10 +77,17 @@ function renderer<T>(store: CollectionStore, collection: string, key: (item: T) 
     </View>;
   };
 }
-const ItemList = memo(function ItemListView({data, collection, horizontal, itemExtent, viewportExtent, itemStyle, testID, crossExtent, renderDecoration, renderItem, overlayTarget = false, nestedRow = false, pinned = false, keepWindowAttached = false}: {
+// Keep the requested occurrence mounted while UIKit presents a returning pane.
+function paneRegions(store: CollectionStore, collection: string, index: number) {
+  const regions = store.regions(collection);
+  return index < 0 || regions.some(region => index >= region.first && index <= region.last)
+    ? regions : [...regions, {first: index, last: index}];
+}
+
+const ItemList = memo(function ItemListView({data, collection, horizontal, itemExtent, viewportExtent, itemStyle, testID, crossExtent, renderDecoration, renderItem, overlayTarget = false, nestedRow = false, paneTarget, pinned = false, keepWindowAttached = false}: {
   data: readonly VirtualizedFocusItem[]; collection: string; horizontal: boolean; itemExtent: number;
   viewportExtent: number; itemStyle?: StyleProp<ViewStyle>; testID?: string; crossExtent?: number;
-  renderItem?: VirtualizedFocusItemRenderer; overlayTarget?: boolean; nestedRow?: boolean; pinned?: boolean; keepWindowAttached?: boolean; renderDecoration?: (item: VirtualizedFocusItem) => React.ReactNode;
+  renderItem?: VirtualizedFocusItemRenderer; overlayTarget?: boolean; nestedRow?: boolean; pinned?: boolean; keepWindowAttached?: boolean; paneTarget?: string; renderDecoration?: (item: VirtualizedFocusItem) => React.ReactNode;
 }) {
   const store = useCollection();
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
@@ -96,11 +103,13 @@ const ItemList = memo(function ItemListView({data, collection, horizontal, itemE
     // Keep its native mount usable for reveal while it is in the React window.
     removeClippedSubviews={keepWindowAttached && pinned && horizontal ? false : undefined}
     contentContainerStyle={paddingEnd > 0 ? {paddingEnd} : undefined}
-    scrollEnabled={fixedRow ? false : undefined} importantForAccessibility={fixedRow ? 'no' : undefined}
+    // On tvOS a pinned row follows the confirmed card. Its horizontal
+    // viewport is positioned by the adapter even when VoiceOver selects it.
+    scrollEnabled={fixedRow || (Platform.OS === 'ios' && Platform.isTV && horizontal && pinned) ? false : undefined} importantForAccessibility={fixedRow ? 'no' : undefined}
     style={horizontal ? [styles.horizontalViewport, {width: viewportExtent}, crossDimension] : [styles.verticalViewport, {height: viewportExtent}, crossDimension]}
     showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false}
     keyExtractor={item => item.occurrenceKey} CellRendererComponent={Cell} extraData={snapshot.preparation}
-    additionalRenderRegions={store.regions(collection)} initialNumToRender={2} maxToRenderPerBatch={2} windowSize={3}
+    additionalRenderRegions={paneRegions(store, collection, paneTarget ? data.findIndex(item => item.occurrenceKey === paneTarget) : -1)} initialNumToRender={2} maxToRenderPerBatch={2} windowSize={3}
     getItemLayout={(_, index) => ({length: itemExtent, offset: itemExtent * index, index})}
     renderItem={({item, index}) => {
       const target = <Focusable {...item} order={index}
@@ -109,7 +118,7 @@ const ItemList = memo(function ItemListView({data, collection, horizontal, itemE
         {renderItem ? renderItem(item, index) : item.children}
       </Focusable>;
       return renderDecoration ? <View style={horizontal ? {width: itemExtent, height: crossExtent} : {height: itemExtent}}>
-        <View accessible={false} importantForAccessibility="no-hide-descendants" pointerEvents="none">{renderDecoration(item)}</View>
+        <View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none">{renderDecoration(item)}</View>
         {target}
       </View> : target;
     }} />;
@@ -119,6 +128,8 @@ const ItemList = memo(function ItemListView({data, collection, horizontal, itemE
 export function FocusVirtualizedList({id, data, horizontal = true, itemExtent, viewportExtent, style, itemStyle, testID, renderItem, crossExtent, horizontalAlignment = 'nearest'}: ListProps<VirtualizedFocusItem, StyleProp<ViewStyle>>) {
   const parent = useContext(ScopeContext);
   const reader = useScreenReaderEnabled();
+  const pane = useContext(PaneTargetContext);
+  const paneTarget = Platform.OS === 'ios' && Platform.isTV && reader === true ? pane : undefined;
   const model = useMemo(() => {
     extent(itemExtent); extent(viewportExtent); alignment(horizontalAlignment);
     if (crossExtent !== undefined) { extent(crossExtent); }
@@ -134,7 +145,7 @@ export function FocusVirtualizedList({id, data, horizontal = true, itemExtent, v
     <FocusScope id={value.id} layout={value.horizontal ? 'row' : 'column'} boundary="parent" style={style}>
       <ItemList data={value.data} collection={value.key} horizontal={value.horizontal} itemExtent={value.itemExtent}
         viewportExtent={value.viewportExtent} crossExtent={value.crossExtent} itemStyle={itemStyle} testID={testID} renderItem={value.renderItem}
-        pinned={value.horizontalAlignment === 'pinned'} keepWindowAttached={Platform.OS === 'android' && reader === false} />
+        paneTarget={paneTarget} pinned={value.horizontalAlignment === 'pinned'} keepWindowAttached={Platform.OS === 'android' && reader === false} />
     </FocusScope>
   </CollectionDatasetContext.Provider>;
 }
@@ -176,6 +187,8 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
   const store = useCollection();
   const snapshot = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
   const reader = useScreenReaderEnabled();
+  const pane = useContext(PaneTargetContext);
+  const paneTarget = Platform.OS === 'ios' && Platform.isTV && reader === true ? pane : undefined;
   // Keep the bounded render window attached for Android's engine-owned row moves.
   // The native screen reader keeps the platform's usual subtree clipping.
   const keepRowsAttached = Platform.OS === 'android' && reader === false;
@@ -234,7 +247,7 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
       <FlatList ref={viewport} onScroll={event => { scrollOffset.current = event.nativeEvent.contentOffset.y; }} scrollEventThrottle={16}
         onEndReached={active ? onEndReached : undefined} onEndReachedThreshold={0.5} showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} data={value.rows} keyExtractor={row => row.id} testID={testID}
         style={{height: value.viewportHeight ?? value.rowExtent * value.viewportRows, width: value.viewportExtent}}
-        CellRendererComponent={Cell} extraData={snapshot.preparation} additionalRenderRegions={store.regions(value.key)}
+        CellRendererComponent={Cell} extraData={snapshot.preparation} additionalRenderRegions={paneRegions(store, value.key, paneTarget ? value.rows.findIndex(row => row.items.some(item => item.occurrenceKey === paneTarget)) : -1)}
         removeClippedSubviews={keepRowsAttached ? false : undefined}
         initialNumToRender={1} maxToRenderPerBatch={1} windowSize={3}
         getItemLayout={(_, index) => ({length: index === 0 && value.listHeaderExtent ? value.listHeaderExtent : value.rowExtent,
@@ -252,7 +265,7 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
           {value.headerExtent > 0 && <View accessible={false} pointerEvents="none" style={{height: value.headerExtent}}>{value.renderRailHeader?.(item)}</View>}
           <ItemList data={item.items} collection={item.key} horizontal nestedRow itemExtent={item.itemExtent ?? value.itemExtent}
             viewportExtent={value.viewportExtent} crossExtent={value.rowExtent - value.headerExtent}
-            pinned={value.horizontalAlignment === 'pinned'} keepWindowAttached={keepRowsAttached} overlayTarget={item.overlayTarget} itemStyle={item.itemStyle ?? itemStyle} renderDecoration={value.renderDecoration} renderItem={value.renderItem} />
+            paneTarget={paneTarget} pinned={value.horizontalAlignment === 'pinned'} keepWindowAttached={keepRowsAttached} overlayTarget={item.overlayTarget} itemStyle={item.itemStyle ?? itemStyle} renderDecoration={value.renderDecoration} renderItem={value.renderItem} />
         </FocusScope>} />
       {active && value.listHeaderExtent > 0 &&
         <HeaderAlignment rows={value.rows} headerExtent={value.listHeaderExtent} headerScope={value.listHeaderScope}

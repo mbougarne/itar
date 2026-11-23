@@ -83,6 +83,12 @@ public final class ItarTargetHost: UIButton {
                    "mount": String(registration.mount), "sequence": String(sequence), "source": source, "delta": String(delta)])
         return true
     }
+    public override func accessibilityElementDidBecomeFocused() {
+        super.accessibilityElementDidBecomeFocused()
+        if UIAccessibility.isVoiceOverRunning, let owner {
+            owner.collections.align(self, dataset: owner.collections.dataset, observedReaderFocus: true)
+        }
+    }
     public override func accessibilityIncrement() { _ = adjust(1, source: "accessibility") }
     public override func accessibilityDecrement() { _ = adjust(-1, source: "accessibility") }
     public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -118,11 +124,14 @@ public final class ItarTargetHost: UIButton {
     public override var canBecomeFocused: Bool {
         guard let owner, let registration else { return false }
         guard allowsHostEntry else { return false }
+        if UIAccessibility.isVoiceOverRunning { return owner.readerCanReach(registration) }
         return owner.live(registration) === self || owner.collections.retained(registration)
     }
     var allowsHostEntry: Bool {
-        if isFocused || UIAccessibility.isVoiceOverRunning ||
-            (owner?.preferred === self && owner?.preferredToken != nil) { return true }
+        // A presented pane has one preferred landing during this synchronous
+        // UIKit update. Normal VoiceOver exploration resumes as soon as it ends.
+        if let landing = owner?.readerDestination { return self === landing }
+        if isFocused || (owner?.preferred === self && owner?.preferredToken != nil) { return true }
         var ancestor = superview
         while let view = ancestor {
             if view is ItarSurfaceHost { break }
