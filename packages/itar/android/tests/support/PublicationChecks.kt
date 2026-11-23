@@ -60,6 +60,18 @@ object PublicationChecks {
         check(f.target.mount == null) { "Stale declaration revived an invalidated target" }
     }
     fun append(f: Fixture) { f.root.collectionData = document(2, 3) }
+    fun mountAheadOfRow(f: Fixture) {
+        f.target.collectionDataset = "2"
+        f.target.commitProps()
+        check(f.target.mount == null && !f.target.isFocusable)
+    }
+    fun publishRow(f: Fixture) { f.row.collectionDataset = "2"; f.row.commit() }
+    fun verifyLateRegistration(f: Fixture) {
+        geometry(f)
+        check(f.target.mount != null && f.target.isFocusable && f.target.requestFocus()) {
+            "A visible current cell remained unavailable after its parent caught up"
+        }
+    }
     fun retainedBeforeReactCommit(f: Fixture) {
         check(f.target.collectionDataset == "1")
         geometry(f)

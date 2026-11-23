@@ -307,6 +307,17 @@ test('Details splits spare room around recommendations and fits shorter panels',
   }
 });
 
+test('Home and recommendations restore a remembered card on Android, with first recommendation as initial entry', () => {
+  const f = fixture('', 'applied', 'android');
+  const scope = (tree, id) => nodes(tree).find(node => node.type === 'FocusScope' && node.props.id === id);
+  assert.equal(scope(f.app.tree(), 'page').props.restoreOnEntry, true);
+  const details = f.component('Details', {film, active: true});
+  details.layout();
+  const entry = scope(details.tree(), 'detail-card-entry');
+  assert.equal(entry.props.restoreOnEntry, true);
+  assert.equal(entry.props.preferredKey, details.find('Rails').props.rails[0].items[0].occurrenceKey);
+});
+
 test('narrow Search rows keep named results and enough room for the pagination control', () => {
   const f = fixture('');
   const browse = f.component('Browse', {id: 'search', active: true, mode: 'fixture', searchResults: true, viewportWidth: 200});

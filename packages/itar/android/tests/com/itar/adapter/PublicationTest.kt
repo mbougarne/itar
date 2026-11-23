@@ -37,6 +37,26 @@ class PublicationTest : ActivityInstrumentationTestCase2<MainActivity>(MainActiv
             instrumentation.runOnMainSync { PublicationChecks.recycle(f) }
         } finally { instrumentation.runOnMainSync { PublicationChecks.close(f) } }
     }
+    fun testCurrentCellRegistersAfterParentCatchesUp() {
+        instrumentation.setInTouchMode(false)
+        val host = activity
+        lateinit var f: PublicationChecks.Fixture
+        instrumentation.runOnMainSync {
+            f = PublicationChecks.create(host)
+            host.setContentView(f.root)
+            PublicationChecks.begin(f)
+        }
+        try {
+            awaitDataset(f, 1)
+            instrumentation.runOnMainSync { PublicationChecks.append(f) }
+            awaitDataset(f, 2)
+            instrumentation.runOnMainSync { PublicationChecks.mount(f); PublicationChecks.mountAheadOfRow(f) }
+            instrumentation.waitForIdleSync()
+            instrumentation.runOnMainSync { PublicationChecks.publishRow(f) }
+            instrumentation.waitForIdleSync()
+            instrumentation.runOnMainSync { PublicationChecks.verifyLateRegistration(f) }
+        } finally { instrumentation.runOnMainSync { PublicationChecks.close(f) } }
+    }
     fun testChangedOrDeletedDeclarationsCannotRetainAuthority() {
         instrumentation.setInTouchMode(false)
         val host = activity

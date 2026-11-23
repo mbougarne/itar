@@ -41,6 +41,7 @@ object ControlSemanticsChecks {
         semantics(null, null); node("Button", null)
         target.adjustable = true
         semantics(null, null); node("SeekBar", null)
+        check(target.createAccessibilityNodeInfo().isScrollable)
         target.adjustable = false
         semantics("button", null); node("Button", null)
         manager.updateProperties(target, ReactStylesDiffMap(JavaOnlyMap.of("enabled", false)))

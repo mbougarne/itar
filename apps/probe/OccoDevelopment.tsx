@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Button,
   Modal,
   NativeModules,
   Platform,
@@ -8,10 +7,10 @@ import {
   Text,
   View,
 } from 'react-native';
-import { captionAccessible, tvControlLabel } from './ott/src/tv-accessibility';
+import { captionAccessible } from './ott/src/tv-accessibility';
 import { DevelopmentSettings } from './ott/src/development-settings';
 import type { DevelopmentAction } from './ott/src/development-settings';
-import { OccoTimeline } from './occo/OccoTimeline';
+import { OccoTimeline, TimelineAction } from './occo/OccoTimeline';
 import { parseRecording } from './occo/timeline';
 import type { OccoRecording } from './occo/timeline';
 
@@ -111,11 +110,11 @@ export function OccoDevelopment({ children }: React.PropsWithChildren) {
       {recording && (
         <Modal visible onRequestClose={() => setRecording(null)}>
           <View style={styles.screen}>
-            <OccoTimeline recording={recording} />
             <View style={styles.controls}>
-              <Button
-                title="Export recording"
-                accessibilityLabel={tvControlLabel('Export recording', message)}
+              <TimelineAction
+                label="Export recording"
+                description={message}
+                preferred
                 onPress={() =>
                   run(async native => {
                     const path = await native.exportRecording();
@@ -129,11 +128,12 @@ export function OccoDevelopment({ children }: React.PropsWithChildren) {
                   })
                 }
               />
-              <Button
-                title="Return to Cinema"
+              <TimelineAction
+                label="Return to Cinema"
                 onPress={() => setRecording(null)}
               />
             </View>
+            <OccoTimeline recording={recording} />
             {!!message && (
               <Text
                 accessible={captionAccessible}

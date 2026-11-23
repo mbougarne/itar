@@ -10,6 +10,7 @@ import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import com.facebook.react.views.view.ReactViewGroup
 import java.lang.ref.WeakReference
+import java.util.WeakHashMap
 
 open class SurfaceView(context: Context) : ReactViewGroup(context) {
     internal var connection = Connection()
@@ -54,14 +55,17 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     private val input = Input(this)
     internal val readerOwnsInput get() = input.owner == 3L
     private val deferred = ArrayList<WeakReference<TargetView>>()
+    // A cell and its parent scope can receive the accepted dataset in separate Fabric commits.
+    private val waitingForScope = WeakHashMap<TargetView, Unit>()
+    private var retryScopeRegistrations = false
     private var refreshPosted = false
     var closed = false
         private set
-    private val focusObserver = ViewTreeObserver.OnGlobalFocusChangeListener { _, target ->
+    private val focusObserver = ViewTreeObserver.OnGlobalFocusChangeListener { previous, target ->
         // Capture callback evidence before dispatcher reconciliation can read a newer focus.
         captureFocus { it.hostFocus(this, target, "input") }
         observe(target)
-        collections.focused(target)
+        collections.focused(target, previous)
     }
     private val scrollObserver = ViewTreeObserver.OnScrollChangedListener { geometryChanged() }
     private val layoutObserver = ViewTreeObserver.OnGlobalLayoutListener { orderedFocusChanged() }
@@ -77,6 +81,14 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             val pending = deferred.mapNotNull { it.get() }
             deferred.clear()
             refreshGeometry(rebuildProjections = false)
+            if (retryScopeRegistrations) {
+                retryScopeRegistrations = false
+                for (target in waitingForScope.keys.toList()) {
+                    if (target.isAttachedToWindow && target.surface === this && currentCollectionCell(target)) {
+                        target.commitProps()
+                    } else waitingForScope.remove(target)
+                }
+            }
             pending.filter { it.isAttachedToWindow && it.surface === this }.forEach { it.commitProps() }
             rebuildOrderedFocus()
             collectionAccessibility.rebuild()
@@ -217,6 +229,17 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         super.onSizeChanged(w, h, oldw, oldh)
         geometryChanged()
     }
+    private fun currentCollectionCell(target: TargetView): Boolean =
+        collections.entry(target.occurrenceKey)?.parent == target.scopeKey &&
+            collections.accepts(target.occurrenceKey, target.collectionDataset, false, target)
+
+    private fun waitForScope(target: TargetView) {
+        if (currentCollectionCell(target) && waitingForScope.put(target, Unit) == null) {
+            retryScopeRegistrations = true
+            scheduleRefresh()
+        }
+    }
+
     internal fun register(target: TargetView) {
         if (closed) return
         orderedFocus.clear()
@@ -228,13 +251,13 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             scheduleRefresh()
             return
         }
-        if (!refreshScopes()) { target.isFocusable = false; return }
+        if (!refreshScopes()) { target.isFocusable = false; waitForScope(target); return }
         val parent = scopes[target.scopeKey]?.get()
         if (!target.scopeKey.isEmpty() && (parent == null || !parent.isAttachedToWindow || parent.owner !== this ||
             parent.root() !== this || !collections.accepts(parent.scopeKey, parent.collectionDataset, true, parent) ||
             (parent.collectionDataset.isNotEmpty() && parent.collectionDataset != target.collectionDataset &&
                 collections.entry(target.occurrenceKey) == null))) {
-            target.maskCollectionAccessibility(); detach(target); return
+            target.maskCollectionAccessibility(); detach(target); waitForScope(target); return
         }
         val scope = parent?.node ?: longArrayOf(0, 0)
         val collection = collections.entry(target.occurrenceKey)
@@ -242,6 +265,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             (collection != null && collection.parent != target.scopeKey)) {
             target.maskCollectionAccessibility(); detach(target); return
         }
+        waitingForScope.remove(target)
         val old = target.mount
         val logical = target.logicalMount
         if (old == null) { geometryObservation.clear(); check(epoch < Long.MAX_VALUE); epoch++ }
@@ -272,8 +296,9 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             targets[mount] = WeakReference(target)
             // A scroll can clip the current card before the host or reader chooses its next target.
             target.isFocusable = target.isEnabled && collection?.enabled != false && acceptsInput && scopeActive(target.scopeKey) &&
-                (measured || collections.retained(mount) || (old == mount && target.isFocused && hasWindowFocus() &&
-                    targetGeometry.partiallyVisibleInScroll(target, this)))
+                (measured || collections.retained(mount) ||
+                    (readerOwnsInput && collection != null && targetGeometry.readerCanScrollTo(target, this)) ||
+                    (old == mount && target.isFocused && hasWindowFocus() && targetGeometry.partiallyVisibleInScroll(target, this)))
             target.resumeCollectionAccessibility()
             target.resumeStyle()
             if (target.hasFocus()) observe(target)
@@ -356,7 +381,12 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
     private fun rebuildOrderedFocus() {
         if (!closed && !geometryDirty && !scopesDirty) orderedFocus.rebuild()
     }
-    internal fun scopeChanged() { collectionAccessibility.clear(); scopesDirty = true; geometryChanged() }
+    internal fun scopeChanged() {
+        collectionAccessibility.clear()
+        scopesDirty = true
+        retryScopeRegistrations = true
+        geometryChanged()
+    }
     internal fun scopeActive(key: String): Boolean {
         var current = key
         repeat(257) {
@@ -481,6 +511,9 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
             ?: targets.values.mapNotNull { it.get() }.firstOrNull { it.isAccessibilityFocused }, channel)
     internal fun accessibilityObserved(target: View, type: Int, direct: Boolean) {
         val focused = target.isAccessibilityFocused
+        if (direct && focused && type == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED && readerOwnsInput) {
+            collections.focused(target)
+        }
         accessibilityTarget = if (focused) WeakReference(target) else null
         captureFocus { sink ->
             val acquired = type == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED
@@ -530,6 +563,7 @@ open class SurfaceView(context: Context) : ReactViewGroup(context) {
         accessibilityTarget = null
         dialogs.close()
         targets.values.mapNotNull { it.get() }.forEach { it.mount = null; it.isFocusable = false; it.resetStyle() }
+        waitingForScope.clear()
         targets.clear()
         geometryObservation.clear()
         logicalTargets.clear()
