@@ -14,7 +14,7 @@ import {
   useFocusCommands,
   useFocusReady,
   useScreenReaderEnabled,
-} from 'itar/react';
+} from '@bougarnem/itar/react';
 import { captionAccessible } from './tv-accessibility';
 import { BrowserNavigation } from './browser-navigation';
 import { Action } from './components/Action';

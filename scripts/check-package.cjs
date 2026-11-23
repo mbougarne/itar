@@ -8,7 +8,7 @@ const out = path.resolve(process.argv[2] || path.join(path.dirname(root), `${pat
 fs.mkdirSync(out, {recursive: true});
 const run = (command, args, cwd = root) => execFileSync(command, args,
   {cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: {...process.env, npm_config_cache: path.join(out, 'npm-cache')}});
-const [packed] = JSON.parse(run('npm', ['pack', '--workspace', 'itar', '--json', '--pack-destination', out]));
+const [packed] = JSON.parse(run('npm', ['pack', '--workspace', '@bougarnem/itar', '--json', '--pack-destination', out]));
 const files = new Set(packed.files.map(file => file.path));
 for (const file of ['LICENSE', 'lib/index.js', 'lib/react.d.ts', 'src/specs/ItarTargetNativeComponent.ts',
   'cpp/CMakeLists.txt', 'cpp/src/registry.cpp', 'cpp/include/itar/transaction.hpp',
@@ -18,7 +18,7 @@ assert(![...files].some(file => /(?:node_modules|\.cxx|\.gradle|build)\//.test(f
 const consumer = fs.mkdtempSync(path.join(out, 'consumer-'));
 fs.writeFileSync(path.join(consumer, 'package.json'), '{"name":"itar-local-consumer","version":"0.0.0","private":true}');
 run('npm', ['install', '--ignore-scripts', '--omit=peer', '--legacy-peer-deps', '--no-audit', '--no-fund', path.join(out, packed.filename)], consumer);
-const installed = path.join(consumer, 'node_modules/itar');
+const installed = path.join(consumer, 'node_modules/@bougarnem/itar');
 assert(!fs.lstatSync(installed).isSymbolicLink());
 const manifest = JSON.parse(fs.readFileSync(path.join(installed, 'package.json'), 'utf8'));
 for (const [entry, conditions] of Object.entries(manifest.exports)) {
@@ -27,7 +27,7 @@ for (const [entry, conditions] of Object.entries(manifest.exports)) {
     assert(target.startsWith('./'), `nonlocal export ${entry}: ${target}`);
     assert(fs.statSync(path.join(installed, target)).isFile(), `missing export ${entry}: ${target}`);
   }
-  const specifier = entry === '.' ? 'itar' : `itar/${entry.slice(2)}`;
+  const specifier = entry === '.' ? manifest.name : `${manifest.name}/${entry.slice(2)}`;
   const resolved = run(process.execPath, ['-p', `require.resolve(${JSON.stringify(specifier)})`], consumer).trim();
   assert(resolved.startsWith(installed + path.sep), `export escaped installed package: ${entry}`);
 }
@@ -57,8 +57,8 @@ const bundle = require('esbuild').buildSync({
   define: {'process.env.NODE_ENV': '"development"'},
 });
 const inputs = Object.keys(bundle.metafile.inputs);
-assert(inputs.includes('node_modules/itar/lib/web.mjs'));
-assert(inputs.includes('node_modules/itar/web/focus.css'));
+assert(inputs.includes('node_modules/@bougarnem/itar/lib/web.mjs'));
+assert(inputs.includes('node_modules/@bougarnem/itar/web/focus.css'));
 assert(!inputs.some(input => /node_modules\/react-native\//.test(input)));
 fs.writeFileSync(path.join(consumer, 'index.html'),
   '<!doctype html><link rel="stylesheet" href="./web.css"><div id="root"></div><script src="./web.js"></script>');
@@ -85,9 +85,9 @@ int main() {
 fs.writeFileSync(path.join(consumer, 'CMakeLists.txt'), `cmake_minimum_required(VERSION 3.20)
 project(consumer LANGUAGES CXX)
 find_package(Threads REQUIRED)
-add_subdirectory(node_modules/itar/cpp core)
-add_executable(smoke main.cpp node_modules/itar/apple/ItarEngine.cpp)
-target_include_directories(smoke PRIVATE node_modules/itar/apple)
+add_subdirectory(node_modules/@bougarnem/itar/cpp core)
+add_executable(smoke main.cpp node_modules/@bougarnem/itar/apple/ItarEngine.cpp)
+target_include_directories(smoke PRIVATE node_modules/@bougarnem/itar/apple)
 target_link_libraries(smoke PRIVATE itar::core Threads::Threads)
 `);
 run('cmake', ['-S', consumer, '-B', path.join(consumer, 'build'), '-DCMAKE_BUILD_TYPE=Release'], consumer);

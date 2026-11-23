@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from 'react-native';
-import { useFocusState, useScreenReaderEnabled } from 'itar/react';
+import { useFocusState, useScreenReaderEnabled } from '@bougarnem/itar/react';
 
 export function FocusStatus() {
   const state = useFocusState();

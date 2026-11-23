@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
-import { FocusProvider } from 'itar/react';
+import { FocusProvider } from '@bougarnem/itar/react';
 import { VirtualizedDemo } from './diagnostics/VirtualizedDemo';
 
 export default function VirtualizedScreen() {

@@ -11,7 +11,7 @@ import {
   useFocusCommands,
   occurrenceKey,
   type VirtualizedFocusItem,
-} from 'itar/react';
+} from '@bougarnem/itar/react';
 import { captionAccessible } from './tv-accessibility';
 import { libraryId } from './profile-library';
 import type { Film } from './catalog-types';

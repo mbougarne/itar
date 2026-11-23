@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useFocusState } from 'itar/react';
+import { useFocusState } from '@bougarnem/itar/react';
 
 export function EndObserver({
   keys,

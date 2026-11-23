@@ -1,6 +1,6 @@
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Focusable } from 'itar/react';
+import { Focusable } from '@bougarnem/itar/react';
 import { tvControlLabel } from '../tv-accessibility';
 import { useDesign } from '../theme';
 

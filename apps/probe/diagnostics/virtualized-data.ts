@@ -2,7 +2,7 @@ import {
   occurrenceKey,
   type VirtualizedFocusItem,
   type VirtualizedFocusRail,
-} from 'itar/react';
+} from '@bougarnem/itar/react';
 
 export const virtualizedKey = (row: number, item: number) =>
   occurrenceKey('virtualized', `row-${row}`, `entry-${item}`);

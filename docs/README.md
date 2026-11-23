@@ -4,7 +4,7 @@
 
 | What would you like to do? | Where to start |
 | --- | --- |
-| Install the source beta in a React Native TV app and build your first screen | [Integration and public API](guides/integration.md) · [package reference](../packages/itar/README.md) |
+| Install the beta in a React Native TV app and build your first screen | [Integration and public API](guides/integration.md) · [package reference](../packages/itar/README.md) |
 | Render a virtualized catalogue with fixed-size cells and restore the correct card | [Working with lists and rails](guides/collections.md) · [collection reference](../packages/itar/virtualization.md) |
 | Understand how a remote key becomes a confirmed focus change | [Architecture and C++ walkthrough](guides/architecture.md) · [core build](../core/README.md) |
 | Run Cinema, try route changes, or use the live catalogue | [Example app](ott-app.md) · [TMDB setup](tmdb-proxy.md) |

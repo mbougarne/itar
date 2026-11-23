@@ -73,7 +73,7 @@ function webPlugins(outdir) {
           path: path.join(__dirname, 'platform.ts'),
         }));
 
-        build.onResolve({ filter: /^itar\/react$/ }, () => ({
+        build.onResolve({ filter: /^@bougarnem\/itar\/react$/ }, () => ({
           path: path.join(__dirname, 'focus.tsx'),
         }));
 

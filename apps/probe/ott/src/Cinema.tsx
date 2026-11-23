@@ -24,7 +24,7 @@ import {
   useFocusState,
   useScreenReaderEnabled,
   type FocusState,
-} from 'itar/react';
+} from '@bougarnem/itar/react';
 import Auth from './Auth';
 import Epg from './Epg';
 import Browse from './Browse';

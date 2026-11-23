@@ -1,6 +1,6 @@
 import React from 'react';
 import { Platform, Text, View } from 'react-native';
-import { FocusProvider } from 'itar/react';
+import { FocusProvider } from '@bougarnem/itar/react';
 import Cinema from './Cinema';
 import { useDesign } from './theme';
 

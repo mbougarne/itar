@@ -4,7 +4,7 @@ const path = require('node:path');
 const {test} = require('node:test');
 const root = path.resolve(__dirname, '..');
 test('reference consumer resolves the local built package without publishing', () => {
-  const entry = require.resolve('itar', {paths: [path.join(root, 'apps/probe')]});
+  const entry = require.resolve('@bougarnem/itar', {paths: [path.join(root, 'apps/probe')]});
   assert.equal(realpathSync(entry), path.join(realpathSync(root), 'packages/itar/lib/index.js'));
   assert.deepEqual(require(entry), {packageStage: 'foundation-shell'});
 });

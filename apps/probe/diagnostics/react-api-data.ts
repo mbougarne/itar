@@ -1,4 +1,4 @@
-import { occurrenceKey } from 'itar/react';
+import { occurrenceKey } from '@bougarnem/itar/react';
 
 export const rails = [
   {

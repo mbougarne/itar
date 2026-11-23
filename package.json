@@ -18,7 +18,7 @@
     "format:tv": "npm run format -w itar-probe",
     "check:tv": "npm run check -w itar-probe",
     "test": "node --test scripts/*.test.cjs",
-    "build": "npm run build -w itar",
+    "build": "npm run build -w @bougarnem/itar",
     "native:generate": "node scripts/generate-probe.cjs",
     "build:web:engine": "node apps/probe/web/engine/build.cjs",
     "build:web": "npm run build:web:engine && node apps/probe/web/build.cjs browser",

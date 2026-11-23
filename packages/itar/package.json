@@ -1,7 +1,17 @@
 {
-  "name": "itar",
+  "name": "@bougarnem/itar",
   "version": "0.1.0-beta",
-  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mbougarne/itar.git",
+    "directory": "packages/itar"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "beta",
+    "registry": "https://registry.npmjs.org/"
+  },
   "description": "C++ focus navigation for React Native TV and React web apps on smart TVs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

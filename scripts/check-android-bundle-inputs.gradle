@@ -11,7 +11,7 @@ gradle.projectsEvaluated {
             def inputs = bundle.inputs.files.files.collect { it.canonicalFile } as Set
             for (def relative : ['../../App.tsx', '../../app.json',
                                  '../../ott/assets/cinematic/atlas.jpg', '../../ott/assets/cinematic/big_buck_bunny_preview.mp4',
-                                 '../../../../node_modules/itar/src/virtualized.tsx', '../../../../package-lock.json']) {
+                                 '../../../../node_modules/@bougarnem/itar/src/virtualized.tsx', '../../../../package-lock.json']) {
                 def source = app.file(relative).canonicalFile
                 assert source.isFile() && inputs.contains(source) : "Missing release input: ${relative}"
             }

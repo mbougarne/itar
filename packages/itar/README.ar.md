@@ -4,9 +4,9 @@
 
 [English](README.md) · [تثبيت الحزمة وبناء أول شاشة](../../docs/ar/guides/integration.md)
 
-استورد المكوّنات والدوال التالية من `itar/react`. تستخدم النسخة التجريبية React 19.2.0 و`react-native-tvos@0.83.0-0` مع Fabric. لتجربتها في تطبيق آخر، نفّذ `npm pack --workspace itar` من جذر المستودع بعد إعداده، ثم ثبّت الأرشيف الناتج في تطبيق التلفاز وأعد بناء التطبيق الأصلي. ولإعداد tvOS راجع [دليل CocoaPods](apple/README.ar.md).
+لتثبيت النسخة التجريبية من npm، نفّذ `npm install @bougarnem/itar@beta`. في تطبيقات التلفاز الأصلية، استخدم React 19.2.0 وFabric، وثبّت نسخة React Native المخصّصة للتلفاز بإضافة `"react-native": "npm:react-native-tvos@0.83.0-0"` إلى تبعيات تطبيقك. استورد المكوّنات والدوال من `@bougarnem/itar/react` وأعد بناء التطبيق. ولإعداد tvOS راجع [دليل CocoaPods](apple/README.ar.md).
 
-لتطبيقات الويب، ومنها تطبيقات Samsung Tizen وLG webOS، استورد المكوّنات من `itar/web`. ثبّت React وReact DOM بالإصدار 19.2.0 مع `react-native-web@0.21.4`، واستورد `itar/web.css` وانتظر اكتمال `initializeFocusEngine()` قبل عرض أوّل `FocusProvider`. يتضمّن موائم الويب المحرّك بصيغة Wasm ويمكن تحميله من ملفات التطبيق على التلفاز.
+لتطبيقات الويب، ومنها تطبيقات Samsung Tizen وLG webOS، استورد المكوّنات من `@bougarnem/itar/web`. ثبّت React وReact DOM بالإصدار 19.2.0 مع `react-native-web@0.21.4`، واستورد `@bougarnem/itar/web.css` وانتظر اكتمال `initializeFocusEngine()` قبل عرض أوّل `FocusProvider`. يتضمّن موائم الويب المحرّك بصيغة Wasm ويمكن تحميله من ملفات التطبيق على التلفاز.
 
 ## تعريف عناصر التأشير
 

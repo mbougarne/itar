@@ -5,7 +5,7 @@ import {
   occurrenceKey,
   useFocusCommands,
   useFocusState,
-} from 'itar/react';
+} from '@bougarnem/itar/react';
 import { captionAccessible } from './tv-accessibility';
 import Browse from './Browse';
 import { Action } from './components/Action';

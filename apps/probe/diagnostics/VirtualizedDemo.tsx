@@ -15,8 +15,8 @@ import {
   useFocusCommands,
   useFocusState,
   useScreenReaderEnabled,
-} from 'itar/react';
-import type { FocusRequest, VirtualizedFocusItem } from 'itar/react';
+} from '@bougarnem/itar/react';
+import type { FocusRequest, VirtualizedFocusItem } from '@bougarnem/itar/react';
 
 import { blockJavaScript } from './blockJavaScript';
 import { createVirtualizedRails, virtualizedKey } from './virtualized-data';

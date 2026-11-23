@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
-import { FocusScope, occurrenceKey } from 'itar/react';
+import { FocusScope, occurrenceKey } from '@bougarnem/itar/react';
 import { captionAccessible } from './tv-accessibility';
 import type { Film } from './catalog-types';
 import { cachedDetails, loadDetails } from './detail-data';

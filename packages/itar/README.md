@@ -2,9 +2,9 @@
 
 [العربية](README.ar.md) · [Integration guide and first screen](../../docs/guides/integration.md)
 
-Import the components and hooks below from `itar/react`. The source beta uses React 19.2.0, `react-native-tvos@0.83.0-0` and Fabric. To install in another app, run `npm pack --workspace itar` from a prepared checkout and install the resulting tarball into the TV app. Build the native app after installation. See the [Apple pod setup](apple/README.md) for tvOS.
+Install the npm beta with `npm install @bougarnem/itar@beta`. For a native TV app, use React 19.2.0, the TV fork installed as `"react-native": "npm:react-native-tvos@0.83.0-0"`, and Fabric. Import the components and hooks from `@bougarnem/itar/react` and rebuild the native app. For tvOS, follow the [Apple pod setup](apple/README.md).
 
-Import the browser components from `itar/web` in web apps, including Samsung Tizen and LG webOS apps. Install React and React DOM 19.2.0 plus `react-native-web@0.21.4`. Import `itar/web.css` and await `initializeFocusEngine()` before rendering the first provider. The web entry embeds the compiled Wasm and works with local TV app URLs.
+Import the browser components from `@bougarnem/itar/web` in web apps, including Samsung Tizen and LG webOS apps. Install React and React DOM 19.2.0 plus `react-native-web@0.21.4`. Import `@bougarnem/itar/web.css` and await `initializeFocusEngine()` before rendering the first provider. The web entry embeds the compiled Wasm and works with local TV app URLs.
 
 ## Declare focus
 

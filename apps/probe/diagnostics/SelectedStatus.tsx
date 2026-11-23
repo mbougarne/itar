@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from 'react-native';
-import { useIsFocused } from 'itar/react';
+import { useIsFocused } from '@bougarnem/itar/react';
 import { keyFor } from './react-api-data';
 
 export function SelectedStatus() {

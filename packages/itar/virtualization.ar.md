@@ -4,7 +4,7 @@
 
 [English](virtualization.md) · [مثال كامل على فهرس أفلام](../../docs/ar/guides/collections.md)
 
-يغلّف المكوّنان `FocusVirtualizedList` و`FocusVirtualizedRails` من `itar/react` قائمة `FlatList` الخاصة بإصدار التلفاز، ويعتمدان على `additionalRenderRegions` و`CellRendererComponent` و`getItemLayout`. يدعم كل مزوّد شجرة قوائم نشطة واحدة. يمكن أن تضمّ الشجرة حتى 256 عقدة منطقية، بما فيها نطاقات القوائم والصفوف، وأن تتداخل القوائم على مستويين. تستهلك أهداف التأشير الأخرى أيضاً جزءاً من سعة السطح. الحد الأقصى لطول المفتاح بعد ترميزه هو 512 بايتاً.
+يغلّف المكوّنان `FocusVirtualizedList` و`FocusVirtualizedRails` من `@bougarnem/itar/react` قائمة `FlatList` الخاصة بإصدار التلفاز، ويعتمدان على `additionalRenderRegions` و`CellRendererComponent` و`getItemLayout`. يدعم كل مزوّد شجرة قوائم نشطة واحدة. يمكن أن تضمّ الشجرة حتى 256 عقدة منطقية، بما فيها نطاقات القوائم والصفوف، وأن تتداخل القوائم على مستويين. تستهلك أهداف التأشير الأخرى أيضاً جزءاً من سعة السطح. الحد الأقصى لطول المفتاح بعد ترميزه هو 512 بايتاً.
 
 | الإعداد | طريقة الاستخدام |
 | --- | --- |

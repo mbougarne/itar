@@ -43,7 +43,7 @@ function fixture(platform) {
         Keyboard: {addListener: (event, callback) => { keyboard.set(event, callback); return {remove: () => keyboard.delete(event)}; }},
         BackHandler: {addEventListener: (_, callback) => { back = callback; return {remove: () => { back = null; }}; }}};
     }
-    if (name === 'itar/react') { return {FocusScope: 'FocusScope', occurrenceKey: (...parts) => parts.join('/'), useFocusReady: () => true, useScreenReaderEnabled: () => false, useFocusCommands: () => commands}; }
+    if (name === '@bougarnem/itar/react') { return {FocusScope: 'FocusScope', occurrenceKey: (...parts) => parts.join('/'), useFocusReady: () => true, useScreenReaderEnabled: () => false, useFocusCommands: () => commands}; }
     if (name === './components/Action') { return {Action: 'Action'}; }
     if (name === './useAppleTVMenu') { return {useAppleTVMenu: active => menuRoutes.push(active)}; }
     if (name === './theme') { return {useDesign: () => ({s: {}, u: 1})}; }

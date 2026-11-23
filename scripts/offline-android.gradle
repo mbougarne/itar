@@ -3,8 +3,8 @@ import org.apache.tools.ant.taskdefs.condition.Os
 // The generated probe lives two levels below the workspace that owns npm's install.
 def workspace = file('../../../..')
 def appModules = file('../../node_modules')
-def installedItar = new File(appModules, 'itar/package.json').isFile()
-    ? new File(appModules, 'itar') : new File(workspace, 'node_modules/itar')
+def installedItar = new File(appModules, '@bougarnem/itar/package.json').isFile()
+    ? new File(appModules, '@bougarnem/itar') : new File(workspace, 'node_modules/@bougarnem/itar')
 def hermesc = Os.isFamily(Os.FAMILY_WINDOWS) ? 'hermesc.exe' : 'hermesc'
 def localHermesBuild = new File(appModules, "react-native/ReactAndroid/hermes-engine/build/hermes/bin/${hermesc}")
 

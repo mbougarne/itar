@@ -6,8 +6,8 @@ import {
   occurrenceKey,
   useFocusCommands,
   useFocusReady,
-} from 'itar/react';
-import type { Activation, FocusRequest } from 'itar/react';
+} from '@bougarnem/itar/react';
+import type { Activation, FocusRequest } from '@bougarnem/itar/react';
 
 import { focusStyle, keyFor, rails } from './react-api-data';
 import { BusyJsButton } from './BusyJsButton';

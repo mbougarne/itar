@@ -84,7 +84,7 @@ test('Cinema sidebar and icon controls keep one spoken name while presenting the
   const imports = name => {
     if (name === 'react') return React;
     if (name === 'react-native') return {View: 'View', Text: 'Text', Image: 'Image'};
-    if (name === 'itar/react') return {Focusable: 'Focusable'};
+    if (name === '@bougarnem/itar/react') return {Focusable: 'Focusable'};
     if (name.endsWith('/theme')) return {useDesign: () => ({s: {}, u: 1})};
     if (name.endsWith('/tv-accessibility')) return load('apps/probe/ott/src/tv-accessibility.ts', () => ({Platform: {OS: 'android'}}));
     if (name === './Action') return {Action};
@@ -144,7 +144,7 @@ for (const platform of ['android', 'web', 'ios']) {
     const Settings = load('apps/probe/ott/src/Settings.tsx', name => {
       if (name === 'react') { return {...React, useEffect() {}, useContext: context => context.value, useMemo: callback => callback(), useCallback: callback => callback, useState: () => [800, () => {}]}; }
       if (name === 'react-native') { return {Platform: {OS: platform}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 1920})}; }
-      if (name === 'itar/react') { return {occurrenceKey: types.occurrenceKey, FocusVirtualizedRails: 'Rails'}; }
+      if (name === '@bougarnem/itar/react') { return {occurrenceKey: types.occurrenceKey, FocusVirtualizedRails: 'Rails'}; }
       if (name === './browser-navigation') { return {BrowserNavigation: {value: navigation}}; }
       if (name === './development-settings') { return {DevelopmentSettings: {value: null}}; }
       if (name === './theme') { return {useDesign: () => ({s: {}, u: 1})}; }

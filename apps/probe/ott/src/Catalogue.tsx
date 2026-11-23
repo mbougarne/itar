@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { View } from 'react-native';
-import { FocusScope, occurrenceKey } from 'itar/react';
+import { FocusScope, occurrenceKey } from '@bougarnem/itar/react';
 import Browse from './Browse';
 import type { BrowseProps } from './browse-types';
 import { categories, type Category } from './catalog-types';

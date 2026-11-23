@@ -45,7 +45,7 @@
 
 - يختار [مدخل التطبيق](../../apps/probe/App.tsx) سينما أو شاشات تجربة التطوير. يوفّر [مدخل سينما](../../apps/probe/ott/App.tsx) سمة العرض، وتجمع [شاشة Cinema](../../apps/probe/ott/src/Cinema.tsx) حالة الشاشات المشتركة.
 - توجد الشاشات والشريط الجانبي في [ott/src](../../apps/probe/ott/src/)، وأدوات التحكّم المشتركة في [components](../../apps/probe/ott/src/components/). للصّور والأنواع المشتركة وجلسات الكتالوج والأنماط وحسابات نافذة العرض ملفات مستقلّة.
-- يقع [مشغّل الويب](../../apps/probe/ott/src/Player.web.tsx) بجوار [المشغّل الأصلي](../../apps/probe/ott/src/Player.tsx). يربط [موائم المتصفح](../../apps/probe/web/) الاستيراد من `itar/react` بمضيف DOM في المثال، بينما تستعمل النسخ الأصلية مكوّنات Fabric في الحزمة.
+- يقع [مشغّل الويب](../../apps/probe/ott/src/Player.web.tsx) بجوار [المشغّل الأصلي](../../apps/probe/ott/src/Player.tsx). يربط [موائم المتصفح](../../apps/probe/web/) الاستيراد من `@bougarnem/itar/react` بمضيف DOM في المثال، بينما تستعمل النسخ الأصلية مكوّنات Fabric في الحزمة.
 - شغّل `npm run check:tv` لفحص الشيفرة والتنسيق، و`npm run typecheck` لفحص أنواع النسخة الأصلية، و`npm run typecheck:web` لفحص نسخة المتصفح. عند البدء بنسخة جديدة من المستودع، شغّل `npm run build` قبل `npm test`. [دليل المساهمة](../../CONTRIBUTING.ar.md)
 
 تصف [حزمة تصميم المثال](../../apps/probe/design/README.ar.md) التخطيطات ومصدر الرسومات الخيالية الأصلية. وتعرض [أدلّة الأجهزة](devices/README.md) النتائج التي رُصدت على العتاد.
