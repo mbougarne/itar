@@ -31,6 +31,45 @@ test('details keep decorative glyphs visual and accessible names plain', () => {
   assert.equal(details.find('Action', 'Add to My List').props.displayLabel, '＋  My List');
 });
 
+test('Details keeps captions visual on tvOS and reads film information on deliberate activation', () => {
+  for (const platform of ['ios', 'android', 'web']) {
+    const f = fixture('', 'applied', platform);
+    f.setReader(true);
+    const details = f.component('Details', {film: {...film, synopsis: 'The story begins.', languages: 'Arabic'},
+      active: true, onPlay() {}, onOpen() {}, highContrast: false});
+    const title = nodes(details.tree()).find(n => n.type === 'Text' && n.props.children.includes(film.title));
+    assert.equal(title.props.accessible, platform === 'ios' ? false : undefined);
+    assert.deepEqual(f.utterances, []);
+    details.find('Action', 'Information').props.onPress();
+    details.render();
+    assert.ok(details.find('Action', 'Information, selected'));
+    if (platform === 'ios') {
+      assert.equal(f.utterances.length, 1);
+      assert.match(f.utterances[0], /Title B.*The story begins.*Languages: Arabic/);
+      assert.ok(nodes(details.tree()).filter(n => n.type === 'Text').every(n => n.props.accessible === false));
+    } else assert.deepEqual(f.utterances, []);
+    details.render();
+    assert.equal(f.utterances.length, platform === 'ios' ? 1 : 0);
+  }
+});
+
+test('a cast biography belongs to the selected person and can be read again on demand', () => {
+  const f = fixture('', 'applied', 'ios');
+  f.setReader(true);
+  const details = f.component('Details', {film, active: true, onPlay() {}, onOpen() {}, highContrast: false});
+  details.layout();
+  details.find('Action', 'Cast & crew').props.onPress();
+  details.render();
+  const member = () => details.find('Rails').props.rails[0].items[0];
+  const shortLabel = member().accessibilityLabel;
+  member().onPress();
+  details.render();
+  assert.equal(member().accessibilityLabel, shortLabel + '. No biography available.');
+  assert.deepEqual(f.utterances, []);
+  member().onPress();
+  assert.deepEqual(f.utterances, ['No biography available.']);
+});
+
 test('Details reserves a gutter and a caption for each recommendation and cast card', () => {
   const details = fixture('').component('Details', {film, active: true, onPlay() {}, onOpen() {}, highContrast: false});
   details.layout();
@@ -45,7 +84,7 @@ test('Details reserves a gutter and a caption for each recommendation and cast c
     assert.equal(card.find(node => node.type === 'Text').props.children[0], caption);
     assert.ok(card.find(node => node.type === 'Picture').props.style.height < rails.rowExtent);
   }
-  checkCard(recommendation.title, 'leading');
+  checkCard(recommendation.title, 'pinned');
   details.find('Action', 'Cast & crew').props.onPress(); details.render();
   checkCard(castMember.name, 'nearest');
 });
@@ -59,6 +98,29 @@ test('the Home backdrop scrolls with its hero and the following rails retain the
   assert.equal(f.component('Hero', rails.listHeader.props).find('Backdrop').props.film.id, film.id);
   assert.equal(rails.renderRailHeader(rails.rails[0]).props.children[0], 'Popular stories');
   assert.ok(rails.headerExtent > 34, 'the 34-unit heading needs room below it');
+});
+
+test('tvOS attaches profile instructions and Home row names to the controls that own them', () => {
+  for (const platform of ['ios', 'android', 'web']) {
+    const f = fixture('', 'applied', platform);
+    const profile = f.component('Profiles', {id: 'chooser', profile: 'Explorer', onSelect() {}}, 'Profiles');
+    const tree = nodes(profile.tree());
+    const captions = tree.filter(node => node.type === 'Text');
+    assert.equal(captions.length, 4);
+    assert.ok(captions.every(node => node.props.accessible === (platform === 'ios' ? false : undefined)));
+    const names = tree.filter(node => node.type === 'Focusable').map(node => node.props.accessibilityLabel);
+    assert.equal(names.length, 3);
+    assert.match(names[0], /Explorer, current profile/);
+    assert.equal(names[0].includes('Choose a profile'), platform === 'ios');
+    assert.match(names[2], /unavailable/);
+    const home = f.component('Browse', {id: 'home', active: true, featured: true, mode: 'fixture'});
+    home.layout();
+    const rails = home.find('Rails').props;
+    const row = rails.rails[0];
+    const header = rails.renderRailHeader(row).props;
+    assert.equal(header.accessible, platform === 'ios' ? false : undefined);
+    assert.equal(row.items[0].accessibilityLabel.includes(header.children[0]), platform === 'ios');
+  }
 });
 
 test('Home remembers row entry and pins the focused card while grids keep the source column', () => {
@@ -276,16 +338,17 @@ test('Search fits five cards beside the keyboard and preserves the fifth occurre
   assert.equal(rails().horizontalAlignment, 'nearest');
 });
 
-test('web grids keep the last loaded row navigable while another page is pending', () => {
+for (const platform of ['web', 'ios']) test(`${platform} grids keep the last loaded row navigable while another page is pending`, () => {
   for (const props of [{grid: true}, {searchResults: true}]) {
-    const f = fixture('', 'applied', 'web');
+    const f = fixture('', 'applied', platform);
     const entries = Array.from({length: 5}, (_, i) => ({...film, id: 'card-' + i}));
     Object.assign(f.catalogueState, {rows: [{id: 'first', entries}], ended: false});
     const browse = f.component('Browse', {id: 'test', active: true, ...props});
     browse.layout();
     const rails = () => browse.find('Rails').props.rails;
     const original = rails()[0].items.map(item => item.occurrenceKey);
-    assert.deepEqual(nodes(browse.tree()).filter(n => n.type === 'EndObserver').map(n => n.props.id), Array.from(original));
+    assert.deepEqual(Array.from(browse.find('EndObserver').props.keys), Array.from(original));
+    if (platform === 'ios') assert.equal(browse.find('Rails').props.onEndReached, undefined);
     f.catalogueState.loading = true;
     browse.render();
     assert.equal(rails().length, 1, 'Down cannot select a footer that will move');
@@ -296,11 +359,28 @@ test('web grids keep the last loaded row navigable while another page is pending
     assert.equal(rails().length, 2);
     f.catalogueState.error = 'Retry';
     browse.render();
-    assert.equal(rails().at(-1).items[0].accessibilityLabel, 'Retry fetch');
+    assert.equal(rails().at(-1).items[0].displayLabel, 'Retry fetch');
+    assert.equal(rails().at(-1).items[0].accessibilityLabel, platform === 'ios' ? 'Retry fetch. Retry' : 'Retry fetch');
     Object.assign(f.catalogueState, {error: '', ended: true, limitReached: true});
     browse.render();
     assert.equal(rails().at(-1).items[0].accessibilityLabel, 'Continue to next titles');
   }
+});
+
+test('crossing the final row triggers one fetch even while its pending cards receive focus', () => {
+  const f = fixture('');
+  let key = 'above', calls = 0;
+  const {EndObserver} = evaluate('apps/probe/ott/src/components/EndObserver.tsx', name => ({
+    react: f.hooks, 'itar/react': {useFocusState: () => ({kind: 'managed', occurrenceKey: key})},
+  })[name]);
+  const props = {keys: ['a', 'b', 'c', 'd', 'e'], active: true, blocked: false, onEnd: () => { calls++; }};
+  const end = f.mount(EndObserver, props);
+  for (key of ['a', 'b', 'c', 'd', 'e', 'd', 'c', 'b', 'a']) end.render();
+  assert.equal(calls, 1);
+  props.keys = ['f', 'g', 'h', 'i', 'j'];
+  end.render();
+  key = 'f'; end.render();
+  assert.equal(calls, 2);
 });
 
 test('web Search recovers only its own focused edit control when the query becomes empty', () => {
@@ -387,6 +467,106 @@ test('tvOS Home opens for remote input once the requested hero receives focus', 
   assert.equal(f.app.find('Sidebar').props.active, false, 'returning to an opener keeps the restore guard');
 });
 
+test('VoiceOver gives the sidebar its own space and a native route into content', () => {
+  const f = fixture('', 'applied', 'ios');
+  f.setReader(true);
+  assert.equal(f.app.find('Sidebar').props.reserveWidth, true);
+  assert.equal(f.app.find('Sidebar').props.expanded, true);
+  assert.equal(f.app.find('TVFocusGuideView').props.autoFocus, true);
+  f.focusOn(occurrenceKey('nav', 'Home'));
+  const before = f.requests.length;
+  f.remote({eventType: 'right', eventKeyAction: 1});
+  assert.equal(f.requests.length, before);
+  f.app.find('Browse').props.onOpen(film, 'card');
+  f.app.render();
+  f.ready();
+  assert.equal(f.app.find('Sidebar'), undefined);
+  f.close();
+  const home = f.app.find('Browse').props;
+  home.onReady(occurrenceKey(home.id, 'hero', film.id)); f.app.render();
+  const pane = nodes(f.app.tree()).find(node => node.props.id === 'page');
+  assert.equal(pane.props.preferredKey, 'card');
+  assert.equal(f.requests.length, before, 'route readiness leaves navigation with VoiceOver');
+  f.setReader(false);
+  assert.equal(f.app.find('Sidebar').props.reserveWidth, false);
+  assert.equal(f.app.find('TVFocusGuideView').props.autoFocus, false);
+});
+
+test('selecting a catalogue with VoiceOver lands once on its entry control after readiness', () => {
+  const f = fixture('', 'applied', 'ios');
+  f.setReader(true);
+  for (const screen of ['Movies', 'Series', 'Home']) {
+    f.navigate(screen);
+    const routes = f.app.find(screen === 'Home' ? 'Browse' : 'Catalogue').props;
+    const key = screen === 'Home' ? occurrenceKey(routes.id, 'hero', film.id) :
+      occurrenceKey(routes.id, 'category', 'All');
+    routes.onReady(key); f.app.render();
+    routes.onReady(key); f.app.render();
+    const pane = nodes(f.app.tree()).find(node => node.props.id === 'page');
+    assert.equal(pane.props.preferredKey, key);
+    assert.equal(pane.props.accessibilityPaneTitle, screen);
+  }
+});
+
+test('VoiceOver restores each visited pane to the control that opened it', () => {
+  const f = fixture('', 'applied', 'ios');
+  f.setReader(true);
+  const pane = () => nodes(f.app.tree()).find(node => node.props.id === 'details').props;
+  const play = occurrenceKey('details', 'play');
+  const homeCard = occurrenceKey('home', 'row', film.id);
+  const related = occurrenceKey('details', film.id, 'related', recommendation.id);
+  f.app.find('Browse').props.onOpen(film, homeCard); f.app.render(); f.ready();
+  assert.equal(pane().preferredKey, play);
+  f.app.find('Details').props.onOpen(recommendation, related); f.app.render(); f.ready();
+  f.app.find('Details').props.onPlay(recommendation); f.app.render();
+  assert.equal(pane().active, false);
+  assert.equal(nodes(f.app.tree()).find(node => node.type?.name === 'CinemaShell').props.accessibilityElementsHidden, true);
+  f.close(); f.ready();
+  assert.equal(pane().preferredKey, play);
+  assert.equal(pane().accessibilityPaneTitle, recommendation.title);
+  f.close(); f.ready();
+  assert.equal(pane().preferredKey, related);
+  f.close();
+  assert.equal(f.app.find('Sidebar').props.active, false);
+  f.app.find('Browse').props.onReady('hero'); f.app.render();
+  assert.equal(nodes(f.app.tree()).find(node => node.props.id === 'page').props.preferredKey, homeCard);
+});
+
+test('tvOS sidebar Right restores Home scope only while the menu owns input', async () => {
+  const f = fixture('', 'applied', 'ios');
+  const home = f.app.find('Browse').props;
+  const hero = occurrenceKey(home.id, 'hero', film.id);
+  home.onReady(hero);
+  await Promise.resolve();
+  f.focusOn(hero);
+  f.focusOn(occurrenceKey('nav', 'Movies'));
+  const before = f.requests.length;
+  f.remote({eventType: 'down'});
+  f.remote({eventType: 'right', eventKeyAction: 0});
+  f.remote({eventType: 'right', eventKeyAction: 1});
+  f.focusOn(hero);
+  f.remote({eventType: 'right', eventKeyAction: 1});
+  assert.deepEqual(f.requests.slice(before), ['page']);
+  assert.equal(f.requestKinds.at(-1), 'scope');
+  f.focusOn(occurrenceKey('nav', 'Home'));
+  f.setReader(true);
+  f.remote({eventType: 'swipeRight'});
+  assert.deepEqual(f.requests.slice(before), ['page'], 'VoiceOver owns navigation');
+});
+
+test('Details hides the sidebar and Back restores the catalogue route', () => {
+  for (const platform of ['ios', 'android', 'web']) {
+    const f = fixture('', 'applied', platform);
+    f.navigate('Movies');
+    f.app.find('Catalogue').props.onOpen(film, 'movie-card'); f.app.render(); f.ready();
+    assert.equal(f.app.find('Sidebar'), undefined);
+    f.close();
+    assert.equal(f.app.find('Sidebar').props.screen, 'Movies');
+    f.app.find('Catalogue').props.onReady('all');
+    assert.equal(f.requests.at(-1), 'movie-card');
+  }
+});
+
 for (const platform of ['android', 'ios', 'web']) {
   test(`Home loading keeps the shell out of focus through the first fetch and retry on ${platform}`, async () => {
     const f = fixture('', 'applied', platform);
@@ -414,7 +594,8 @@ for (const platform of ['android', 'ios', 'web']) {
     update();
     assert.equal(loader(), false);
     const pagination = () => browse.find('Rails').props.rails.at(-1).items[0];
-    assert.equal(pagination().accessibilityLabel, 'Retry fetch');
+    assert.equal(pagination().displayLabel, 'Retry fetch');
+    assert.equal(pagination().accessibilityLabel, platform === 'ios' ? 'Retry fetch. offline' : 'Retry fetch');
     assert.equal(browse.find('Rails').props.listHeader, undefined);
     assert.equal(scope().props.entryReady, false, 'hold automatic entry until the command settles');
     assert.equal(f.app.find('Sidebar').props.active, false);
@@ -502,9 +683,10 @@ test('Home publishes its four initial rails together, and a partial fetch failur
 // Run the real component callbacks and effects without rendering native views.
 // The command double records intent; it cannot establish reader-owned focus.
 function fixture(inputKey, outcome = 'applied', platform = 'android', readDetails) {
-  let current, back;
+  let current, back, remote, reader = false;
   const requests = [];
   const prompts = [];
+  const utterances = [];
   const menuKeys = [];
   const memoized = new Set();
   const requestKinds = [];
@@ -562,17 +744,20 @@ function fixture(inputKey, outcome = 'applied', platform = 'android', readDetail
     rows: ['first', 'second'].map(id => ({id, title: id, entries: [film]}))};
   let loadCalls = 0, detailData;
   const imports = name => {
+    if (name.endsWith('/tv-accessibility')) return evaluate('apps/probe/ott/src/tv-accessibility.ts', imports);
     if (name === 'react') { return react; }
     if (name === 'react-native') {
       return {TVEventControl: {enableTVMenuKey: () => menuKeys.push(true), disableTVMenuKey: () => menuKeys.push(false)},
-        View: 'View', Text: 'Text', Image: 'Image', ScrollView: 'ScrollView', Alert: {alert: title => prompts.push(title)}, Platform: {OS: platform, isTV: true},
+        TVEventHandler: {addListener: callback => { remote = callback; return {remove: () => { remote = undefined; }}; }},
+        AccessibilityInfo: {announceForAccessibility: message => utterances.push(message)},
+        View: 'View', Text: 'Text', Image: 'Image', ScrollView: 'ScrollView', TVFocusGuideView: 'TVFocusGuideView', Alert: {alert: title => prompts.push(title)}, Platform: {OS: platform, isTV: true},
         useWindowDimensions: () => ({width: 1920}), BackHandler: {addEventListener: (_, callback) => {
           back = callback; return {remove() {}};
         }}};
     }
     if (name === 'itar/react') {
-      return {FocusProvider: 'FocusProvider', FocusScope: 'FocusScope', FocusVirtualizedRails: 'Rails', occurrenceKey,
-        useFocusCommands: () => commands, useFocusReady: () => true, useFocusState: () => focus,
+      return {Focusable: 'Focusable', FocusProvider: 'FocusProvider', FocusScope: 'FocusScope', FocusVirtualizedRails: 'Rails', occurrenceKey,
+        useFocusCommands: () => commands, useFocusReady: () => true, useFocusState: () => focus, useScreenReaderEnabled: () => reader,
         useIsFocused: key => focus.kind === 'managed' && focus.occurrenceKey === key};
     }
     if (name.endsWith('/theme')) { return {DesignTheme: 'Theme', useDesign: () => ({s: cinemaStyles, u: 1})}; }
@@ -582,8 +767,8 @@ function fixture(inputKey, outcome = 'applied', platform = 'android', readDetail
       return {[component]: component};
     }
     if (name === './artwork') { return {icons: {}, portraits: {}, art: [], filmArtwork: value => value.art}; }
-    if (name === './useAppleTVMenu') {
-      return evaluate(`apps/probe/ott/src/useAppleTVMenu${platform === 'ios' ? '.ios' : ''}.ts`, imports);
+    if (name === './useAppleTVMenu' || name === './useSidebarRight') {
+      return evaluate(`apps/probe/ott/src/${name.slice(2)}${platform === 'ios' ? '.ios' : ''}.ts`, imports);
     }
     if (name === './navigation' || name === './android-focus-boundary') {
       return evaluate(`apps/probe/ott/src/${name.slice(2)}.ts`, imports);
@@ -614,9 +799,9 @@ function fixture(inputKey, outcome = 'applied', platform = 'android', readDetail
     }
     throw new Error(`Unexpected import ${name}`);
   };
-  const load = name => evaluate(`apps/probe/ott/${name}.tsx`, imports, {
+  const load = (name, exported = 'default') => evaluate(`apps/probe/ott/${name}.tsx`, imports, {
     AbortController, setTimeout: callback => { callback(); return 1; }, clearTimeout() {},
-  }).default;
+  })[exported];
   function mount(component, props) {
     const owner = {states: [], setters: [], refs: [], effects: [], pending: [], renders: 0};
     const render = () => {
@@ -655,8 +840,9 @@ function fixture(inputKey, outcome = 'applied', platform = 'android', readDetail
     } while (observer.dirty());
   }
   const app = {...routes, render: () => update(true)};
-  const component = (name, props) => mount(load(`src/${name}`), props);
-  return {app, component, mount, hooks: react, requests, requestKinds, prompts, menuKeys, catalogueState, loadCalls: () => loadCalls,
+  const component = (name, props, exported) => mount(load(`src/${name}`, exported), props);
+  return {app, component, mount, utterances, hooks: react, remote: event => remote?.(event), requests, requestKinds, prompts, menuKeys, catalogueState, loadCalls: () => loadCalls,
+    setReader: enabled => { reader = enabled; app.render(); },
     focusOn: (key, mount) => {
       if (focus.occurrenceKey !== key || focus.mount !== mount) {
         focus = {kind: 'managed', occurrenceKey: key, mount}; update(false);
@@ -1029,7 +1215,9 @@ test('tvOS grants Menu to Details, player and guide, and releases it at the top-
   f.focusOn(sidebar);
   assert.deepEqual(f.menuKeys.slice(-2), [true, false], 'content can return to the sidebar');
   f.navigate('Settings');
-  assert.equal(f.menuKeys.at(-1), true);
+  assert.equal(f.menuKeys.at(-1), false, 'the sidebar is still at the tvOS root');
+  f.focusOn(occurrenceKey('Explorer:fixture:Settings', 'slow'));
+  assert.equal(f.menuKeys.at(-1), true, 'Settings content owns the first Back');
   f.app.unmount();
   assert.equal(f.menuKeys.at(-1), false);
 });

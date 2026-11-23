@@ -11,6 +11,8 @@ import { androidVerticalBoundary } from './android-focus-boundary';
 export function Sidebar({
   active,
   expanded,
+  reserveWidth,
+  readerEntry,
   profile,
   contrast,
   mode,
@@ -20,6 +22,8 @@ export function Sidebar({
 }: {
   active: boolean;
   expanded: boolean;
+  reserveWidth: boolean;
+  readerEntry: boolean;
   profile: string;
   contrast: boolean;
   mode: ProviderMode;
@@ -34,6 +38,8 @@ export function Sidebar({
       {...androidVerticalBoundary}
       style={[
         s.sidebarSlot,
+        // Keep both panes visible and stationary as VoiceOver explores them.
+        reserveWidth && { width: 360 * u },
         // Android clips accessibility bounds to this parent even when its
         // child draws outside it. Keep the overlay's full semantic width
         // without shifting the content when the sidebar expands.
@@ -44,6 +50,7 @@ export function Sidebar({
       <FocusScope
         id={screen === 'Settings' ? 'account-navigation' : 'navigation'}
         active={active}
+        accessibilityPaneTitle={readerEntry ? 'Navigation' : undefined}
         layout="column"
         boundary="parent"
         preferredKey={occurrenceKey('nav', screen)}
@@ -54,7 +61,12 @@ export function Sidebar({
           { width: (expanded ? 360 : 112) * u },
         ]}
       >
-        <Text numberOfLines={1} style={s.brand}>
+        <Text
+          accessible={reserveWidth ? false : undefined}
+          accessibilityElementsHidden={reserveWidth}
+          numberOfLines={1}
+          style={s.brand}
+        >
           <Text style={s.brandStrong}>{expanded ? 'ITAR' : 'I'}</Text>
           {expanded ? ' CINEMA' : ''}
         </Text>
@@ -98,7 +110,11 @@ export function Sidebar({
             highContrast={contrast}
           />
           {expanded && (
-            <Text style={s.fixtureLabel}>
+            <Text
+              accessible={reserveWidth ? false : undefined}
+              accessibilityElementsHidden={reserveWidth}
+              style={s.fixtureLabel}
+            >
               {mode === 'proxy' ? 'TMDB CATALOGUE' : 'FIXTURE CATALOGUE'}
             </Text>
           )}
