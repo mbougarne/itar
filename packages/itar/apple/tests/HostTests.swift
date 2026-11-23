@@ -178,6 +178,60 @@ import UIKit
         XCTAssertFalse(a.canBecomeFocused)
         XCTAssertFalse(a.accessibilityActivate())
     }
+    func testPaneEntrySurvivesRepeatedPropsAndRearmsOnANewVisit() {
+        let pane = ItarScopeHost()
+        func configure(_ ready: Bool, preferred: String = "first") {
+            pane.configure("catalogue", parent: "", active: true, layout: 0,
+                           boundary: 0, trap: false, entryReady: ready, preferred: preferred)
+            pane.paneTitle = "Catalogue"
+        }
+        configure(true)
+        let initial = pane.paneRevision
+        pane.announcedPane = true
+        configure(true)
+        XCTAssertEqual(pane.paneRevision, initial)
+        XCTAssertTrue(pane.announcedPane)
+        configure(false)
+        XCTAssertFalse(pane.announcedPane)
+        configure(true, preferred: "opener")
+        XCTAssertNotEqual(pane.paneRevision, initial)
+        pane.announcedPane = true
+        pane.paneTitle = "Another catalogue"
+        XCTAssertFalse(pane.announcedPane)
+    }
+
+    func testPaneLandingTemporarilyExcludesOtherTargets() {
+        root.readerDestination = b
+        XCTAssertTrue(b.allowsHostEntry)
+        XCTAssertFalse(a.allowsHostEntry)
+        root.readerDestination = nil
+        XCTAssertTrue(a.allowsHostEntry)
+    }
+
+    func testReaderCanDiscoverMountedNeighborWithoutPublishingOrScrollingIt() throws {
+        let viewport = UIScrollView(frame: CGRect(x: 0, y: 0, width: 250, height: 100))
+        viewport.contentSize = CGSize(width: 750, height: 100)
+        root.addSubview(viewport)
+        b.frame = CGRect(x: 400, y: 10, width: 150, height: 70)
+        viewport.addSubview(b)
+        root.commitGeometry()
+        let registration = try XCTUnwrap(b.registration)
+        XCTAssertNil(root.live(registration))
+        XCTAssertTrue(root.readerCanReach(registration))
+        XCTAssertEqual(viewport.contentOffset, .zero)
+        viewport.isScrollEnabled = false
+        XCTAssertFalse(root.readerCanReach(registration))
+        viewport.isScrollEnabled = true
+        viewport.isHidden = true
+        XCTAssertFalse(root.readerCanReach(registration))
+        viewport.isHidden = false
+        b.targetEnabled = false
+        XCTAssertFalse(root.readerCanReach(registration))
+        b.targetEnabled = true
+        b.removeFromSuperview()
+        XCTAssertFalse(root.readerCanReach(registration))
+    }
+
     func testTranslatedParentUsesVisualCoordinatesAndClipsAtViewport() throws {
         let viewport = UIView(frame: CGRect(x: 300, y: 80, width: 250, height: 80))
         viewport.clipsToBounds = true
@@ -549,6 +603,17 @@ extension AdapterHostTests {
         await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in rows[0][0].isFocused }, object: nil)], timeout: 3)
         XCTAssertFalse(observations.contains("header-2"))
     }
+    func testPaneRevealMakesMountedOpenerVisibleWithoutChangingFocus() async throws {
+        let rows = try await rowEntryRails(cold: true)
+        let opener = rows[1][1]
+        let registration = try XCTUnwrap(opener.registration)
+        XCTAssertNil(root.live(registration))
+        root.collections.revealPaneTarget(opener)
+        root.commitGeometry()
+        XCTAssertTrue(root.live(registration) === opener)
+        XCTAssertTrue(rows[0][2].isFocused)
+    }
+
     func testCooperativeFirstEntryRevealsOffscreenItem() async throws {
         let rows = try await rowEntryRails(cold: true)
         XCTAssertFalse(rows[1][1].canBecomeFocused)
@@ -954,6 +1019,30 @@ extension AdapterHostTests {
 }
 
 extension AdapterHostTests {
+    func testGridEdgeCanEnterAnUnalignedScopeThatRestoresFocus() async throws {
+        final class LeftPress: UIPress { override var type: UIPress.PressType { .leftArrow } }
+        let rows = try await rowEntryRails(policy: 0)
+        let grid = try XCTUnwrap(root.scopes["outer"]?.view)
+        grid.frame.origin.x = 180
+        let panel = ItarScopeHost(frame: CGRect(x: 0, y: 0, width: 150, height: 100))
+        panel.configure("controls", parent: "", active: true, layout: 0, boundary: 2, trap: false, entryReady: true, preferred: "")
+        root.addSubview(panel)
+        let control = target("control", x: 0)
+        control.frame = panel.bounds
+        control.scopeKey = "controls"
+        panel.addSubview(control)
+        root.commitGeometry()
+        let edge = rows[1][1] // The preceding item is disabled.
+        root.focus(edge.occurrenceKey)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in edge.isFocused }, object: nil)], timeout: 3)
+        XCTAssertNil(root.collectionDirection([LeftPress()]), "Ordinary mounted moves belong to UIKit")
+        panel.restoreOnEntry = true
+        root.commitGeometry()
+        XCTAssertEqual(root.collectionDirection([LeftPress()]), 0)
+        root.beginCollectionDirection(0)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in control.isFocused }, object: nil)], timeout: 3)
+    }
+
     func testVisibleVerticalGridMoveKeepsViewportWhileEntryAndClippedTargetsCanScroll() async throws {
         let rows = try await rowEntryRails(policy: 0)
         let previous = rows[0][2], next = rows[1][2]
@@ -987,6 +1076,68 @@ extension AdapterHostTests {
         confirm(from: previous, heading: .down)
         XCTAssertTrue(viewport.isScrollEnabled, "Even a partially clipped card needs its host reveal")
     }
+    func testReturnBetweenVisiblePinnedRowsKeepsBothHorizontalAnchorsAndOuterOffset() async throws {
+        let rows = try await rowEntryRails(policy: 2)
+        let top = rows[0][2], bottom = rows[1][2]
+        let topRow = try XCTUnwrap(root.scopes["header"]?.view)
+        let bottomRow = try XCTUnwrap(root.scopes["rail"]?.view)
+        let outer = try XCTUnwrap(topRow.superview as? UIScrollView)
+        let topScroll = try XCTUnwrap(top.superview as? UIScrollView)
+        let bottomScroll = try XCTUnwrap(bottom.superview as? UIScrollView)
+        try await publishRowRevision(2) { nodes in
+            for i in nodes.indices where nodes[i]["layout"] as? Int == 1 {
+                nodes[i]["horizontalAlignment"] = "pinned"
+            }
+        }
+        for scope in root.scopes.values { scope.view?.collectionDataset = "2" }
+        for row in rows { row.forEach { $0.collectionDataset = "2" } }
+        topRow.frame.origin.y = 400
+        bottomRow.frame.origin.y = 550
+        outer.contentSize.height = 1000
+        outer.contentOffset.y = 390
+        topScroll.contentOffset.x = 300
+        bottomScroll.contentOffset.x = 300
+        root.commitGeometry()
+        root.focus(bottom.occurrenceKey)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in bottom.isFocused }, object: nil)], timeout: 3)
+        outer.contentOffset.y = 390
+        root.commitGeometry()
+        XCTAssertNotNil(root.measured(top))
+        root.focus(top.occurrenceKey)
+        XCTAssertTrue(top.isFocused)
+        var displaced = false
+        for _ in 0..<75 {
+            try await Task.sleep(nanoseconds: 12_000_000)
+            let y = outer.layer.presentation()?.bounds.minY ?? outer.contentOffset.y
+            let x = topScroll.layer.presentation()?.bounds.minX ?? topScroll.contentOffset.x
+            let other = bottomScroll.layer.presentation()?.bounds.minX ?? bottomScroll.contentOffset.x
+            if abs(y - 390) > 1 || abs(x - 300) > 1 || abs(other - 300) > 1 { displaced = true }
+        }
+        XCTAssertFalse(displaced, "Returning to the visible remembered card moved a viewport")
+        XCTAssertTrue(outer.isScrollEnabled && topScroll.isScrollEnabled && bottomScroll.isScrollEnabled)
+    }
+
+    func testPresentingVisiblePinnedOpenerKeepsOuterViewportInPlace() async throws {
+        let rows = try await rowEntryRails()
+        let target = rows[0][2]
+        try await publishRowRevision(2) { nodes in
+            let index = nodes.firstIndex { $0["key"] as? String == "header" }!
+            nodes[index]["horizontalAlignment"] = "pinned"
+        }
+        for scope in root.scopes.values { scope.view?.collectionDataset = "2" }
+        for row in rows { row.forEach { $0.collectionDataset = "2" } }
+        let outer = try XCTUnwrap(root.scopes["header"]?.view?.superview as? UIScrollView)
+        let scroll = try XCTUnwrap(target.superview as? UIScrollView)
+        scroll.setContentOffset(CGPoint(x: 300, y: 0), animated: false)
+        root.commitGeometry()
+        XCTAssertTrue(root.live(try XCTUnwrap(target.registration)) === target)
+        root.collections.presentPane(target) { XCTAssertFalse(outer.isScrollEnabled) }
+        let next = expectation(description: "restore native vertical browsing")
+        DispatchQueue.main.async { next.fulfill() }
+        await fulfillment(of: [next], timeout: 2)
+        XCTAssertTrue(outer.isScrollEnabled)
+    }
+
     func testPinnedCardStaysAtItsRenderedAnchorThroughoutFocusUpdate() async throws {
         let rows = try await rowEntryRails(policy: 0), first = rows[0][0], second = rows[0][1]
         let scroll = try XCTUnwrap(first.superview as? UIScrollView)
@@ -1012,6 +1163,66 @@ extension AdapterHostTests {
         let third = rows[0][2]; root.focus(third.occurrenceKey)
         await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in third.isFocused }, object: nil)], timeout: 3)
         XCTAssertFalse(scroll.isScrollEnabled, "A viewport disabled by its owner must stay disabled")
+        let previous = try XCTUnwrap(first.registration)
+        XCTAssertNil(root.live(previous))
+        XCTAssertTrue(root.readerCanReach(previous), "VoiceOver can still discover the previous pinned card")
+        XCTAssertEqual(scroll.contentOffset.x, 300, accuracy: 1)
+    }
+    func testRevealingPreviousPinnedCardKeepsBothViewportsInPlace() async throws {
+        let rows = try await rowEntryRails()
+        let previous = rows[1][1], current = rows[1][2]
+        let row = try XCTUnwrap(root.scopes["rail"]?.view)
+        let inner = try XCTUnwrap(current.superview as? UIScrollView)
+        let outer = try XCTUnwrap(row.superview as? UIScrollView)
+        try await publishRowRevision(2) { nodes in
+            let index = nodes.firstIndex { $0["key"] as? String == "rail" }!
+            nodes[index]["horizontalAlignment"] = "pinned"
+        }
+        for scope in root.scopes.values { scope.view?.collectionDataset = "2" }
+        for group in rows { group.forEach { $0.collectionDataset = "2" } }
+        outer.contentSize.height = 1200
+        row.frame.origin.y = 500
+        outer.contentOffset.y = 300
+        root.commitGeometry()
+        root.focus(current.occurrenceKey)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in current.isFocused }, object: nil)], timeout: 3)
+        // Put the focused row near the bottom. The preceding card is offscreen
+        // to the left and revealing it requires no vertical movement.
+        outer.contentOffset.y = 300
+        inner.contentOffset.x = 300
+        root.commitGeometry()
+        XCTAssertNil(root.measured(previous))
+        root.focus(previous.occurrenceKey)
+        await fulfillment(of: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in previous.isFocused }, object: nil)], timeout: 3)
+        for _ in 0..<90 {
+            try await Task.sleep(nanoseconds: 16_000_000)
+            let x = inner.layer.presentation()?.bounds.minX ?? inner.contentOffset.x
+            let y = outer.layer.presentation()?.bounds.minY ?? outer.contentOffset.y
+            guard abs(x - 150) < 1 && abs(y - 300) < 1 else {
+                XCTFail("After the reveal the row moved to x=\(x), y=\(y)")
+                return
+            }
+        }
+        // Restore the same visible card from a noncollection control. No
+        // reveal is needed here, but UIKit can still recenter the outer list.
+        let outside = target("outside", x: 480)
+        outside.frame.size.width = 100
+        root.addSubview(outside)
+        root.commitGeometry()
+        root.focus(outside.occurrenceKey)
+        XCTAssertTrue(outside.isFocused)
+        XCTAssertNotNil(root.measured(previous))
+        root.focus(previous.occurrenceKey)
+        XCTAssertTrue(previous.isFocused)
+        for _ in 0..<70 {
+            try await Task.sleep(nanoseconds: 16_000_000)
+            let y = outer.layer.presentation()?.bounds.minY ?? outer.contentOffset.y
+            guard abs(y - 300) < 1 else {
+                XCTFail("Restoring the visible card shifted the outer viewport to \(y)")
+                return
+            }
+        }
+        XCTAssertTrue(inner.isScrollEnabled && outer.isScrollEnabled)
     }
     func testPinnedAlignmentKeepsAnAlreadyAlignedCardEligible() async throws {
         let rows = try await rowEntryRails(policy: 0), target = rows[0][2]
