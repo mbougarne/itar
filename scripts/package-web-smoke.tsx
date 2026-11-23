@@ -3,8 +3,8 @@ import React, {StrictMode, useEffect} from 'react';
 import {createRoot} from 'react-dom/client';
 import {
   Focusable, FocusProvider, FocusScope, initializeFocusEngine, useFocusCommands,
-} from 'itar/web';
-import 'itar/web.css';
+} from '@bougarnem/itar/web';
+import '@bougarnem/itar/web.css';
 
 const rowStyle = {flexDirection: 'row'} as const;
 const cardStyle = {width: 150, height: 80};

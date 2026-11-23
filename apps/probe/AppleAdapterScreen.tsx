@@ -1,6 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { AppleCommands, AppleSurface, AppleTarget } from 'itar/apple';
+import {
+  AppleCommands,
+  AppleSurface,
+  AppleTarget,
+} from '@bougarnem/itar/apple';
 
 import { BusyJsButton } from './diagnostics/BusyJsButton';
 import { CarrierControls } from './diagnostics/CarrierControls';

@@ -1,6 +1,6 @@
 import React, { StrictMode } from 'react';
 import { StyleSheet } from 'react-native';
-import { FocusProvider } from 'itar/react';
+import { FocusProvider } from '@bougarnem/itar/react';
 import { ReactApiDemo } from './diagnostics/ReactApiDemo';
 
 export default function ReactApiScreen() {

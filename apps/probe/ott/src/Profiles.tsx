@@ -1,6 +1,6 @@
 import React from 'react';
 import { Image, Platform, Text, View } from 'react-native';
-import { Focusable, FocusScope, occurrenceKey } from 'itar/react';
+import { Focusable, FocusScope, occurrenceKey } from '@bougarnem/itar/react';
 import { Picture } from './components/Picture';
 import { art, icons } from './artwork';
 import { useDesign } from './theme';

@@ -18,7 +18,7 @@ import {
   useFocusCommands,
   useFocusReady,
   useScreenReaderEnabled,
-} from 'itar/react';
+} from '@bougarnem/itar/react';
 import { captionAccessible } from './tv-accessibility';
 import { IconAction } from './components/IconAction';
 import { icons } from './artwork';

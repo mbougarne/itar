@@ -6,9 +6,12 @@ import React, {
   useState,
 } from 'react';
 import { Platform, Text, View, useWindowDimensions } from 'react-native';
-import { FocusVirtualizedRails, occurrenceKey } from 'itar/react';
+import { FocusVirtualizedRails, occurrenceKey } from '@bougarnem/itar/react';
 import type { ProviderMode } from './catalog-types';
-import type { VirtualizedFocusItem, VirtualizedFocusRail } from 'itar/react';
+import type {
+  VirtualizedFocusItem,
+  VirtualizedFocusRail,
+} from '@bougarnem/itar/react';
 import { useDesign } from './theme';
 import { BrowserNavigation } from './browser-navigation';
 import { DevelopmentSettings } from './development-settings';

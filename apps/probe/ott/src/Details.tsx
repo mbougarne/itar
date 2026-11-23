@@ -11,8 +11,11 @@ import {
   FocusVirtualizedRails,
   occurrenceKey,
   useScreenReaderEnabled,
-} from 'itar/react';
-import type { VirtualizedFocusItem, VirtualizedFocusRail } from 'itar/react';
+} from '@bougarnem/itar/react';
+import type {
+  VirtualizedFocusItem,
+  VirtualizedFocusRail,
+} from '@bougarnem/itar/react';
 import { captionAccessible, tvControlLabel } from './tv-accessibility';
 import { cast, films } from './catalog';
 import type { CastMember, Film } from './catalog-types';

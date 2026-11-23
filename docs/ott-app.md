@@ -42,7 +42,7 @@ Every **Play demo** action opens *Big Buck Bunny* by the Blender Foundation, lic
 
 - The [app entry](../apps/probe/App.tsx) selects Cinema or the development probes. The [Cinema entry](../apps/probe/ott/App.tsx) provides the design theme. Shared route state lives in [Cinema](../apps/probe/ott/src/Cinema.tsx).
 - Screens and the sidebar live under [ott/src](../apps/probe/ott/src/). Shared controls live in [components](../apps/probe/ott/src/components/). Artwork, shared data types, catalogue sessions, styles and viewport calculations have separate modules.
-- The [web media player](../apps/probe/ott/src/Player.web.tsx) sits beside the [native player](../apps/probe/ott/src/Player.tsx). The [browser adapter](../apps/probe/web/) resolves `itar/react` to the app's DOM host. Native builds use the package's Fabric components.
+- The [web media player](../apps/probe/ott/src/Player.web.tsx) sits beside the [native player](../apps/probe/ott/src/Player.tsx). The [browser adapter](../apps/probe/web/) resolves `@bougarnem/itar/react` to the app's DOM host. Native builds use the package's Fabric components.
 - Run `npm run check:tv` to check lint and formatting, `npm run typecheck` for native TypeScript and `npm run typecheck:web` for the browser entry. From a fresh checkout run `npm run build` before `npm test`. [Contributing](../CONTRIBUTING.md)
 
 The [design pack](../apps/probe/design/README.md) describes the layouts and credits the original fictional artwork. See the [device guides](devices/README.md) for current hardware observations.

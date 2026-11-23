@@ -2,7 +2,7 @@
 
 [العربية](../ar/devices/web-tv.md)
 
-Itar Cinema has a web-only adapter in the [example app](../../apps/probe/web/). React Native Web renders the shared screens. C++ compiled to WebAssembly selects focus targets, and a DOM host measures elements, scrolls them into view and observes browser focus. Selection and DOM work share the browser thread. Cinema builds from the same source as the `itar/web` package entry. [Use it in another app](../guides/integration.md#use-itar-in-a-web-tv-app)
+Itar Cinema has a web-only adapter in the [example app](../../apps/probe/web/). React Native Web renders the shared screens. C++ compiled to WebAssembly selects focus targets, and a DOM host measures elements, scrolls them into view and observes browser focus. Selection and DOM work share the browser thread. Cinema builds from the same source as the `@bougarnem/itar/web` package entry. [Use it in another app](../guides/integration.md#use-itar-in-a-web-tv-app)
 
 ## Desktop browser
 

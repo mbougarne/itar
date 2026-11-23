@@ -5,7 +5,7 @@
 [فهرس الأدلة العربية](../README.md) · [English](../../guides/integration.md)
 
 
-توفّر نقطة الدخول `itar/react` مكوّنات لتعريف نطاقات التأشير والأزرار والقوائم ذات العناصر ثابتة الأبعاد، وأوامر لنقل التأشير واستعادته. تتاح هذه النسخة التجريبية من خلال المستودع. يمكنك تعديل تطبيق التلفاز المرفق، أو تحزيم المكتبة محليًا وتجربتها في تطبيقك. يستخدم المثال React 19.2.0 ونسخة React Native الخاصة بالتلفاز تحت الاسم `"react-native": "npm:react-native-tvos@0.83.0-0"`. تعتمد المكوّنات الأصلية على Fabric، وتستورد تطبيقات الويب الموائم من `itar/web`. [تشغيل إطار سينما](../ott-app.md) · [إعداد المتصفح](../devices/web-tv.md)
+توفّر نقطة الدخول `@bougarnem/itar/react` مكوّنات لتعريف نطاقات التأشير والأزرار والقوائم ذات العناصر ثابتة الأبعاد، وأوامر لنقل التأشير واستعادته. لتثبيت النسخة التجريبية، نفّذ `npm install @bougarnem/itar@beta`. يمكنك تعديل تطبيق التلفاز المرفق، أو تحزيم المكتبة محليًا وتجربتها في تطبيقك. يستخدم المثال React 19.2.0 ونسخة React Native الخاصة بالتلفاز تحت الاسم `"react-native": "npm:react-native-tvos@0.83.0-0"`. تعتمد المكوّنات الأصلية على Fabric، وتستورد تطبيقات الويب الموائم من `@bougarnem/itar/web`. [تشغيل إطار سينما](../ott-app.md) · [إعداد المتصفح](../devices/web-tv.md)
 
 ## تثبيت الحزمة من نسخة محلية
 
@@ -18,7 +18,7 @@
 ```sh
 npm ci --ignore-scripts --no-audit
 mkdir -p build/packages
-npm pack --workspace itar --pack-destination build/packages
+npm pack --workspace @bougarnem/itar --pack-destination build/packages
 ```
 
 </div>
@@ -28,7 +28,7 @@ npm pack --workspace itar --pack-destination build/packages
 <div dir="ltr">
 
 ```sh
-npm install /absolute/path/to/itar/build/packages/itar-0.1.0-beta.tgz
+npm install /absolute/path/to/itar/build/packages/bougarnem-itar-0.1.0-beta.tgz
 ```
 
 </div>
@@ -39,7 +39,7 @@ npm install /absolute/path/to/itar/build/packages/itar-0.1.0-beta.tgz
 <div dir="ltr">
 
 ```ruby
-pod 'ItarEngineCore', :path => '../node_modules/itar'
+pod 'ItarEngineCore', :path => '../node_modules/@bougarnem/itar'
 ```
 
 </div>
@@ -48,14 +48,14 @@ pod 'ItarEngineCore', :path => '../node_modules/itar'
 
 ## استخدام إطار في تطبيق ويب للتلفاز
 
-لتطبيقات الويب، ومنها تطبيقات Samsung Tizen وLG webOS، استورد المكوّنات من `itar/web`. ثبّت React وReact DOM بالإصدار 19.2.0 مع `react-native-web@0.21.4`، واستورد `itar/web.css` وانتظر اكتمال `initializeFocusEngine()` قبل عرض أوّل `FocusProvider`. يتضمّن موائم الويب المحرّك بصيغة Wasm ويمكن تحميله من ملفات التطبيق على التلفاز.
+لتطبيقات الويب، ومنها تطبيقات Samsung Tizen وLG webOS، استورد المكوّنات من `@bougarnem/itar/web`. ثبّت React وReact DOM بالإصدار 19.2.0 مع `react-native-web@0.21.4`، واستورد `@bougarnem/itar/web.css` وانتظر اكتمال `initializeFocusEngine()` قبل عرض أوّل `FocusProvider`. يتضمّن موائم الويب المحرّك بصيغة Wasm ويمكن تحميله من ملفات التطبيق على التلفاز.
 
 <div dir="ltr">
 
 ```tsx
 import {createRoot} from 'react-dom/client';
-import {FocusProvider, FocusScope, Focusable, initializeFocusEngine} from 'itar/web';
-import 'itar/web.css';
+import {FocusProvider, FocusScope, Focusable, initializeFocusEngine} from '@bougarnem/itar/web';
+import '@bougarnem/itar/web.css';
 
 initializeFocusEngine().then(() => {
   createRoot(document.getElementById('root')!).render(
@@ -80,7 +80,7 @@ initializeFocusEngine().then(() => {
 ```tsx
 import React, {useState} from 'react';
 import {Text} from 'react-native';
-import {Focusable, FocusProvider, FocusScope, occurrenceKey} from 'itar/react';
+import {Focusable, FocusProvider, FocusScope, occurrenceKey} from '@bougarnem/itar/react';
 
 const titles = [
   {entry: 'featured-a', movie: 'film-7', title: 'Paper Moon'},
@@ -138,7 +138,7 @@ export default function App() {
 ```tsx
 import React, {useState} from 'react';
 import {Text} from 'react-native';
-import {Focusable, occurrenceKey, useFocusCommands, useFocusReady} from 'itar/react';
+import {Focusable, occurrenceKey, useFocusCommands, useFocusReady} from '@bougarnem/itar/react';
 
 export function FocusFirstTitle() {
   const {focusByKey} = useFocusCommands();

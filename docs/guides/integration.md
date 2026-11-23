@@ -2,7 +2,7 @@
 
 [العربية](../ar/guides/integration.md)
 
-Use `itar/react` for focus scopes, buttons, commands, and fixed-size lists. This beta is distributed as source. The repository includes a working TV app you can modify and a local tarball workflow for trying the package in your own app. The pinned combination is React 19.2.0 and the TV fork installed as `"react-native": "npm:react-native-tvos@0.83.0-0"`. The native components use Fabric. Browser apps use `itar/web`. [TV app setup](../ott-app.md) · [Browser demo](../devices/web-tv.md)
+Use `@bougarnem/itar/react` for focus scopes, buttons, commands, and fixed-size lists. Install the beta with `npm install @bougarnem/itar@beta`. The repository includes a working TV app you can modify and a local tarball workflow for trying the package in your own app. The pinned combination is React 19.2.0 and the TV fork installed as `"react-native": "npm:react-native-tvos@0.83.0-0"`. The native components use Fabric. Browser apps use `@bougarnem/itar/web`. [TV app setup](../ott-app.md) · [Browser demo](../devices/web-tv.md)
 
 ## Install from your checkout
 
@@ -13,32 +13,32 @@ To pack from source, first install [Emscripten 6.0.13 and CMake](../devices/web-
 ```sh
 npm ci --ignore-scripts --no-audit
 mkdir -p build/packages
-npm pack --workspace itar --pack-destination build/packages
+npm pack --workspace @bougarnem/itar --pack-destination build/packages
 ```
 
 In your TV app, install the path to that file. A fresh native build is required because Itar adds native views, codegen and a C++ library. To run the repository demo instead, its workspace dependency is already wired after `npm ci`.
 
 ```sh
-npm install /absolute/path/to/itar/build/packages/itar-0.1.0-beta.tgz
+npm install /absolute/path/to/itar/build/packages/bougarnem-itar-0.1.0-beta.tgz
 ```
 
 - **Android TV.** Use the TV template's native-module autolinking. The library declares Android SDK 36, minimum API 24, NDK 27.1.12297006 and CMake 3.22.1. Use JDK 17 for the example build. Rebuild the Android application after installation. [Android library build](../../packages/itar/android/build.gradle)
 - **tvOS.** In your TV target in `ios/Podfile`, add the line below. The package-named podspec lets React Native autolink `ItarEngineNative`. The explicit local dependency resolves its C++ core from the same tarball. Install pods from `ios/` with `bundle exec pod install` and build the TV scheme in the resulting workspace. The podspec declares a tvOS 15.1 deployment target. On the SDK 27 / Apple Clang 21 combination, the sample also adapts the TV template’s scene lifecycle and fmt dependency. [TV shell generator](../../scripts/generate-probe.cjs) · [Apple integration](../../packages/itar/apple/README.md)
 
 ```ruby
-pod 'ItarEngineCore', :path => '../node_modules/itar'
+pod 'ItarEngineCore', :path => '../node_modules/@bougarnem/itar'
 ```
 
 To verify the package archive independently, run `node scripts/check-package.cjs build/package-check` from the repository root. It installs its tarball outside npm's workspace resolution, verifies the exports and compiles a small C++/Apple C facade consumer. Native interaction needs a TV build. [Package verification](../../scripts/check-package.cjs) · [Device testing](../devices/README.md)
 
 ## Use Itar in a web TV app
 
-Import the browser components from `itar/web` in web apps, including Samsung Tizen and LG webOS apps. Install React and React DOM 19.2.0 plus `react-native-web@0.21.4`. Import `itar/web.css` and await `initializeFocusEngine()` before rendering the first provider. The web entry embeds the compiled Wasm and works with local TV app URLs.
+Import the browser components from `@bougarnem/itar/web` in web apps, including Samsung Tizen and LG webOS apps. Install React and React DOM 19.2.0 plus `react-native-web@0.21.4`. Import `@bougarnem/itar/web.css` and await `initializeFocusEngine()` before rendering the first provider. The web entry embeds the compiled Wasm and works with local TV app URLs.
 
 ```tsx
 import {createRoot} from 'react-dom/client';
-import {FocusProvider, FocusScope, Focusable, initializeFocusEngine} from 'itar/web';
-import 'itar/web.css';
+import {FocusProvider, FocusScope, Focusable, initializeFocusEngine} from '@bougarnem/itar/web';
+import '@bougarnem/itar/web.css';
 
 initializeFocusEngine().then(() => {
   createRoot(document.getElementById('root')!).render(
@@ -59,7 +59,7 @@ Put this component in the TV app's `App.tsx`. Use Left and Right to move, then S
 ```tsx
 import React, {useState} from 'react';
 import {Text} from 'react-native';
-import {Focusable, FocusProvider, FocusScope, occurrenceKey} from 'itar/react';
+import {Focusable, FocusProvider, FocusScope, occurrenceKey} from '@bougarnem/itar/react';
 
 const titles = [
   {entry: 'featured-a', movie: 'film-7', title: 'Paper Moon'},
@@ -113,7 +113,7 @@ For example, add this control after the two titles inside the same row scope. It
 ```tsx
 import React, {useState} from 'react';
 import {Text} from 'react-native';
-import {Focusable, occurrenceKey, useFocusCommands, useFocusReady} from 'itar/react';
+import {Focusable, occurrenceKey, useFocusCommands, useFocusReady} from '@bougarnem/itar/react';
 
 export function FocusFirstTitle() {
   const {focusByKey} = useFocusCommands();

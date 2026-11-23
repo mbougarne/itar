@@ -2606,7 +2606,7 @@ DEPENDENCIES:
   - glog (from `../../../node_modules/react-native/third-party-podspecs/glog.podspec`)
   - hermes-engine (from `../../../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - ItarEngineCore (from `../../..`)
-  - ItarEngineNative (from `../../../node_modules/itar`)
+  - ItarEngineNative (from `../../../node_modules/@bougarnem/itar`)
   - ItarProbeHost (from `../../..`)
   - RCT-Folly (from `../../../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCTDeprecation (from `../../../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
@@ -2706,7 +2706,7 @@ EXTERNAL SOURCES:
   ItarEngineCore:
     :path: "../../.."
   ItarEngineNative:
-    :path: "../../../node_modules/itar"
+    :path: "../../../node_modules/@bougarnem/itar"
   ItarProbeHost:
     :path: "../../.."
   RCT-Folly:

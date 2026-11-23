@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button, Platform, StyleSheet, Text, View } from 'react-native';
 import { AppleHostProbe } from './diagnostics/AppleHostProbe';
 import { blockJavaScript } from './diagnostics/blockJavaScript';
-import { packageStage } from 'itar';
+import { packageStage } from '@bougarnem/itar';
 import AndroidAdapterScreen from './AndroidAdapterScreen';
 import AppleAdapterScreen from './AppleAdapterScreen';
 import ReactApiScreen from './ReactApiScreen';

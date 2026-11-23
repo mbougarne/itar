@@ -24,7 +24,7 @@ import {
   occurrenceKey,
   type VirtualizedFocusItemRenderer,
   type VirtualizedFocusRail,
-} from 'itar/react';
+} from '@bougarnem/itar/react';
 
 const catalogue = [
   {id: 'featured', entries: [

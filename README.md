@@ -6,7 +6,7 @@
 
 Itar is a C++20 focus engine for React Native TV apps. It handles the part of remote navigation that gets difficult in a real catalogue. A viewer can open a movie from the fourth rail, watch something, and press Back after the list has changed. Itar gives the app a way to identify that *particular card*, ask the host to reveal it, and learn whether focus actually returned.
 
-**Source beta · physical-device testing in progress.** The React API and host behavior can change. You can build the engine, run the example and try a local package in a TV app. The local `0.1.0-beta` package includes the React Native TV adapter (`itar/react`) and the browser/Wasm adapter (`itar/web`) used by Cinema on Samsung Tizen and LG webOS. Install the beta from this checkout or build a local tarball. [Device status and open checks](docs/devices/README.md)
+**Install the first beta with `npm install @bougarnem/itar@beta`.** Version `0.1.0-beta` includes the React Native TV adapter (`@bougarnem/itar/react`) and the browser/WebAssembly adapter (`@bougarnem/itar/web`) used on Samsung Tizen and LG webOS. The React API and host behavior can change during the beta. [Device status and open checks](docs/devices/README.md)
 
 [![Itar Cinema running in a browser with the TV guide button focused above a rail of fictional movies.](docs/images/cinema-browser.jpg)](docs/images/itar-cinema-preview.mp4)
 
@@ -58,10 +58,10 @@ For native TV behavior, use the same example on [Android TV or Fire TV](docs/dev
 
 ## Use it in a React Native TV screen
 
-The example workspace already links `itar`. For another app, the [integration guide](docs/guides/integration.md) covers packing a local tarball, the pinned React Native TV runtime and native setup. Import the React API from `itar/react`.
+The example workspace already links `@bougarnem/itar`. For another app, the [integration guide](docs/guides/integration.md) covers packing a local tarball, the pinned React Native TV runtime and native setup. Import the React API from `@bougarnem/itar/react`.
 
 ```tsx
-import {FocusProvider, FocusScope, Focusable, occurrenceKey} from 'itar/react';
+import {FocusProvider, FocusScope, Focusable, occurrenceKey} from '@bougarnem/itar/react';
 
 const entries = [
   {id: 'arrival', title: 'Arrival'},

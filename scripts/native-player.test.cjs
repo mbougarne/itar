@@ -56,7 +56,7 @@ function fixture(t, playback = {}, platform = 'android') {
     'react-native': {View: 'View', Text: 'Text', TVFocusGuideView: 'Guide', Platform: {OS: platform, isTV: true}, useTVEventHandler: fn => { remote = fn; },
       AppState: {...subscribe(fn => { foreground = fn; }), currentState: 'active'},
       BackHandler: subscribe(fn => { back = fn; })},
-    'itar/react': {Focusable: 'Focusable', FocusScope: 'FocusScope', useFocusCommands: () => commands,
+    '@bougarnem/itar/react': {Focusable: 'Focusable', FocusScope: 'FocusScope', useFocusCommands: () => commands,
       occurrenceKey: (...parts) => parts.join('/'), useFocusReady: () => true, useScreenReaderEnabled: () => reader},
     './playback-history': load(compile('playback-history.ts'), {}), './demo-stream': {nativeDemoStream: 'fixture.m3u8'},
     './usePlaybackControls': load(hook, {react}), './playback-time': load(time, {}),

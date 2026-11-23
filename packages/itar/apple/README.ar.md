@@ -11,7 +11,7 @@
 <div dir="ltr">
 
 ```ruby
-pod 'ItarEngineCore', :path => '../node_modules/itar'
+pod 'ItarEngineCore', :path => '../node_modules/@bougarnem/itar'
 ```
 
 </div>

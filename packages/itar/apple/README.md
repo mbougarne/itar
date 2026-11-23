@@ -7,7 +7,7 @@ The Apple package contains the C++ engine, its C interface, the Swift/UIKit owne
 For an app using the Itar tarball and React Native autolinking, add the following line to its tvOS target in `ios/Podfile`, then run `bundle exec pod install` there. Autolinking selects the package-named podspec for the Swift/native target.
 
 ```ruby
-pod 'ItarEngineCore', :path => '../node_modules/itar'
+pod 'ItarEngineCore', :path => '../node_modules/@bougarnem/itar'
 ```
 
 ## Host contract

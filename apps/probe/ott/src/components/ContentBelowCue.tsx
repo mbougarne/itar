@@ -1,6 +1,9 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { useFocusState, type VirtualizedFocusRail } from 'itar/react';
+import {
+  useFocusState,
+  type VirtualizedFocusRail,
+} from '@bougarnem/itar/react';
 import { useDesign } from '../theme';
 
 export function ContentBelowCue({

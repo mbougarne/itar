@@ -14,8 +14,11 @@ import {
   useIsFocused,
   useScreenReaderEnabled,
   useFocusCommands,
-} from 'itar/react';
-import type { VirtualizedFocusItem, VirtualizedFocusRail } from 'itar/react';
+} from '@bougarnem/itar/react';
+import type {
+  VirtualizedFocusItem,
+  VirtualizedFocusRail,
+} from '@bougarnem/itar/react';
 import { tvControlLabel } from './tv-accessibility';
 import { hero } from './catalog';
 import { useCatalogue } from './useCatalogue';

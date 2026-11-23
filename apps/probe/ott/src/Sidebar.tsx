@@ -1,6 +1,6 @@
 import React from 'react';
 import { Platform, Text, View } from 'react-native';
-import { FocusScope, occurrenceKey } from 'itar/react';
+import { FocusScope, occurrenceKey } from '@bougarnem/itar/react';
 import { art, icons } from './artwork';
 import { SidebarButton } from './components/SidebarButton';
 import { useDesign } from './theme';

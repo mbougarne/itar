@@ -2,7 +2,7 @@
 
 [العربية](virtualization.ar.md) · [Complete catalogue example](../../docs/guides/collections.md)
 
-`FocusVirtualizedList` and `FocusVirtualizedRails` from `itar/react` wrap the TV fork’s `FlatList` using `additionalRenderRegions`, `CellRendererComponent` and `getItemLayout`. One active collection tree fits in each provider. Each tree supports up to 256 logical nodes, including list and row scopes, and up to two list levels. Other targets also consume the surface’s capacity. Native keys, including their encoding, have a 512-byte limit.
+`FocusVirtualizedList` and `FocusVirtualizedRails` from `@bougarnem/itar/react` wrap the TV fork’s `FlatList` using `additionalRenderRegions`, `CellRendererComponent` and `getItemLayout`. One active collection tree fits in each provider. Each tree supports up to 256 logical nodes, including list and row scopes, and up to two list levels. Other targets also consume the surface’s capacity. Native keys, including their encoding, have a 512-byte limit.
 
 | Setting | Usage |
 | --- | --- |

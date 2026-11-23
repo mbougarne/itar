@@ -174,7 +174,7 @@ test('the More below cue tracks content after the focused row and stays out of n
   const {ContentBelowCue} = evaluate('apps/probe/ott/src/components/ContentBelowCue.tsx', name => ({
     react: {useMemo: fn => fn(), createElement: (type, props) => ({type, props})},
     'react-native': {StyleSheet: {create: value => value}, View: 'View'},
-    'itar/react': {useFocusState: () => ({kind: 'managed', occurrenceKey: key})},
+    '@bougarnem/itar/react': {useFocusState: () => ({kind: 'managed', occurrenceKey: key})},
     '../theme': {useDesign: () => ({u: 1})},
   })[name]);
   const rails = ['first', 'last', 'pagination'].map(id => ({id, items: [{occurrenceKey: id}]}));
@@ -201,7 +201,7 @@ test('a focused Home preview waits for dwell, returns to its thumbnail and stops
     react: {...f.hooks, createContext: () => ({Provider: 'PreviewProvider'}), useContext: () => active},
     'react-native': {View: 'View', Text: 'Text', StyleSheet: {create: v => v}, Platform: {OS: 'android'},
       AppState: {currentState: 'active', addEventListener: (_, fn) => { foreground = fn; return {remove() { foreground = null; }}; }}},
-    'itar/react': {useIsFocused: key => key === 'preview', useScreenReaderEnabled: () => reader},
+    '@bougarnem/itar/react': {useIsFocused: key => key === 'preview', useScreenReaderEnabled: () => reader},
     '../theme': {useDesign: () => ({u: 1})}, '../artwork': {filmArtwork: () => 0},
     './Picture': {Picture: 'Picture'}, './PreviewVideo': {PreviewVideo: 'Video'},
   })[name], {setTimeout, clearTimeout});
@@ -382,7 +382,7 @@ test('crossing the final row triggers one fetch even while its pending cards rec
   const f = fixture('');
   let key = 'above', calls = 0;
   const {EndObserver} = evaluate('apps/probe/ott/src/components/EndObserver.tsx', name => ({
-    react: f.hooks, 'itar/react': {useFocusState: () => ({kind: 'managed', occurrenceKey: key})},
+    react: f.hooks, '@bougarnem/itar/react': {useFocusState: () => ({kind: 'managed', occurrenceKey: key})},
   })[name]);
   const props = {keys: ['a', 'b', 'c', 'd', 'e'], active: true, blocked: false, onEnd: () => { calls++; }};
   const end = f.mount(EndObserver, props);
@@ -766,7 +766,7 @@ function fixture(inputKey, outcome = 'applied', platform = 'android', readDetail
           back = callback; return {remove() {}};
         }}};
     }
-    if (name === 'itar/react') {
+    if (name === '@bougarnem/itar/react') {
       return {Focusable: 'Focusable', FocusProvider: 'FocusProvider', FocusScope: 'FocusScope', FocusVirtualizedRails: 'Rails', occurrenceKey,
         useFocusCommands: () => commands, useFocusReady: () => true, useFocusState: () => focus, useScreenReaderEnabled: () => reader,
         useIsFocused: key => focus.kind === 'managed' && focus.occurrenceKey === key};

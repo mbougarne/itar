@@ -6,7 +6,7 @@ import React, {
   useState,
 } from 'react';
 import { AppState, Platform, StyleSheet, Text, View } from 'react-native';
-import { useIsFocused, useScreenReaderEnabled } from 'itar/react';
+import { useIsFocused, useScreenReaderEnabled } from '@bougarnem/itar/react';
 import type { Film } from '../catalog-types';
 import { filmArtwork } from '../artwork';
 import { useDesign } from '../theme';

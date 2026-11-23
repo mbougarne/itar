@@ -3,10 +3,18 @@ plugins {
     id 'org.jetbrains.kotlin.android'
     id 'com.facebook.react'
 }
+// Resolve from the installed library so scoped and hoisted dependencies both work.
+def resolvePackageDir = { String name ->
+    def manifest = providers.exec {
+        workingDir projectDir
+        commandLine 'node', '--print', "require.resolve('${name}/package.json')"
+    }.standardOutput.asText.get().trim()
+    return new File(manifest).parentFile
+}
 react {
     root = file('..')
-    reactNativeDir = file('../../../node_modules/react-native')
-    codegenDir = file('../../../node_modules/@react-native/codegen')
+    reactNativeDir = resolvePackageDir('react-native')
+    codegenDir = resolvePackageDir('@react-native/codegen')
     libraryName = 'ItarSpec'
     codegenJavaPackageName = 'com.itar.adapter'
 }

@@ -1,6 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { AndroidCommands, AndroidSurface, AndroidTarget } from 'itar/android';
+import {
+  AndroidCommands,
+  AndroidSurface,
+  AndroidTarget,
+} from '@bougarnem/itar/android';
 
 import { BusyJsButton } from './diagnostics/BusyJsButton';
 import { CarrierControls } from './diagnostics/CarrierControls';

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Platform, TVEventHandler } from 'react-native';
-import { useScreenReaderEnabled } from 'itar/react';
+import { useScreenReaderEnabled } from '@bougarnem/itar/react';
 
 // UIKit may have no focus candidate beside a menu button. Leave reader input
 // to VoiceOver and accept a discrete Right or a Siri Remote swipe.

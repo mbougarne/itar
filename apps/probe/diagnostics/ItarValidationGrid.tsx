@@ -5,7 +5,7 @@ import {
   FocusScope,
   Focusable,
   occurrenceKey,
-} from 'itar/react';
+} from '@bougarnem/itar/react';
 import { columns, gridStyles, rows, targetLabel } from './validation-grid';
 
 const focusStyle = { accentColor: '#ff8800' };
