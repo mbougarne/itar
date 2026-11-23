@@ -3,14 +3,19 @@ import ItarEngineCore
 
 extension ItarSurfaceHost {
     func preferredEnvironments() -> [UIFocusEnvironment] {
-        guard acceptsInput, !UIAccessibility.isVoiceOverRunning,
+        if UIAccessibility.isVoiceOverRunning {
+            if let target = readerDestination, let registration = target.registration,
+               live(registration) === target { return [target] }
+            return []
+        }
+        guard acceptsInput,
               let target = preferred, let registration = target.registration,
               live(registration) === target else { return [] }
         return [target]
     }
 
-    // UIKit chooses mounted destinations. Only cold collection arrow requests
-    // use scoped press ownership; swipe/momentum parity requires separate evidence.
+    // UIKit proposes ordinary mounted destinations. Discrete collection-edge presses
+    // can also enter a scope that explicitly requests restoration.
     func allowsFocus(_ context: UIFocusUpdateContext) -> Bool {
         // Swipes propose a UIKit focus update; adjustment keeps the same target.
         if !UIAccessibility.isVoiceOverRunning, let source = context.previouslyFocusedView as? ItarTargetHost,

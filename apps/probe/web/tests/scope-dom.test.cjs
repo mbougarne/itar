@@ -1,5 +1,5 @@
 /* eslint-env node, es2022 */
-const { test, before } = require('node:test');
+const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -84,15 +84,18 @@ function imports(name) {
 
 const webContexts = load(path.join(__dirname, '../focus-context.ts'), imports);
 
-const { FocusProvider, initializeFocusEngine } = load(
-  path.join(__dirname, '../FocusProvider.tsx'),
-  imports,
-);
+// Server-render the DOM hosts with a store. The browser provider acquires its
+// Wasm surface in a layout effect, which only runs on the client.
+function FocusProvider({ children }) {
+  return React.createElement(
+    webContexts.StoreContext.Provider,
+    { value: { mountId: () => 1 } },
+    children,
+  );
+}
 
 const { FocusScope } = load(path.join(__dirname, '../FocusScope.tsx'), imports);
 const { Focusable } = load(path.join(__dirname, '../Focusable.tsx'), imports);
-
-before(initializeFocusEngine);
 
 function render(active, parentActive = true) {
   return renderToStaticMarkup(

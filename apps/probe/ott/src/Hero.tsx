@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { FocusScope, occurrenceKey } from 'itar/react';
+import { captionAccessible } from './tv-accessibility';
 import type { Film } from './catalog-types';
 import { cachedDetails, loadDetails } from './detail-data';
 import { Action } from './components/Action';
@@ -53,13 +54,21 @@ export default function Hero({
     <View style={s.homeHero}>
       <Backdrop film={film} />
       <View style={[s.heroCopy, s.homeInset]}>
-        <Text style={s.eyebrow}>THE WEEK’S SPOTLIGHT</Text>
-        <Text numberOfLines={2} style={s.heroTitle}>
+        <Text accessible={captionAccessible} style={s.eyebrow}>
+          THE WEEK’S SPOTLIGHT
+        </Text>
+        <Text
+          accessible={captionAccessible}
+          numberOfLines={2}
+          style={s.heroTitle}
+        >
           {details.title}
         </Text>
         <Metadata film={details} />
-        <Text style={s.muted}>{details.category}</Text>
-        <Text numberOfLines={3} style={s.body}>
+        <Text accessible={captionAccessible} style={s.muted}>
+          {details.category}
+        </Text>
+        <Text accessible={captionAccessible} numberOfLines={3} style={s.body}>
           {details.synopsis}
         </Text>
         <FocusScope id="hero-actions" layout="row" boundary="parent">
@@ -72,6 +81,7 @@ export default function Hero({
             <Action
               id={occurrenceKey(id, 'hero', film.id)}
               label="Explore title"
+              tvDescription={details.title}
               onPress={() =>
                 onOpen(details, occurrenceKey(id, 'hero', film.id))
               }

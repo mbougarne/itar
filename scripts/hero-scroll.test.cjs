@@ -213,7 +213,8 @@ test('pinned two-card rows reserve a trailing viewport slot without adding a foc
     const inner = outer.renderItem({item: outer.data[0]}).props.children.find(child => typeof child?.type === 'function');
     const flat = inner.type(inner.props).props;
     assert.equal(flat.contentContainerStyle.paddingEnd, 380);
-    assert.equal(flat.scrollEnabled, undefined);
+    assert.equal(flat.scrollEnabled, os === 'ios' ? false : undefined);
+    assert.notEqual(outer.scrollEnabled, false);
     assert.equal(flat.data.length, 2);
     assert.equal(f.nodes()[1].horizontalAlignment, 'pinned');
     assert.equal(f.nodes().filter(node => !node.scope).length, 2);

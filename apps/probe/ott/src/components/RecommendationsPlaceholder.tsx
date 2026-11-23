@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { captionAccessible } from '../tv-accessibility';
 import { useDesign } from '../theme';
 
 export function RecommendationsPlaceholder() {
@@ -23,7 +24,11 @@ export function RecommendationsPlaceholder() {
           />
         ))}
       </View>
-      <Text accessibilityLiveRegion="polite" style={s.detailCardCaption}>
+      <Text
+        accessible={captionAccessible}
+        accessibilityLiveRegion="polite"
+        style={s.detailCardCaption}
+      >
         Loading recommendations…
       </Text>
     </View>

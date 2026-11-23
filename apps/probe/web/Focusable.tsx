@@ -4,7 +4,7 @@ import type { FocusableProps } from '../../../packages/itar/src/react';
 import { nativeTargetKey } from '../../../packages/itar/src/api/types';
 import { FocusContentContext } from '../../../packages/itar/src/api/contexts';
 import { useWebStore, WebScopeContext } from './focus-context';
-import { createNode } from './focus-store';
+import { createNode, webTrace } from './focus-store';
 
 export function Focusable({
   occurrenceKey: publicKey,
@@ -38,14 +38,18 @@ export function Focusable({
     () => ({
       ...createNode(key, scope.key),
       publicKey,
-      mount: store.mountId(),
     }),
-    [store, key, scope.key, publicKey],
+    [key, scope.key, publicKey],
   );
 
   const ref = useRef<HTMLElement | null>(null);
 
-  useLayoutEffect(() => store.register(record), [store, record]);
+  useLayoutEffect(() => {
+    // React can detach and reattach effects for the same rendered card.
+    record.mount = store.mountId();
+
+    return store.register(record);
+  }, [store, record]);
 
   useLayoutEffect(() => {
     const element = ref.current;
@@ -112,6 +116,14 @@ export function Focusable({
       testID={testID}
       onPress={() => {
         if (enabled && scope.active) {
+          webTrace?.event({
+            kind: 'activation',
+            surface: store.lifetime,
+            target: key,
+            mount: String(record.mount),
+            detail: 'semantic',
+          });
+
           onPress?.({
             occurrenceKey: publicKey,
             contentId,

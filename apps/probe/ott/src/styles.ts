@@ -277,6 +277,7 @@ export function createStyles(u: number) {
       top: 0,
       bottom: 0,
     },
+    loadingContent: { opacity: 0 },
     hidden: {
       position: 'absolute',
       left: 0,

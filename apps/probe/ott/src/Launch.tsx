@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
+import { captionAccessible, tvControlLabel } from './tv-accessibility';
 import TVApp from './TVApp';
 import { useDesign } from './theme';
 
@@ -19,10 +20,19 @@ export default function Launch({
 
   return splash ? (
     <View style={s.splash}>
-      <Text style={s.splashBrand}>
+      <Text
+        accessibilityLabel={
+          captionAccessible === false
+            ? tvControlLabel('Itar Cinema', 'Stories worth exploring.')
+            : undefined
+        }
+        style={s.splashBrand}
+      >
         <Text style={s.brandStrong}>ITAR</Text> CINEMA
       </Text>
-      <Text style={s.muted}>Stories worth exploring.</Text>
+      <Text accessible={captionAccessible} style={s.muted}>
+        Stories worth exploring.
+      </Text>
     </View>
   ) : (
     <TVApp onOpenProbes={onOpenProbes} />

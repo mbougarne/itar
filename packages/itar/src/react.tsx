@@ -7,9 +7,10 @@ import NativeScope from './specs/ItarScopeNativeComponent';
 import NativeTarget from './specs/ItarTargetNativeComponent';
 import {FocusStore} from './api/store';
 import {CollectionStore} from './api/collections';
-import {CollectionContext, CollectionDatasetContext, ScopeContext, FocusContentContext} from './api/contexts';
+import {CollectionContext, CollectionDatasetContext, ScopeContext, PaneTargetContext, FocusContentContext} from './api/contexts';
 import {nativeScopeKey, nativeTargetKey} from './api/types';
-import type {Activation, FocusChannel} from './api/types';
+import type {ProviderProps, ScopeProps, TargetProps} from './api/component-props';
+import type {FocusChannel} from './api/types';
 export {occurrenceKey} from './api/types';
 export type {Activation, FocusKind, FocusChannel, FocusState, FocusOutcome, FocusRequest} from './api/types';
 
@@ -22,9 +23,7 @@ const useStore = (): FocusStore => {
   return store;
 };
 
-export function FocusProvider({children, active = true, style, testID}: {
-  children: React.ReactNode; active?: boolean; style?: StyleProp<ViewStyle>; testID?: string;
-}) {
+export function FocusProvider({children, active = true, style, testID}: ProviderProps<StyleProp<ViewStyle>>) {
   const view = useRef<React.ElementRef<typeof NativeSurface>>(null);
   const [store] = useState(() => new FocusStore({
     focus: (key, command) => {
@@ -59,21 +58,7 @@ export function FocusProvider({children, active = true, style, testID}: {
 }
 
 export function FocusScope({id, active = true, layout = 'spatial', boundary = 'stop', trap = false,
-  entryReady = true, restoreOnEntry = false, preferredKey, accessibilityPaneTitle, children, style, testID}: {
-  id: string; active?: boolean; layout?: 'spatial' | 'row' | 'column'; boundary?: 'stop' | 'wrap' | 'parent';
-  trap?: boolean;
-  /** Gate automatic native entry while preparing content.
-   * Android permits an exact preferredKey and explicit accessibility focus actions.
-   * Explicit focusByKey still works; existing input focus is preserved.
-   * Commit false before removing the source, then reopen after the request settles.
-   */
-  entryReady?: boolean; preferredKey?: string; children: React.ReactNode;
-  /** Restore valid native history (then preference) on directional scope entry. */
-  restoreOnEntry?: boolean;
-  /** Android route/pane semantics, exposed only while active and ready. */
-  accessibilityPaneTitle?: string;
-  style?: StyleProp<ViewStyle>; testID?: string;
-}) {
+  entryReady = true, restoreOnEntry = false, preferredKey, accessibilityPaneTitle, children, style, testID}: ScopeProps<StyleProp<ViewStyle>>) {
   useStore();
   if (useContext(FocusContentContext)) { throw new Error('Focusable content cannot contain a focus scope'); }
   const parent = useContext(ScopeContext);
@@ -83,38 +68,21 @@ export function FocusScope({id, active = true, layout = 'spatial', boundary = 's
     const path = [...parent.path, id];
     return {path, key: nativeScopeKey(path), active: parent.active && active};
   }, [parent, id, active]);
-  const content = <ScopeContext.Provider value={context}>{children}</ScopeContext.Provider>;
+  const inheritedPane = useContext(PaneTargetContext);
+  const paneTarget = !context.active ? undefined : accessibilityPaneTitle ? preferredKey : inheritedPane;
+  const content = <ScopeContext.Provider value={context}>
+    <PaneTargetContext.Provider value={paneTarget}>{children}</PaneTargetContext.Provider>
+  </ScopeContext.Provider>;
   return supported ? <NativeScope scopeKey={context.key} parentScopeKey={parent.key} active={context.active}
     collectionDataset={collectionDataset}
     layout={layout} boundary={boundary} trap={trap} entryReady={entryReady} restoreOnEntry={restoreOnEntry}
-    paneTitle={Platform.OS === 'android' ? accessibilityPaneTitle ?? '' : ''}
+    paneTitle={accessibilityPaneTitle ?? ''}
     preferredKey={preferredKey === undefined ? '' : nativeTargetKey(preferredKey)} style={style} testID={testID}>
     {content}
   </NativeScope> : <View style={style} testID={testID}>{content}</View>;
 }
 
-export type FocusableProps = {
-  occurrenceKey: string;
-  /** Presentation-only content. The owned host remains the sole semantic target. */
-  children?: React.ReactNode;
-  contentId?: string;
-  displayLabel?: string;
-  labelPlacement?: 'center' | 'bottom' | 'bottom-center';
-  labelSize?: number;
-  outlineInsetBottom?: number;
-  accessibilityLabel: string;
-  /** Android/web only. A switch requires a Boolean checked state; Apple keeps its current semantics. */
-  accessibilityRole?: 'button' | 'switch';
-  accessibilityState?: Readonly<{checked?: boolean}>;
-  enabled?: boolean;
-  order?: number;
-  style?: StyleProp<ViewStyle>;
-  focusStyle?: Readonly<{accentColor: ColorValue; backgroundColor?: ColorValue}>;
-  baseAccentColor?: ColorValue;
-  onPress?(activation: Activation): void;
-  onAdjust?(delta: -1 | 1): void;
-  testID?: string;
-};
+export type FocusableProps = TargetProps<StyleProp<ViewStyle>, ColorValue>;
 // Render allocates only an identity. Registration is published at host/effect commit.
 export const Focusable = memo(function FocusableButton({occurrenceKey: key, contentId, accessibilityLabel,
   accessibilityRole, accessibilityState,

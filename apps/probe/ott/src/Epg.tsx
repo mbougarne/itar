@@ -6,6 +6,7 @@ import {
   useFocusCommands,
   useFocusReady,
 } from 'itar/react';
+import { captionAccessible } from './tv-accessibility';
 import { Action } from './components/Action';
 import { useDesign } from './theme';
 import { guideTime, useGuide } from './guide';
@@ -66,11 +67,14 @@ export default function Epg({ onClose }: { onClose: () => void }) {
         <Action
           id={occurrenceKey('epg', 'back')}
           label="Back to Home"
+          tvDescription="TV guide. EPGTalk, US local channels. Times are local. Schedule only. Select a programme for information."
           onPress={onClose}
           style={{ width: 260 * u }}
         />
-        <Text style={s.messageTitle}>TV guide</Text>
-        <Text style={s.muted}>
+        <Text accessible={captionAccessible} style={s.messageTitle}>
+          TV guide
+        </Text>
+        <Text accessible={captionAccessible} style={s.muted}>
           EPGTalk · US local channels · Your local time
         </Text>
       </View>
@@ -92,6 +96,9 @@ export default function Epg({ onClose }: { onClose: () => void }) {
           order={1}
           id={occurrenceKey('epg', 'now')}
           label="Now"
+          tvDescription={`${new Date(
+            start * 1000,
+          ).toLocaleDateString()}, ${guideTime(start)} to ${guideTime(end)}`}
           onPress={() => move(null)}
           style={s.filter}
         />
@@ -104,14 +111,18 @@ export default function Epg({ onClose }: { onClose: () => void }) {
           onPress={() => move(start + 3600)}
           style={s.filter}
         />
-        <Text style={s.muted}>
+        <Text accessible={captionAccessible} style={s.muted}>
           {new Date(start * 1000).toLocaleDateString()} · {guideTime(start)}–
           {guideTime(end)}
         </Text>
       </FocusScope>
       <View style={[s.guideRow, { marginLeft: 212 * u }]}>
         {[0, 1, 2, 3].map(slot => (
-          <Text key={slot} style={[s.muted, { width: 345 * u - 12 * u }]}>
+          <Text
+            accessible={captionAccessible}
+            key={slot}
+            style={[s.muted, { width: 345 * u - 12 * u }]}
+          >
             {guideTime(start + slot * 1800)}
           </Text>
         ))}
@@ -125,13 +136,19 @@ export default function Epg({ onClose }: { onClose: () => void }) {
           style={s.guideRow}
         >
           <View style={s.guideTitle}>
-            <Text numberOfLines={2} style={s.muted}>
+            <Text
+              accessible={captionAccessible}
+              numberOfLines={2}
+              style={s.muted}
+            >
               {channel.name}
             </Text>
           </View>
           <View style={{ width: 1380 * u, height: 84 * u }}>
             {!channel.programmes.some(p => p.stop > start && p.start < end) && (
-              <Text style={s.muted}>No listings for this time</Text>
+              <Text accessible={captionAccessible} style={s.muted}>
+                No listings for this time
+              </Text>
             )}
             {channel.programmes
               .filter(p => p.stop > start && p.start < end)
@@ -150,6 +167,7 @@ export default function Epg({ onClose }: { onClose: () => void }) {
                     label={`${channel.name}, ${p.title}, ${guideTime(
                       p.start,
                     )} to ${guideTime(p.stop)}`}
+                    tvDescription={p.subtitle}
                     displayLabel={`${guideTime(p.start)}  ${p.title}`}
                     onPress={() => setSelected(p)}
                     style={[
@@ -170,7 +188,7 @@ export default function Epg({ onClose }: { onClose: () => void }) {
       ))}
       {(!guide || !guide.channels.length || error) && (
         <View style={s.message}>
-          <Text style={s.body}>
+          <Text accessible={captionAccessible} style={s.body}>
             {error ||
               (guide
                 ? 'No current listings in this schedule. Refresh later.'
@@ -179,18 +197,22 @@ export default function Epg({ onClose }: { onClose: () => void }) {
           <Action
             id={occurrenceKey('epg', 'retry')}
             label="Refresh guide"
+            tvDescription={
+              error ||
+              (guide ? 'No current listings.' : 'Loading the TV guide.')
+            }
             onPress={retry}
           />
         </View>
       )}
-      <Text numberOfLines={2} style={s.body}>
+      <Text accessible={captionAccessible} numberOfLines={2} style={s.body}>
         {selected
           ? `${selected.title} · ${guideTime(selected.start)}–${guideTime(
               selected.stop,
             )}${selected.subtitle ? ` · ${selected.subtitle}` : ''}`
           : 'Select a programme to see its information.'}
       </Text>
-      <Text style={s.footer}>
+      <Text accessible={captionAccessible} style={s.footer}>
         Schedule information only · No channel playback · EPGTalk / epgtalk.com
         {guide ? ` · Updated ${new Date(guide.updated).toLocaleString()}` : ''}
       </Text>

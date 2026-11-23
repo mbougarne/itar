@@ -31,6 +31,13 @@ export default function Catalogue(props: BrowseProps) {
             order={order}
             id={occurrenceKey(props.id, 'category', name)}
             label={`${name}${category === name ? ', selected' : ''}`}
+            tvDescription={
+              name === 'All'
+                ? props.kind === 'movie'
+                  ? 'Movies'
+                  : 'Series'
+                : undefined
+            }
             displayLabel={name}
             highContrast={props.highContrast}
             style={[s.filter, category === name && s.selectedTab]}

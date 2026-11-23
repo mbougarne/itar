@@ -1,5 +1,6 @@
 import React, {
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -11,14 +12,17 @@ import {
   FocusVirtualizedRails,
   occurrenceKey,
   useIsFocused,
+  useScreenReaderEnabled,
   useFocusCommands,
 } from 'itar/react';
 import type { VirtualizedFocusItem, VirtualizedFocusRail } from 'itar/react';
+import { tvControlLabel } from './tv-accessibility';
 import { hero } from './catalog';
 import { useCatalogue } from './useCatalogue';
 import { Picture } from './components/Picture';
 import { filmArtwork } from './artwork';
 import Hero from './Hero';
+import { BrowserNavigation } from './browser-navigation';
 import { layoutRows } from './browse-layout';
 import { useDesign } from './theme';
 
@@ -115,6 +119,22 @@ export default function Browse({
   );
 
   const fiveColumns = grid || searchResults;
+  // Give the row name to its first card so VoiceOver cannot land on a
+  // neighboring row's visual heading while the remote is idle.
+  const nameHomeRows = featured && Platform.OS === 'ios' && Platform.isTV;
+  const reader = useScreenReaderEnabled();
+
+  const appleGrid =
+    Platform.OS === 'ios' && Platform.isTV && fiveColumns && reader === false;
+
+  const browserNavigation = useContext(BrowserNavigation);
+
+  const autoPageGrid =
+    appleGrid ||
+    (Platform.OS === 'web' &&
+      fiveColumns &&
+      browserNavigation?.enabled === true);
+
   const columns = fiveColumns ? 5 : 4;
   const cardGap = 24 * u;
   // Each grid cell owns its gutter. Two half gutters leave the grid flush
@@ -175,8 +195,9 @@ export default function Browse({
   const last = displayedRows[displayedRows.length - 1];
 
   const endKeys =
-    last?.entries.slice(-2).map(film => occurrenceKey(id, last.id, film.id)) ??
-    [];
+    last?.entries
+      .slice(autoPageGrid ? 0 : -2)
+      .map(film => occurrenceKey(id, last.id, film.id)) ?? [];
 
   const model = useMemo(() => {
     const visuals = new Map<string, BrowseVisual>();
@@ -240,15 +261,28 @@ export default function Browse({
 
           visuals.set(key, { film, poster, preview, watching });
 
+          const label =
+            `${film.title}, ${film.kind === 'movie' ? 'Movie' : 'Series'}` +
+            (watching && watching.duration > 0
+              ? `, ${Math.round(
+                  (watching.position / watching.duration) * 100,
+                )}% watched`
+              : '');
+
+          let section: string | undefined;
+
+          if (nameHomeRows && index === 0) section = rail.title;
+
+          if (searchResults && rail === displayedRows[0] && index === 0) {
+            section = query.trim()
+              ? `Results for ${query}`
+              : 'Suggested titles';
+          }
+
           return {
             ...make(
               key,
-              `${film.title}, ${film.kind === 'movie' ? 'Movie' : 'Series'}` +
-                (watching && watching.duration > 0
-                  ? `, ${Math.round(
-                      (watching.position / watching.duration) * 100,
-                    )}% watched`
-                  : ''),
+              tvControlLabel(label, section),
               () => onOpen(film, key),
               film.id,
             ),
@@ -272,7 +306,12 @@ export default function Browse({
       });
     }
 
-    if (!featured || initial || state.error) {
+    // In an automatically paged grid, a focused footer moves down with every
+    // append. Keep navigation on the cards until the footer has a user action.
+    const needsFooter =
+      !autoPageGrid || initial || state.error || state.ended || retryFocused;
+
+    if ((!featured || initial || state.error) && needsFooter) {
       const key = occurrenceKey(id, 'load-more');
 
       visuals.set(key, { feedback: true });
@@ -304,9 +343,18 @@ export default function Browse({
         items: [
           {
             ...action,
+            displayLabel: action.accessibilityLabel,
+            accessibilityLabel: tvControlLabel(
+              action.accessibilityLabel,
+              state.error ||
+                (initial && state.ended
+                  ? 'No matching stories. Try a different title or genre.'
+                  : undefined),
+            ),
             // Keep a filter focused during the first fetch. A focused retry
             // stays mounted and eligible until its result is ready.
-            enabled: !grid || !initial || !pending || retryFocused,
+            enabled:
+              !(grid || autoPageGrid) || !initial || !pending || retryFocused,
           },
         ],
       });
@@ -315,6 +363,8 @@ export default function Browse({
     return { rails, visuals, titles };
   }, [
     displayedRows,
+    nameHomeRows,
+    autoPageGrid,
     grid,
     cardGap,
     cardInset,
@@ -343,6 +393,7 @@ export default function Browse({
     retry,
     retryFocused,
     searchResults,
+    query,
     onOpen,
   ]);
 
@@ -438,6 +489,7 @@ export default function Browse({
 
       return title ? (
         <Text
+          accessible={nameHomeRows ? false : undefined}
           accessibilityRole="header"
           style={[s.virtualHeading, featured && s.homeInset]}
         >
@@ -445,7 +497,7 @@ export default function Browse({
         </Text>
       ) : null;
     },
-    [model.titles, s.virtualHeading, featured, s.homeInset],
+    [model.titles, s.virtualHeading, featured, s.homeInset, nameHomeRows],
   );
 
   const reportReady = useCallback(() => {
@@ -503,20 +555,25 @@ export default function Browse({
           }
         }}
       >
-        {!featured &&
-          endKeys.map(key => (
-            <EndObserver
-              key={key}
-              id={key}
-              active={active}
-              blocked={!!state.error}
-              onEnd={loadMore}
-            />
-          ))}
+        {!featured && (
+          <EndObserver
+            keys={endKeys}
+            active={active}
+            blocked={!!state.error}
+            onEnd={loadMore}
+          />
+        )}
         {height > 0 && !loadingHome && (
           <FocusVirtualizedRails
             active={active}
-            onEndReached={!featured && !state.error ? loadMore : undefined}
+            onEndReached={
+              !featured &&
+              !appleGrid &&
+              !state.error &&
+              !(autoPageGrid && retryFocused)
+                ? loadMore
+                : undefined
+            }
             onReady={reportReady}
             id="catalogue"
             rails={model.rails}
@@ -547,7 +604,10 @@ export default function Browse({
                 ? [
                     {
                       occurrenceKey: occurrenceKey(id, 'hero', featuredFilm.id),
-                      accessibilityLabel: 'Explore title',
+                      accessibilityLabel: tvControlLabel(
+                        'Explore title',
+                        featuredFilm.title,
+                      ),
                     },
                     ...(onGuide
                       ? [

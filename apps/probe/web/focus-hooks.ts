@@ -42,7 +42,15 @@ export function useFocusState(channel: FocusChannel = 'input') {
 }
 
 export function useIsFocused(key: string, channel: FocusChannel = 'input') {
-  return useFocusState(channel).occurrenceKey === key;
+  const store = useWebStore();
+
+  const snapshot =
+    channel === 'input' ? store.snapshot : store.accessibilitySnapshot;
+
+  return useSyncExternalStore(
+    store.subscribe,
+    () => snapshot().occurrenceKey === key,
+  );
 }
 
 // Browsers expose no reliable screen-reader-enabled signal; never fabricate one.

@@ -1,6 +1,7 @@
 import React, {
   memo,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -12,6 +13,7 @@ import {
   BackHandler,
   Platform,
   Text,
+  TVFocusGuideView,
   View,
 } from 'react-native';
 import {
@@ -20,6 +22,7 @@ import {
   useFocusCommands,
   useFocusReady,
   useFocusState,
+  useScreenReaderEnabled,
   type FocusState,
 } from 'itar/react';
 import Auth from './Auth';
@@ -27,6 +30,7 @@ import Epg from './Epg';
 import Browse from './Browse';
 import Catalogue from './Catalogue';
 import Search from './Search';
+import { hasDeviceProxy } from './tmdb';
 import Details from './Details';
 import Player from './Player';
 import MyList from './MyList';
@@ -44,12 +48,33 @@ import {
 import { androidVerticalBoundary } from './android-focus-boundary';
 import { useDesign } from './theme';
 import { useAppleTVMenu } from './useAppleTVMenu';
+import { useSidebarRight } from './useSidebarRight';
 import type { ProviderMode, Film } from './catalog-types';
+import { BrowserNavigation } from './browser-navigation';
 import { readBrowserSession, saveBrowserSession } from './browser-session';
 
 type DetailsVisit = { film: Film; openerKey: string };
 
 const HomeBrowse = memo(Browse);
+const appleTV = Platform.OS === 'ios' && Platform.isTV;
+
+const ContentPane = appleTV ? TVFocusGuideView : View;
+
+const webContentOrder = Platform.OS === 'web' ? { order: 1 } : {};
+
+function CinemaShell(props: React.ComponentProps<typeof View>) {
+  if (Platform.OS !== 'web') return <View {...props} />;
+
+  // Overscan can put mounted cards behind the sidebar. The two regions keep
+  // their left-to-right order regardless of either rail's scroll offset.
+  return (
+    <View {...props}>
+      <FocusScope id="shell" layout="row" style={props.style}>
+        {props.children}
+      </FocusScope>
+    </View>
+  );
+}
 
 const sidebarKeys = new Set(
   [...screens, 'profile-switcher', 'signout'].map(name =>
@@ -121,13 +146,17 @@ const CinemaRoutes = memo(function RouteTree({
   setNotice: (value: string) => void;
 }) {
   const { s } = useDesign();
+  const reader = useScreenReaderEnabled();
+  const readerLayout = appleTV && reader === true;
+  const systemBackAtRoot = useContext(BrowserNavigation)?.systemBackAtRoot;
   const [savedSession] = useState(readBrowserSession);
   const [authenticated, setAuthenticated] = useState(!!savedSession);
   const [guideOpener, setGuideOpener] = useState<string>();
   const guideOpen = !!guideOpener;
 
   const [mode, setMode] = useState<ProviderMode>(
-    savedSession?.mode ?? (Platform.OS === 'web' ? 'fixture' : 'proxy'),
+    savedSession?.mode ??
+      (Platform.OS === 'web' && !hasDeviceProxy ? 'fixture' : 'proxy'),
   );
 
   const [screen, setScreen] = useState<Screen>(
@@ -168,6 +197,13 @@ const CinemaRoutes = memo(function RouteTree({
   const commands = useFocusCommands();
   const ready = useFocusReady();
   const [returnKey, setReturnKey] = useState<string>();
+  const [readerLanding, setReaderLanding] = useState<string>();
+  const [readerMenuEntry, setReaderMenuEntry] = useState(false);
+
+  useEffect(() => {
+    if (expanded || !readerLayout) setReaderMenuEntry(false);
+  }, [expanded, readerLayout]);
+
   const entered = useRef('');
   const focusBeforeEntry = useRef(observedFocus.current);
 
@@ -195,6 +231,8 @@ const CinemaRoutes = memo(function RouteTree({
       setEntering(true);
       setReturnKey(openerKey);
       setNotice('');
+      setReaderLanding(undefined);
+      setReaderMenuEntry(false);
       setPendingEntry(() => change);
       setHomeEntryKey(undefined);
     },
@@ -280,12 +318,39 @@ const CinemaRoutes = memo(function RouteTree({
   );
 
   const restoreNavigation = useCallback(() => {
-    commands.restoreScope(['navigation']).result.then(result => {
-      if (result.status !== 'applied' && result.status !== 'cancelled') {
-        setNotice('Navigation focus could not be restored.');
-      }
-    });
+    commands
+      .restoreScope(
+        Platform.OS === 'web' ? ['shell', 'navigation'] : ['navigation'],
+      )
+      .result.then(result => {
+        if (result.status !== 'applied' && result.status !== 'cancelled') {
+          setNotice('Navigation focus could not be restored.');
+        }
+      });
   }, [commands, setNotice]);
+
+  const returnToPage = useCallback(() => {
+    const focus = observedFocus.current;
+
+    if (
+      focus.kind === 'managed' &&
+      focus.occurrenceKey &&
+      sidebarKeys.has(focus.occurrenceKey)
+    ) {
+      commands.restoreScope(['page']);
+    }
+  }, [observedFocus, commands]);
+
+  useSidebarRight(
+    expanded &&
+      authenticated &&
+      !film &&
+      screen === 'Home' &&
+      !entering &&
+      !playing &&
+      !guideOpen,
+    returnToPage,
+  );
 
   // At the top-level sidebar the Siri Remote's Menu button belongs to tvOS.
   // The sign-in form manages its own Menu lifetime before authentication.
@@ -295,7 +360,7 @@ const CinemaRoutes = memo(function RouteTree({
       playing ||
       !!film ||
       screen === 'Profile' ||
-      screen === 'Settings' ||
+      (!appleTV && screen === 'Settings') ||
       !expanded);
 
   useAppleTVMenu(hasBackRoute);
@@ -318,6 +383,8 @@ const CinemaRoutes = memo(function RouteTree({
         return true;
       }
 
+      if (appleTV && expanded && screen !== 'Profile') return false;
+
       if (screen === 'Profile' || screen === 'Settings') {
         beginEntry(() => setScreen('Home'));
 
@@ -330,12 +397,15 @@ const CinemaRoutes = memo(function RouteTree({
         entered.current = `${page}:${entryVersion}`;
         setEntering(false);
         setLoadingHome(false);
-        restoreNavigation();
+
+        if (readerLayout) setReaderMenuEntry(true);
+        else restoreNavigation();
 
         return true;
       }
 
-      if (Platform.OS === 'ios' && Platform.isTV) return false;
+      if (systemBackAtRoot || (Platform.OS === 'ios' && Platform.isTV))
+        return false;
 
       if (!exitPrompt.current) {
         exitPrompt.current = true;
@@ -367,12 +437,13 @@ const CinemaRoutes = memo(function RouteTree({
     });
 
     return () => handler.remove();
-  }, [authenticated, guideOpen, film, playing, screen, expanded, closeFilm, closePlayer, restoreNavigation, beginEntry, page, entryVersion]);
+  }, [authenticated, guideOpen, film, playing, screen, expanded, closeFilm, closePlayer, restoreNavigation, beginEntry, page, entryVersion, systemBackAtRoot, readerLayout]);
 
   useEffect(() => {
     if (
       !ready ||
       !authenticated ||
+      readerLayout ||
       guideOpen ||
       film ||
       playing ||
@@ -384,7 +455,7 @@ const CinemaRoutes = memo(function RouteTree({
     const request = commands.focusByKey(occurrenceKey('profiles', profile));
 
     return () => request.cancel();
-  }, [commands, ready, authenticated, guideOpen, film, playing, screen, profile, page]);
+  }, [commands, ready, authenticated, readerLayout, guideOpen, film, playing, screen, profile, page]);
 
   const collectionReady = useCallback(
     (initialKey?: string) => {
@@ -406,6 +477,15 @@ const CinemaRoutes = memo(function RouteTree({
       }
 
       entered.current = route;
+
+      if (readerLayout) {
+        setReaderLanding(key);
+
+        setReturnKey(undefined);
+        setEntering(false);
+
+        return;
+      }
 
       // The snapshot changes when the host observes a different key or mount.
       // Keep an early move on this screen, even across two Details visits.
@@ -468,6 +548,7 @@ const CinemaRoutes = memo(function RouteTree({
     [
       commands,
       homeArrival,
+      readerLayout,
       observedFocus,
       setNotice,
       film,
@@ -545,7 +626,15 @@ const CinemaRoutes = memo(function RouteTree({
 
   if (screen === 'Profile' && !film) {
     return (
-      <FocusScope id="profile-chooser" layout="spatial" style={s.fill}>
+      <FocusScope
+        id="profile-chooser"
+        layout="spatial"
+        style={s.fill}
+        accessibilityPaneTitle={readerLayout ? 'Who’s exploring?' : undefined}
+        preferredKey={
+          readerLayout ? occurrenceKey('profiles', profile) : undefined
+        }
+      >
         <Profiles
           id="profiles"
           profile={profile}
@@ -564,45 +653,73 @@ const CinemaRoutes = memo(function RouteTree({
   const showHomeLoader =
     loadingHome && screen === 'Home' && !film && !playing && !guideOpen;
 
+  const homeLoader = showHomeLoader && (
+    <View style={[s.hiddenPlayer, s.splash]}>
+      <ActivityIndicator accessible={false} color="#26D9F2" size="large" />
+      <Text accessibilityLiveRegion="polite" style={s.body}>
+        Loading Home…
+      </Text>
+    </View>
+  );
+
   return (
     <View style={s.fill}>
-      <View
+      <CinemaShell
         {...(Platform.OS === 'web' && showHomeLoader
           ? { inert: true, 'aria-hidden': true }
           : {})}
-        accessibilityElementsHidden={showHomeLoader}
+        accessibilityElementsHidden={
+          playing || guideOpen || (showHomeLoader && !readerLayout)
+        }
         importantForAccessibility={
           showHomeLoader ? 'no-hide-descendants' : 'auto'
         }
         style={[s.shell, (playing || guideOpen) && s.hidden]}
       >
-        <Sidebar
-          active={!playing && !guideOpen && !entering}
-          expanded={expanded}
-          profile={profile}
-          contrast={contrast}
-          mode={mode}
-          screen={screen}
-          onNavigate={navigate}
-          onSignOut={() => {
-            saveBrowserSession(null);
-            setReturnKey(undefined);
-            entered.current = '';
-            setDetailsHistory([]);
-            setPlayingFilm(undefined);
-            setScreen('Profile');
-            setAuthenticated(false);
-          }}
-        />
-        <View
+        {!film && (
+          <Sidebar
+            readerEntry={readerLayout && readerMenuEntry}
+            reserveWidth={readerLayout}
+            active={!playing && !guideOpen && !entering && !showHomeLoader}
+            expanded={expanded || readerLayout}
+            profile={profile}
+            contrast={contrast}
+            mode={mode}
+            screen={screen}
+            onNavigate={navigate}
+            onSignOut={() => {
+              saveBrowserSession(null);
+              setReturnKey(undefined);
+              entered.current = '';
+              setDetailsHistory([]);
+              setPlayingFilm(undefined);
+              setScreen('Profile');
+              setAuthenticated(false);
+            }}
+          />
+        )}
+        <ContentPane
+          {...(appleTV
+            ? { autoFocus: readerLayout && !film, accessible: false }
+            : {})}
           // Use the TV fork's native View flags without adding a focus owner.
           {...androidVerticalBoundary}
           style={[s.content, screen === 'Home' && !film && s.homeContent]}
         >
           <FocusScope
             id="page"
+            {...webContentOrder}
+            restoreOnEntry={
+              (Platform.OS === 'web' || appleTV) && screen === 'Home'
+            }
             accessibilityPaneTitle={
-              Platform.OS === 'android' && !entering ? screen : undefined
+              !film &&
+              !playing &&
+              !guideOpen &&
+              !entering &&
+              (Platform.OS === 'android' || (readerLayout && readerLanding))
+                ? screen
+                : undefined
             }
             active={!film && !playing && !guideOpen}
             // During Home entry or a return, only the intended target may
@@ -613,12 +730,18 @@ const CinemaRoutes = memo(function RouteTree({
                 (Platform.OS === 'android' && !returnKey && !homeEntryKey))
             }
             preferredKey={
-              Platform.OS === 'android' && entering
+              readerLayout && !entering
+                ? readerLanding
+                : Platform.OS === 'android' && entering
                 ? returnKey ?? homeEntryKey
                 : undefined
             }
             boundary="parent"
-            style={[s.fill, film && s.hidden]}
+            style={[
+              s.fill,
+              film && s.hidden,
+              readerLayout && showHomeLoader && s.loadingContent,
+            ]}
           >
             <FocusScope
               key={page}
@@ -629,10 +752,19 @@ const CinemaRoutes = memo(function RouteTree({
             >
               {screen !== 'Home' && (
                 <>
-                  <Text accessibilityRole="header" style={s.pageTitle}>
+                  <Text
+                    accessible={appleTV ? false : undefined}
+                    accessibilityRole="header"
+                    style={s.pageTitle}
+                  >
                     {screen}
                   </Text>
-                  <Text style={s.subtitle}>{subtitles[screen]}</Text>
+                  <Text
+                    accessible={appleTV ? false : undefined}
+                    style={s.subtitle}
+                  >
+                    {subtitles[screen]}
+                  </Text>
                 </>
               )}
               {screen === 'Home' && (
@@ -687,14 +819,23 @@ const CinemaRoutes = memo(function RouteTree({
           </FocusScope>
           <FocusScope
             id="details"
+            {...webContentOrder}
+            restoreOnEntry={appleTV}
             accessibilityPaneTitle={
-              Platform.OS === 'android' && !entering ? film?.title : undefined
+              !entering &&
+              (Platform.OS === 'android' || (readerLayout && readerLanding))
+                ? film?.title
+                : undefined
             }
             boundary="parent"
             active={!!film && !playing}
             entryReady={!entering || (Platform.OS === 'android' && !returnKey)}
             preferredKey={
-              Platform.OS === 'android' && entering ? returnKey : undefined
+              readerLayout && !entering
+                ? readerLanding
+                : Platform.OS === 'android' && entering
+                ? returnKey
+                : undefined
             }
             style={[s.detailLayer, !film && s.hidden]}
           >
@@ -725,16 +866,10 @@ const CinemaRoutes = memo(function RouteTree({
               {notice}
             </Text>
           )}
-        </View>
-      </View>
-      {showHomeLoader && (
-        <View style={[s.hiddenPlayer, s.splash]}>
-          <ActivityIndicator accessible={false} color="#26D9F2" size="large" />
-          <Text accessibilityLiveRegion="polite" style={s.body}>
-            Loading Home…
-          </Text>
-        </View>
-      )}
+          {readerLayout && homeLoader}
+        </ContentPane>
+      </CinemaShell>
+      {!readerLayout && homeLoader}
       {guideOpen && (
         <View style={s.hiddenPlayer}>
           <Epg onClose={closeGuide} />

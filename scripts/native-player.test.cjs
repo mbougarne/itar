@@ -60,6 +60,7 @@ function fixture(t, playback = {}, platform = 'android') {
       occurrenceKey: (...parts) => parts.join('/'), useFocusReady: () => true, useScreenReaderEnabled: () => reader},
     './playback-history': load(compile('playback-history.ts'), {}), './demo-stream': {nativeDemoStream: 'fixture.m3u8'},
     './usePlaybackControls': load(hook, {react}), './playback-time': load(time, {}),
+    './tv-accessibility': {captionAccessible: platform === 'ios' ? false : undefined},
     './components/IconAction': {IconAction: 'IconAction'}, './artwork': {icons: {}}, './theme': {useDesign: () => ({s: {}})},
   }).default;
   const onClose = () => closed++;
@@ -200,7 +201,8 @@ test('tvOS guides the D-pad between visible player rows and leaves VoiceOver to 
   assert.equal(p.bands().length, 2);
   p.reader(true);
   p.tick(5000);
-  assert.ok(p.bands().every(band => !band.props.autoFocus));
+  assert.equal(p.bands().length, 2);
+  assert.ok(p.bands().every(band => band.props.autoFocus && band.props.accessible === false));
   p.activate('close');
   assert.equal(p.closed(), 1);
   p.unmount();

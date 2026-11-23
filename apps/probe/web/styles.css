@@ -1,3 +1,5 @@
+@import "../../../packages/itar/web/focus.css";
+
 html,
 body {
   width: 100%;
@@ -192,30 +194,4 @@ video:focus {
   * {
     scroll-behavior: auto !important;
   }
-}
-.itar-web-target:focus {
-  outline: none;
-}
-/* Paint above edge-to-edge artwork and inside the clipped rail viewport. */
-.itar-web-target:focus::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 1;
-  border: 3px solid var(--itar-accent, #26d9f2);
-  border-radius: inherit;
-  pointer-events: none;
-}
-.itar-web-target-background:focus {
-  background-color: var(--itar-focus-background) !important;
-}
-
-.itar-web-scrollport {
-  scrollbar-width: none;
-}
-.itar-web-scrollport::-webkit-scrollbar {
-  display: none;
 }

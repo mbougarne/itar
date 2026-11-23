@@ -19,6 +19,7 @@ public final class ItarSurfaceHost: UIView {
     var registrations: [String: AppleRegistration] = [:]
     var scopes: [String: AppleScopeRegistration] = [:]
     private var mountSequence: UInt64 = 0
+    weak var readerDestination: ItarTargetHost?
     private var epoch: UInt64 = 1
     private var invalidatedEpoch: UInt64 = 0
     private var posted = false
@@ -214,14 +215,15 @@ public final class ItarSurfaceHost: UIView {
         observedFocus(context)
         if let target = context.nextFocusedView as? ItarTargetHost, target.owner === self,
            let registration = target.registration {
-            let dataset = collections.dataset, mount = registration.mount
+            let dataset = collections.dataset, mount = registration.mount, heading = context.focusHeading
+            let paneEntry = readerDestination === target
             // A pinned row must place the card before UIKit draws its focus animation.
             if let item = collections.entry(registration.key), collections.entry(item.parent)?.horizontalAlignment == "pinned" {
-                collections.align(target, dataset: dataset)
+                collections.align(target, dataset: dataset, inputHeading: heading, paneEntry: paneEntry)
             }
             coordinator.addCoordinatedAnimations({}, completion: { [weak self, weak target] in
                 guard let self, let target, target.registration === registration, registration.mount == mount else { return }
-                self.collections.align(target, dataset: dataset)
+                self.collections.align(target, dataset: dataset, inputHeading: heading, paneEntry: paneEntry)
             })
         }
     }
@@ -358,16 +360,39 @@ public final class ItarSurfaceHost: UIView {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 30, execute: check)
     }
 
-    func live(_ registration: AppleRegistration) -> ItarTargetHost? {
-        guard acceptsInput, registration.available, registration.node.slot != 0,
-              registrations[registration.key] === registration, let target = registration.target,
-              target.registration === registration, target.owner === self,
-              scopeActive(registration.scopeKey),
-              target.occurrenceKey == registration.key,
-              collections.accepts(target),
-              collections.entry(registration.key)?.enabled != false,
-              let bounds = registration.bounds, measured(target) == bounds else { return nil }
+    func mounted(_ registration: AppleRegistration) -> ItarTargetHost? {
+        guard acceptsInput, registration.node.slot != 0, registrations[registration.key] === registration,
+              let target = registration.target, target.registration === registration, target.owner === self,
+              target.window === window, scopeActive(registration.scopeKey),
+              target.occurrenceKey == registration.key, collections.accepts(target),
+              collections.entry(registration.key)?.enabled != false else { return nil }
         return target
+    }
+
+    func live(_ registration: AppleRegistration) -> ItarTargetHost? {
+        guard registration.available, let bounds = registration.bounds,
+              let target = mounted(registration), measured(target) == bounds else { return nil }
+        return target
+    }
+
+    // UIKit needs to discover mounted neighbors before it can reveal them
+    // for VoiceOver. Project their bounds without scrolling or publishing
+    // offscreen geometry to the engine.
+    func readerCanReach(_ registration: AppleRegistration) -> Bool {
+        guard let target = mounted(registration) else { return false }
+        return measured(target) { scroll, rect in
+            var offset = scroll.contentOffset
+            guard scroll.zoomScale == 1, scroll.isScrollEnabled || self.collections.isPinnedViewport(scroll, for: target) else { return offset }
+            let inset = scroll.adjustedContentInset
+            func nearest(_ start: CGFloat, _ end: CGFloat, _ current: CGFloat,
+                         _ extent: CGFloat, _ content: CGFloat, _ leading: CGFloat, _ trailing: CGFloat) -> CGFloat {
+                let proposed = min(start, max(current, end - extent))
+                return max(-leading, min(proposed, max(-leading, content - extent + trailing)))
+            }
+            offset.x = nearest(rect.minX, rect.maxX, offset.x, scroll.bounds.width, scroll.contentSize.width, inset.left, inset.right)
+            offset.y = nearest(rect.minY, rect.maxY, offset.y, scroll.bounds.height, scroll.contentSize.height, inset.top, inset.bottom)
+            return offset
+        } != nil
     }
 
     func commitGeometry() {
@@ -491,6 +516,11 @@ public final class ItarSurfaceHost: UIView {
             target.isAccessibilityElement = !target.label.isEmpty
             target.applyFocusStyle()
         }
+        if UIAccessibility.isVoiceOverRunning {
+            for scope in content.scopes where !scope.paneTitle.isEmpty && !scope.announcedPane {
+                announcePaneIfReady(scope)
+            }
+        }
         observeCurrent()
         DispatchQueue.main.async { [weak self] in self?.collections.advance() }
     }
@@ -581,8 +611,45 @@ public final class ItarSurfaceHost: UIView {
         }
     }
 
+    // A newly presented pane may finish registering its controls after React's
+    // layout callback. Make one host-owned landing once the exact mount is visible.
+    private func announcePaneIfReady(_ scope: ItarScopeHost) {
+        guard scope.owner === self, scope.entryReady, scope.active,
+              let registration = registrations[scope.preferred], let target = mounted(registration),
+              insideScope(registration.scopeKey, ancestor: scope.scopeKey),
+              let system = UIFocusSystem.focusSystem(for: self) else { return }
+        if live(registration) == nil {
+            collections.revealPaneTarget(target)
+            return
+        }
+        scope.announcedPane = true
+        let revision = scope.paneRevision, mount = registration.mount
+        DispatchQueue.main.async { [weak self, weak scope, weak target] in
+            guard let self, let scope, let target, UIAccessibility.isVoiceOverRunning,
+                  scope.announcedPane, scope.owner === self, scope.paneRevision == revision else { return }
+            self.commitPendingGeometry()
+            guard scope.paneRevision == revision else { return }
+            guard registration.mount == mount, self.live(registration) === target else {
+                scope.announcedPane = false
+                return
+            }
+            self.collections.presentPane(target) {
+                self.readerDestination = target
+                system.requestFocusUpdate(to: self)
+                system.updateFocusIfNeeded()
+                self.readerDestination = nil
+                UIAccessibility.post(notification: .screenChanged, argument: target)
+            }
+        }
+    }
     func readerChanged() {
-        if UIAccessibility.isVoiceOverRunning { cancelPending(); preferred = nil; preferredToken = nil }
+        if UIAccessibility.isVoiceOverRunning {
+            cancelPending(); preferred = nil; preferredToken = nil
+            if let target = UIAccessibility.focusedElement(using: .notificationVoiceOver) as? ItarTargetHost,
+               target.owner === self {
+                collections.align(target, dataset: collections.dataset)
+            }
+        }
         observeCurrent()
     }
     var pendingRequest: UInt64 = 0

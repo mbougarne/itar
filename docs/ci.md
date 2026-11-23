@@ -2,7 +2,7 @@
 
 [العربية](ar/ci.md)
 
-The [CI workflow](../.github/workflows/ci.yml) runs on pull requests, pushes to `main`, merge queues and manual dispatch. Jobs use a read-only repository token. The **Required checks** job aggregates the repository, portable core, React Native workspace and web jobs.
+The [CI workflow](../.github/workflows/ci.yml) runs when a pull request is opened or reopened and when its head branch is updated. Jobs use a read-only repository token. The **Required checks** job aggregates the repository, portable core, React Native workspace and web jobs.
 
 | Job | What it checks |
 | --- | --- |

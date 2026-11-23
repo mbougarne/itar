@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
   Keyboard,
@@ -13,7 +13,10 @@ import {
   occurrenceKey,
   useFocusCommands,
   useFocusReady,
+  useScreenReaderEnabled,
 } from 'itar/react';
+import { captionAccessible } from './tv-accessibility';
+import { BrowserNavigation } from './browser-navigation';
 import { Action } from './components/Action';
 import { useDesign } from './theme';
 import { useAppleTVMenu } from './useAppleTVMenu';
@@ -24,25 +27,35 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [editing, setEditing] = useState<'email' | 'password' | null>(null);
-  const lastField = useRef<'email' | 'password'>('email');
+  const returnTarget = useRef<'email' | 'password' | 'submit'>('email');
+  const browserNavigation = useContext(BrowserNavigation);
   const emailInput = useRef<TextInput>(null);
   const passwordInput = useRef<TextInput>(null);
   const commands = useFocusCommands();
   const ready = useFocusReady();
+  const reader = useScreenReaderEnabled();
+
+  const readerLayout =
+    Platform.OS === 'ios' && Platform.isTV && reader === true;
 
   useAppleTVMenu(!!form);
 
   useEffect(() => {
-    if (!ready || editing || (Platform.OS === 'android' && form)) {
+    if (
+      !ready ||
+      editing ||
+      readerLayout ||
+      (Platform.OS === 'android' && form)
+    ) {
       return;
     }
 
     const request = commands.focusByKey(
-      occurrenceKey('auth', form ? lastField.current : 'signin'),
+      occurrenceKey('auth', form ? returnTarget.current : 'signin'),
     );
 
     return () => request.cancel();
-  }, [commands, ready, form, editing]);
+  }, [commands, ready, form, editing, readerLayout]);
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -82,13 +95,76 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
     return () => handler.remove();
   }, [form, editing]);
 
+  function moveDownFromField(field: 'email' | 'password') {
+    if (Platform.OS === 'web') {
+      returnTarget.current = field === 'email' ? 'password' : 'submit';
+    }
+
+    setEditing(null);
+  }
+
+  function onEditorKey(
+    field: 'email' | 'password',
+    key: { key: string; isComposing?: boolean } & Partial<React.KeyboardEvent>,
+  ) {
+    if (
+      key.repeat ||
+      key.altKey ||
+      key.ctrlKey ||
+      key.metaKey ||
+      key.shiftKey ||
+      key.isComposing ||
+      key.keyCode === 229
+    )
+      return;
+
+    // The TV keyboard handles its own arrows. Only act on keys it delivers to the editor.
+    if (key.keyCode === 65385) {
+      setEditing(null); // Samsung IME Cancel
+    } else if (key.keyCode === 65376) {
+      setEditing(null); // Samsung IME Done returns to the edited field.
+    } else if (browserNavigation?.enabled) {
+      if (key.key === 'ArrowDown' || key.keyCode === 40) {
+        moveDownFromField(field);
+      } else if (
+        field === 'password' &&
+        (key.key === 'ArrowUp' || key.keyCode === 38)
+      ) {
+        returnTarget.current = 'email';
+        setEditing(null);
+      }
+    }
+  }
+
+  function openForm(next: 'Sign in' | 'Sign up') {
+    returnTarget.current = 'email';
+    setForm(next);
+  }
+
   return (
-    <FocusScope id="welcome" layout="spatial" style={s.auth}>
-      <Text style={s.splashBrand}>
-        <Text style={s.brandStrong}>ITAR</Text> CINEMA
+    <FocusScope
+      id="welcome"
+      layout="spatial"
+      style={s.auth}
+      accessibilityPaneTitle={
+        readerLayout && !editing ? form || 'Itar Cinema' : undefined
+      }
+      preferredKey={
+        readerLayout && !editing
+          ? occurrenceKey('auth', form ? returnTarget.current : 'signin')
+          : undefined
+      }
+    >
+      <Text accessible={captionAccessible} style={s.splashBrand}>
+        <Text accessible={captionAccessible} style={s.brandStrong}>
+          ITAR
+        </Text>{' '}
+        CINEMA
       </Text>
-      <Text style={s.heroTitle}>{form || 'A world of stories.'}</Text>
-      <Text style={s.body}>
+      <Text accessible={captionAccessible} style={s.heroTitle}>
+        {form || 'A world of stories.'}
+      </Text>
+      <Text accessible={captionAccessible} style={s.body}>
         {form
           ? 'Demo account · Any email and password will work.'
           : 'Find your next favourite. Explore films, series and what’s on TV.'}
@@ -97,7 +173,7 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
         <>
           {(['email', 'password'] as const).map(field => (
             <View key={field}>
-              <Text style={s.muted}>
+              <Text accessible={captionAccessible} style={s.muted}>
                 {field === 'email' ? 'Email' : 'Password'}
               </Text>
               {Platform.OS === 'android' || editing === field ? (
@@ -112,6 +188,11 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
                   autoCapitalize="none"
                   autoCorrect={false}
                   returnKeyType="done"
+                  onKeyPress={
+                    Platform.OS === 'web'
+                      ? event => onEditorKey(field, event.nativeEvent)
+                      : undefined
+                  }
                   submitBehavior="blurAndSubmit"
                   maxLength={120}
                   onBlur={
@@ -129,6 +210,11 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
                 <Action
                   id={occurrenceKey('auth', field)}
                   label={`Edit ${field}`}
+                  tvDescription={
+                    field === 'email'
+                      ? 'Demo account. Any email and password will work.'
+                      : undefined
+                  }
                   displayLabel={
                     field === 'email'
                       ? email || 'Enter any email'
@@ -137,7 +223,7 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
                       : 'Enter any password'
                   }
                   onPress={() => {
-                    lastField.current = field;
+                    returnTarget.current = field;
                     setEditing(field);
                   }}
                   style={s.authInput}
@@ -175,7 +261,12 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
                       { width: action.width * u },
                     ]}
                   >
-                    <Text style={[s.body, s.centered]}>{action.label}</Text>
+                    <Text
+                      accessible={captionAccessible}
+                      style={[s.body, s.centered]}
+                    >
+                      {action.label}
+                    </Text>
                   </View>
                 </TouchableNativeFeedback>
               ))}
@@ -190,6 +281,7 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
               <Action
                 id={occurrenceKey('auth', 'submit')}
                 label={form}
+                tvDescription="No account is created. Your entries stay on this device for this session."
                 onPress={onSignIn}
                 style={[s.primaryCta, { width: 640 * u }]}
               />
@@ -201,7 +293,7 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
               />
             </FocusScope>
           )}
-          <Text style={s.footer}>
+          <Text accessible={captionAccessible} style={s.footer}>
             No account is created. These values stay in memory and are never
             sent or saved.
           </Text>
@@ -216,14 +308,15 @@ export default function Auth({ onSignIn }: { onSignIn: () => void }) {
           <Action
             id={occurrenceKey('auth', 'signin')}
             label="Sign in"
-            onPress={() => setForm('Sign in')}
+            onPress={() => openForm('Sign in')}
             style={s.primaryCta}
           />
           <Action
             order={1}
             id={occurrenceKey('auth', 'signup')}
             label="Sign up"
-            onPress={() => setForm('Sign up')}
+            tvDescription="Itar Cinema demo account."
+            onPress={() => openForm('Sign up')}
             style={s.primaryCta}
           />
         </FocusScope>

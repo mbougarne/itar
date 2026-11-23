@@ -207,6 +207,7 @@ _host.onSurfaceRecord = ^(NSDictionary *record) {
   [_host configure:text(next.scopeKey) parent:text(next.parentScopeKey) active:next.active layout:layout
           boundary:boundary trap:next.trap entryReady:next.entryReady preferred:text(next.preferredKey)];
   _host.restoreOnEntry = next.restoreOnEntry;
+  _host.paneTitle = text(next.paneTitle);
 }
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)child index:(NSInteger)index { [_host insertSubview:child atIndex:index]; }
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)child index:(NSInteger)index { [child removeFromSuperview]; }

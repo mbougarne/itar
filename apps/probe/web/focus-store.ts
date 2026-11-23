@@ -1,3 +1,4 @@
+import type { OccoEvent } from '../occo/timeline';
 import type {
   FocusOutcome,
   FocusRequest,
@@ -30,8 +31,41 @@ const unknown: FocusState = {
   mount: null,
 };
 
+// Numeric values come from the C++ RequestStatus enum used by the Wasm binding.
+const requestStatus = [
+  'started',
+  'joined',
+  'busy',
+  'unavailable',
+  'stale',
+  'invalid',
+  'cancelled',
+  'unchanged',
+  'confirmed',
+  'reconciled',
+  'expired',
+  'backward time',
+  'exhausted',
+  'resync',
+  'disposed',
+  'issued',
+  'waiting',
+];
+
 const kinds = ['managed', 'unmanaged', 'absent', 'unknown'] as const;
 let nextLifetime = 0;
+
+// Installed only for the duration of an opt-in development recording.
+export type WebTrace = {
+  event(value: Omit<OccoEvent, 'seq' | 'ms'>): void;
+  move(event: KeyboardEvent): string | undefined;
+};
+
+export let webTrace: WebTrace | undefined;
+
+export function setWebTrace(sink?: WebTrace) {
+  webTrace = sink;
+}
 
 export let directionalNavigationEnabled = true;
 
@@ -56,6 +90,7 @@ export class WebFocusStore {
   private reveals = new Map<number, EngineEffect & { release(): void }>();
   private input: FocusState = unknown;
   private accessibility: FocusState = unknown;
+  private snapshotDirty = true;
   private queued = false;
   private running = false;
   private dispatching = 0;
@@ -118,6 +153,15 @@ export class WebFocusStore {
     }
 
     this.records.set(record.key, record);
+
+    if (record.mount)
+      webTrace?.event({
+        kind: 'mount',
+        surface: this.lifetime,
+        target: record.key,
+        mount: String(record.mount),
+      });
+
     this.schedule();
 
     return () => {
@@ -126,6 +170,13 @@ export class WebFocusStore {
       }
 
       if (this.live && record.mount) {
+        webTrace?.event({
+          kind: 'unmount',
+          surface: this.lifetime,
+          target: record.key,
+          mount: String(record.mount),
+        });
+
         this.engine.detach(record.key, record.mount);
       }
 
@@ -135,6 +186,14 @@ export class WebFocusStore {
   }
 
   update(record: Registration, value: Partial<Registration>) {
+    if (
+      !(Object.keys(value) as (keyof Registration)[]).some(
+        key => record[key] !== value[key],
+      )
+    ) {
+      return;
+    }
+
     Object.assign(record, value);
     this.schedule();
   }
@@ -204,6 +263,8 @@ export class WebFocusStore {
   }
 
   private schedule() {
+    this.snapshotDirty = true;
+
     if (this.queued || !this.live) {
       return;
     }
@@ -232,6 +293,70 @@ export class WebFocusStore {
 
     this.engine.advance(performance.now());
 
+    // Layout may change outside React. Sample live bounds before selection, but
+    // only cross the Wasm boundary when the published snapshot actually changed.
+    for (const record of this.records.values()) {
+      const rect = record.element?.getBoundingClientRect();
+
+      const x = rect?.x ?? 0,
+        y = rect?.y ?? 0;
+
+      const width = rect?.width ?? 0,
+        height = rect?.height ?? 0;
+
+      const mounted = !!record.element?.isConnected && width > 0 && height > 0;
+
+      if (
+        record.x !== x ||
+        record.y !== y ||
+        record.width !== width ||
+        record.height !== height ||
+        record.mounted !== mounted
+      ) {
+        Object.assign(record, { x, y, width, height, mounted });
+        this.snapshotDirty = true;
+      }
+    }
+
+    if (this.snapshotDirty) {
+      this.syncNodes();
+      this.snapshotDirty = false;
+    }
+
+    for (const [id, effect] of this.reveals) {
+      const node = this.records.get(effect.key);
+
+      if (
+        node?.element?.isConnected &&
+        node.element.getBoundingClientRect().width > 0
+      ) {
+        const result = this.engine.realize(id, effect.key, node.mount);
+
+        if (result.status !== 16)
+          webTrace?.event({
+            kind: 'host',
+            surface: this.lifetime,
+            request: String(effect.request),
+            effect: String(id),
+            target: effect.key,
+            mount: String(node.mount),
+            detail: result.status === 0 ? 'realized' : 'stale reveal',
+          });
+
+        if (result.status === 0) {
+          this.retireReveal(id);
+        } else if (result.status !== 16) {
+          this.retireReveal(id);
+          this.engine.complete(id, 1);
+          this.finish(effect.request, 'unavailable', 'stale-reveal');
+        }
+      }
+    }
+
+    this.publish();
+  }
+
+  private syncNodes() {
     const nodes = new Map<string, Registration>();
 
     for (const collection of this.collections.values()) {
@@ -241,14 +366,6 @@ export class WebFocusStore {
     }
 
     for (const record of this.records.values()) {
-      const rect = record.element?.getBoundingClientRect();
-
-      const mounted =
-        !!record.element?.isConnected &&
-        !!rect &&
-        rect.width > 0 &&
-        rect.height > 0;
-
       nodes.set(record.key, {
         ...record,
         order: nodes.get(record.key)?.order ?? record.order,
@@ -256,22 +373,21 @@ export class WebFocusStore {
         extent: nodes.get(record.key)?.extent,
         rowEntry: nodes.get(record.key)?.rowEntry,
         horizontalAlignment: nodes.get(record.key)?.horizontalAlignment,
-        mounted,
         active: this.enabled && record.active,
-        x: rect?.x ?? 0,
-        y: rect?.y ?? 0,
-        width: rect?.width ?? 0,
-        height: rect?.height ?? 0,
       });
     }
 
     // Ancestors are registered before descendants even though React effects run child-first.
     const ordered: Registration[] = [];
 
+    const visited = new Set<string>();
+
     const visit = (node: Registration) => {
-      if (ordered.some(value => value.key === node.key)) {
+      if (visited.has(node.key)) {
         return;
       }
+
+      visited.add(node.key);
 
       const parent = nodes.get(node.parent);
 
@@ -289,30 +405,9 @@ export class WebFocusStore {
     if (status !== 0) {
       throw new Error(`Web focus snapshot rejected (${status})`);
     }
-
-    for (const [id, effect] of this.reveals) {
-      const node = this.records.get(effect.key);
-
-      if (
-        node?.element?.isConnected &&
-        node.element.getBoundingClientRect().width > 0
-      ) {
-        const result = this.engine.realize(id, effect.key, node.mount);
-
-        if (result.status === 0) {
-          this.retireReveal(id);
-        } else if (result.status !== 16) {
-          this.retireReveal(id);
-          this.engine.complete(id, 1);
-          this.finish(effect.request, 'unavailable', 'stale-reveal');
-        }
-      }
-    }
-
-    this.publish();
   }
 
-  observe(element: Element | null, effect = 0) {
+  observe(element: Element | null, effect = 0, observed = false) {
     if (!this.live) {
       return;
     }
@@ -327,6 +422,28 @@ export class WebFocusStore {
       ? this.engine.unmanaged(0)
       : this.engine.observe('', 0, 0, 0);
 
+    if (observed || effect) {
+      webTrace?.event({
+        kind: 'observation',
+        surface: this.lifetime,
+        channel: 'input',
+        target: node?.key,
+        mount: node && String(node.mount),
+        effect:
+          effect || this.dispatching
+            ? String(effect || this.dispatching)
+            : undefined,
+        request: result.request ? String(result.request) : undefined,
+        detail: node
+          ? observed
+            ? 'managed'
+            : 'activeElement check'
+          : element && element !== document.body
+          ? 'callback: unmanaged'
+          : 'absent',
+      });
+    }
+
     if (result.status === 8 && result.request) {
       this.finish(result.request, 'applied', 'confirmed');
     }
@@ -334,7 +451,7 @@ export class WebFocusStore {
     this.publish();
   }
 
-  direction(direction: number) {
+  direction(direction: number, move?: string) {
     if (!this.available() || !directionalNavigationEnabled) {
       return;
     }
@@ -353,6 +470,15 @@ export class WebFocusStore {
 
     this.intentRevision++;
 
+    webTrace?.event({
+      kind: 'input',
+      surface: this.lifetime,
+      move,
+      direction: ['left', 'right', 'up', 'down'][direction],
+      owner: source.adjust && direction < 2 ? 'control' : 'engine',
+      detail: 'down',
+    });
+
     if (source.adjust && direction < 2) {
       source.adjust(direction === 0 ? -1 : 1);
 
@@ -360,6 +486,14 @@ export class WebFocusStore {
     }
 
     const result = this.engine.direction(direction, 0);
+
+    webTrace?.event({
+      kind: 'request',
+      surface: this.lifetime,
+      request: result.request ? String(result.request) : undefined,
+      move,
+      detail: requestStatus[result.status],
+    });
 
     if (result.request && result.request !== this.timedRequest) {
       clearTimeout(this.directionalTimer);
@@ -411,6 +545,14 @@ export class WebFocusStore {
         : this.engine.focus(key, 0);
 
       request = started.request;
+
+      webTrace?.event({
+        kind: 'request',
+        surface: this.lifetime,
+        request: request ? String(request) : undefined,
+        target: key,
+        detail: requestStatus[started.status],
+      });
 
       if (!request || started.status !== 0) {
         settle({
@@ -464,6 +606,13 @@ export class WebFocusStore {
       return;
     }
 
+    webTrace?.event({
+      kind: 'request',
+      surface: this.lifetime,
+      request: String(request),
+      detail: status,
+    });
+
     clearTimeout(pending.timer);
     this.pending.delete(request);
 
@@ -473,6 +622,18 @@ export class WebFocusStore {
       command: pending.command,
       request: String(request),
       lifetime: this.lifetime,
+    });
+  }
+
+  private traceHost(effect: EngineEffect, detail: string) {
+    webTrace?.event({
+      kind: 'host',
+      surface: this.lifetime,
+      request: String(effect.request),
+      effect: String(effect.id),
+      target: effect.key,
+      mount: effect.mount ? String(effect.mount) : undefined,
+      detail,
     });
   }
 
@@ -496,6 +657,16 @@ export class WebFocusStore {
             continue;
           }
 
+          webTrace?.event({
+            kind: 'effect',
+            surface: this.lifetime,
+            request: String(effect.request),
+            effect: String(effect.id),
+            target: effect.key || undefined,
+            mount: effect.mount ? String(effect.mount) : undefined,
+            detail: ['reveal collection', 'focus', 'cancel'][effect.kind],
+          });
+
           if (effect.kind === 2) {
             this.retireReveal(effect.cancels);
             this.engine.complete(effect.id, 3);
@@ -508,7 +679,15 @@ export class WebFocusStore {
               value.nodes.some(node => node.key === effect.key),
             );
 
-            if (owner?.reveal(effect.key)) {
+            const revealed = owner?.reveal(effect.key);
+
+            if (webTrace)
+              this.traceHost(
+                effect,
+                revealed ? 'reveal accepted' : 'reveal unavailable',
+              );
+
+            if (revealed && owner) {
               this.reveals.set(effect.id, {
                 ...effect,
                 release: () => owner.release?.(effect.key),
@@ -532,6 +711,9 @@ export class WebFocusStore {
             !target.active
           ) {
             this.engine.complete(effect.id, 1);
+
+            if (webTrace) this.traceHost(effect, 'stale target');
+
             this.finish(effect.request, 'unavailable', 'stale-target');
 
             continue;
@@ -556,6 +738,9 @@ export class WebFocusStore {
               behavior: 'auto',
             });
           }
+
+          if (webTrace)
+            this.traceHost(effect, confirmed ? 'accepted' : 'rejected');
 
           this.engine.complete(effect.id, confirmed ? 2 : 1);
 

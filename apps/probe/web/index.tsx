@@ -6,7 +6,12 @@ import {
   initializeFocusEngine,
   setDirectionalNavigationEnabled,
 } from './focus';
+import { hasSystemBack } from './platform';
 import './styles.css';
+
+declare const __OCCO__: boolean;
+
+const Development = __OCCO__ ? require('./OccoWeb').OccoWeb : React.Fragment;
 
 const root = document.getElementById('root');
 
@@ -23,8 +28,12 @@ function BrowserApp() {
   }
 
   return (
-    <BrowserNavigation.Provider value={{ enabled, toggle }}>
-      <App />
+    <BrowserNavigation.Provider
+      value={{ enabled, toggle, systemBackAtRoot: hasSystemBack() }}
+    >
+      <Development>
+        <App />
+      </Development>
     </BrowserNavigation.Provider>
   );
 }

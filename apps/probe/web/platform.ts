@@ -2,9 +2,24 @@ import type { AlertButton, AlertOptions } from 'react-native';
 
 export * from 'react-native-web';
 
+export { View as TVFocusGuideView } from 'react-native-web';
+
 type BackListener = () => boolean | null | undefined;
 
 const listeners = new Set<BackListener>();
+
+function lgSystem() {
+  const host = window as Window & {
+    webOSSystem?: { platformBack(): void };
+    PalmSystem?: { platformBack(): void };
+  };
+
+  return host.webOSSystem ?? host.PalmSystem;
+}
+
+export function hasSystemBack() {
+  return typeof lgSystem()?.platformBack === 'function';
+}
 
 function onBack(event: KeyboardEvent) {
   if (
@@ -23,6 +38,15 @@ function onBack(event: KeyboardEvent) {
 
       return;
     }
+  }
+
+  // A short Magic Remote Back at the root belongs to the system exit dialog.
+  const system = lgSystem();
+
+  if (event.keyCode === 461 && typeof system?.platformBack === 'function') {
+    event.preventDefault();
+    event.stopPropagation();
+    system.platformBack();
   }
 }
 

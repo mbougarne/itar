@@ -13,6 +13,8 @@ declare const process: { env: { ITAR_TMDB_PROXY_URL?: string } };
 
 const PROXY = process.env.ITAR_TMDB_PROXY_URL || 'http://127.0.0.1:8787';
 
+export const hasDeviceProxy = PROXY !== 'http://127.0.0.1:8787';
+
 const record = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
