@@ -6,6 +6,7 @@ import android.graphics.Rect
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.InsetDrawable
+import android.view.KeyEvent
 import android.view.Gravity
 import android.util.TypedValue
 import android.os.Bundle
@@ -139,6 +140,19 @@ class TargetView(context: Context) : FrameLayout(context) {
         onAdjustment?.invoke(owner.connection.lifetime, identity, ++activationSerial, source, delta)
         return true
     }
+    // Some TV readers forward D-pad keys to the native control. Consume only
+    // the horizontal adjustment that actually reached this focused slider.
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (adjustable && isAccessibilityFocused && surface?.readerOwnsInput == true) {
+            val delta = when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> -1
+                KeyEvent.KEYCODE_DPAD_RIGHT -> 1
+                else -> 0
+            }
+            if (delta != 0 && adjust(delta)) return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
     override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
         super.onInitializeAccessibilityNodeInfo(info)
         info.className = "android.widget.Button"
@@ -149,6 +163,7 @@ class TargetView(context: Context) : FrameLayout(context) {
         if (adjustable) {
             info.className = "android.widget.SeekBar"
             if (isEnabled) {
+                info.isScrollable = true
                 info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD)
                 info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD)
             }

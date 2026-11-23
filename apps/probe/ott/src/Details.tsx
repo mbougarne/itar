@@ -507,7 +507,13 @@ export default function Details({
             ))}
           </View>
         ) : (
-          <View
+          <FocusScope
+            id="detail-card-entry"
+            boundary="parent"
+            restoreOnEntry={!castTab}
+            preferredKey={
+              castTab ? undefined : model.rails[0].items[0]?.occurrenceKey
+            }
             style={
               tab === 'More like this' && {
                 marginTop: Math.max(0, (viewport.height - cardHeight) / 2),
@@ -550,7 +556,7 @@ export default function Details({
                 </Text>
               </View>
             )}
-          </View>
+          </FocusScope>
         )}
       </View>
     </View>

@@ -221,9 +221,9 @@ test('pinned two-card rows reserve a trailing viewport slot without adding a foc
   }
 });
 
-test('only Android pinned horizontal windows keep the previous native card attached while the reader is off', () => {
+test('Android pinned horizontal windows keep the previous native card attached for input and reader traversal', () => {
   for (const [os, reader, alignment, horizontal, expected] of [
-    ['android', false, 'pinned', true, false], ['android', true, 'pinned', true, undefined],
+    ['android', false, 'pinned', true, false], ['android', true, 'pinned', true, false],
     ['android', null, 'pinned', true, undefined], ['android', false, 'leading', true, undefined],
     ['android', false, 'nearest', true, undefined], ['android', false, 'pinned', false, undefined],
     ['ios', false, 'pinned', true, undefined],
@@ -284,6 +284,19 @@ test('entering content scrolls Hero fully away while preserving deeper offsets',
   props.onScroll({nativeEvent: {contentOffset: {y: 1044}}});
   f.flush();
   assert.equal(calls.length, 1, 'rerenders must retain the current catalogue viewport');
+});
+
+test('Android reader navigation leaves both neighboring pinned rows in view', () => {
+  const f = fixture({kind: 'managed', occurrenceKey: 'film'}, true, 'android', true);
+  const props = {...options, horizontalAlignment: 'pinned', viewportHeight: 1024,
+    listHeader: {}, listHeaderExtent: 624, listHeaderScope: 'hero-actions',
+    listHeaderItems: [{occurrenceKey: 'explore', accessibilityLabel: 'Explore'}]};
+  f.render(props); f.accept(); f.render(props);
+  const outer = list(f.render(props)).props;
+  const calls = [];
+  outer.ref.current = {scrollToOffset: command => calls.push(command)};
+  f.flush();
+  assert.deepEqual(plain(calls), [{offset: 322, animated: false}]);
 });
 
 test('confirmed Hero focus returns its scrolling row to the top', () => {

@@ -96,9 +96,9 @@ Here `occurrenceKey('watchlist', 'arrival')` identifies the card the viewer acti
 
 | Target | What testers can try | What still needs evidence |
 | --- | --- | --- |
-| Android TV / Google TV | Kotlin/JNI adapter, React Native Fabric components, fixed-extent collections. Google TV emulator scenarios cover directional navigation and selected TalkBack returns. | Chromecast HD testing reported TalkBack focus jumps during Down/loading. Physical remote, speech and long-session checks remain open. |
+| Android TV / Google TV | Cinema was tested on Chromecast HD with TalkBack off and on. Google TV emulator checks also cover directional navigation and selected TalkBack returns. | Repeat the Chromecast Down and loading scenarios on the latest build. |
 | Apple TV / tvOS | Cinema passed on physical Apple TV HD with VoiceOver on and off, including remote navigation, nested Back restoration and player controls. | Repeat on other Apple TV models and tvOS versions. |
-| Fire TV / Fire OS | The Android path is available to evaluate on Android-based Fire TV devices. | Independent physical Fire OS remote and VoiceView testing. Fire TV devices running Vega OS require a different runtime investigation. |
+| Fire TV / Fire OS | Cinema passed on a physical Fire TV (AFTKA, Android API 28) with VoiceView off and on. Tested Home rows, More Like This, return to the opening card and player seeking. | Other Fire OS models and versions. Vega OS requires a separate adapter. |
 | Desktop browser, Samsung Tizen, LG webOS | Cinema navigation passed on physical Samsung and LG TVs with Voice Guide and Audio Guidance enabled, respectively. Chromium exercises the same DOM/Wasm adapter. | Coverage on other TV models and browser versions. |
 | Other TV runtimes | Vega OS, VIDAA, Xbox and PlayStation are under investigation. | No adapter has been validated for these targets. Roku is outside the project scope. |
 

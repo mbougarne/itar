@@ -7,7 +7,7 @@ Choose the runtime on your device. The same TV brand can ship Android TV, Fire O
 | Runtime | What you can try from this checkout | Observed behavior and open checks |
 | --- | --- | --- |
 | [Android TV / Google TV](android-tv.md) | React Native TV app, Kotlin/JNI adapter, D-pad and TalkBack scenarios | A Chromecast HD was exercised with TalkBack off and on. Focus jumps were reported during downward navigation and loading. Later fixes have bounded emulator coverage. |
-| [Fire TV running Fire OS](android-tv.md#fire-tv-running-fire-os) | Android-based candidate for the same arm64 app, subject to the device's OS and ABI | Physical remote and VoiceView testing remain open. |
+| [Fire TV running Fire OS](android-tv.md#fire-tv-running-fire-os) | React Native TV app with the Android Kotlin/JNI adapter, built for the device ABI | Passed on AFTKA (API 28, `armeabi-v7a`) with VoiceView off and on. With VoiceView on, checks covered row changes, pinned recommendations and ten-second seeks. |
 | [Apple TV / tvOS](apple-tv.md) | React Native TV app with the Swift/UIKit adapter | Cinema passed physical Apple TV HD testing with VoiceOver on and off. |
 | [Desktop browser](web-tv.md#desktop-browser) | Itar Cinema, DOM host and the C++ engine compiled to Wasm | Chromium keyboard, pointer and accessibility-tree checks cover selected flows. Spoken-reader testing remains open. |
 | [Samsung Tizen](web-tv.md#samsung-tizen) | Unsigned web app staging directory with Samsung manifest | Cinema remote navigation passed on a physical TV with Voice Guide enabled. |

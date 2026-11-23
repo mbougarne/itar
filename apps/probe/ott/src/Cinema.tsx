@@ -709,9 +709,7 @@ const CinemaRoutes = memo(function RouteTree({
           <FocusScope
             id="page"
             {...webContentOrder}
-            restoreOnEntry={
-              (Platform.OS === 'web' || appleTV) && screen === 'Home'
-            }
+            restoreOnEntry={screen === 'Home'}
             accessibilityPaneTitle={
               !film &&
               !playing &&

@@ -24,6 +24,7 @@ internal class Input(private val root: SurfaceView) {
     }
     private fun ownershipChanged() {
         activation = null
+        root.geometryChanged()
         root.dispatcher.batch { root.dispatcher.submit(16); root.observe(); root.observe(channel = 1) }
     }
     private fun nativeDirection(value: Int) = when (value) {

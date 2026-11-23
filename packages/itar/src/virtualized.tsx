@@ -145,7 +145,7 @@ export function FocusVirtualizedList({id, data, horizontal = true, itemExtent, v
     <FocusScope id={value.id} layout={value.horizontal ? 'row' : 'column'} boundary="parent" style={style}>
       <ItemList data={value.data} collection={value.key} horizontal={value.horizontal} itemExtent={value.itemExtent}
         viewportExtent={value.viewportExtent} crossExtent={value.crossExtent} itemStyle={itemStyle} testID={testID} renderItem={value.renderItem}
-        paneTarget={paneTarget} pinned={value.horizontalAlignment === 'pinned'} keepWindowAttached={Platform.OS === 'android' && reader === false} />
+        paneTarget={paneTarget} pinned={value.horizontalAlignment === 'pinned'} keepWindowAttached={Platform.OS === 'android' && reader !== null} />
     </FocusScope>
   </CollectionDatasetContext.Provider>;
 }
@@ -158,8 +158,8 @@ const styles = StyleSheet.create({
 
 // Ordinary D-pad moves only update this subscriber. They do not render the outer
 // FlatList or replace its cell renderer, data and layout callbacks.
-function HeaderAlignment({rows, headerExtent, headerScope, viewport, scrollOffset, preparing}: {
-  rows: readonly FocusRailRow[]; headerExtent: number; headerScope?: string;
+function HeaderAlignment({rows, headerExtent, headerScope, viewport, scrollOffset, preparing, readerRowExtent, viewportHeight}: {
+  rows: readonly FocusRailRow[]; headerExtent: number; headerScope?: string; readerRowExtent?: number; viewportHeight: number;
   viewport: React.RefObject<FlatList<FocusRailRow> | null>; scrollOffset: React.RefObject<number>; preparing: boolean;
 }) {
   const focus = useFocusState();
@@ -170,12 +170,16 @@ function HeaderAlignment({rows, headerExtent, headerScope, viewport, scrollOffse
     if (!row) { alignedKey.current = null; return; }
     if (preparing || alignedKey.current === focus.occurrenceKey) { return; }
     alignedKey.current = focus.occurrenceKey;
-    const offset = headerScrollOffset(headerExtent, scrollOffset.current, row.id === headerScope);
+    // Leave part of the adjacent rows in view so a native reader move can
+    // reach a card without first paging the outer ScrollView.
+    const offset = readerRowExtent && row.id !== headerScope
+      ? Math.max(0, headerExtent + (rows.indexOf(row) - 1) * readerRowExtent - (viewportHeight - readerRowExtent) / 2)
+      : headerScrollOffset(headerExtent, scrollOffset.current, row.id === headerScope);
     if (offset !== scrollOffset.current) {
       scrollOffset.current = offset;
       viewport.current?.scrollToOffset({offset, animated: false});
     }
-  }, [focus, preparing, rows, headerExtent, headerScope, scrollOffset, viewport]);
+  }, [focus, preparing, rows, headerExtent, headerScope, scrollOffset, viewport, readerRowExtent, viewportHeight]);
   return null;
 }
 
@@ -190,8 +194,8 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
   const pane = useContext(PaneTargetContext);
   const paneTarget = Platform.OS === 'ios' && Platform.isTV && reader === true ? pane : undefined;
   // Keep the bounded render window attached for Android's engine-owned row moves.
-  // The native screen reader keeps the platform's usual subtree clipping.
-  const keepRowsAttached = Platform.OS === 'android' && reader === false;
+  // A pinned reader row also needs the previous native card for Android focus search.
+  const keepRowsAttached = Platform.OS === 'android' && (reader === false || (reader === true && horizontalAlignment === 'pinned'));
   const viewport = useRef<FlatList<FocusRailRow>>(null);
   const scrollOffset = useRef(0);
   const model = useMemo(() => {
@@ -269,7 +273,8 @@ export function FocusVirtualizedRails({id, rails, rowExtent, itemExtent, viewpor
         </FocusScope>} />
       {active && value.listHeaderExtent > 0 &&
         <HeaderAlignment rows={value.rows} headerExtent={value.listHeaderExtent} headerScope={value.listHeaderScope}
-          preparing={!!preparation} viewport={viewport} scrollOffset={scrollOffset} />}
+          readerRowExtent={Platform.OS === 'android' && reader && value.horizontalAlignment === 'pinned' ? value.rowExtent : undefined}
+          viewportHeight={value.viewportHeight ?? value.rowExtent * value.viewportRows} preparing={!!preparation} viewport={viewport} scrollOffset={scrollOffset} />}
     </FocusScope>
   </CollectionDatasetContext.Provider>;
 }

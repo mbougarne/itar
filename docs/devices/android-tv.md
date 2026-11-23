@@ -73,6 +73,8 @@ Occo v0.1 records the Android TV **development build** of Itar Cinema. Freshly g
 
 ## Fire TV running Fire OS
 
-Identify the exact **operating system and ABI** before trying the Android build; Amazon also ships a separate Vega OS runtime. The Android adapter declares API 24 as its minimum and the arm64 build above targets `arm64-v8a`. Those settings describe the binary. Compatibility with a particular Fire TV requires installation and testing on that device.
+On an Android-based Fire TV, enable ADB and use `adb -s YOUR_ADB_SERIAL shell getprop ro.product.cpu.abi` to check the device ABI. Follow the [Android build steps](#build-and-run) with `--active-arch-only` to select it. Fire TV devices running Vega OS require a separate runtime.
 
-For a compatible Android-based Fire OS device with ADB enabled, use the selected-device procedure above. Test D-pad, Select and Back with VoiceView off, then enable VoiceView and repeat navigation, activation, loading and return to the opener. Check the reported label and action for each card, including across recycled rows. There is no recorded physical Fire OS or VoiceView acceptance.
+Cinema passed testing on a physical Fire TV (model AFTKA, Android API 28) with VoiceView off and on. The device ran the `armeabi-v7a` build. With VoiceView off, returning from nested Details restored the opening card even when playback added a Continue Watching row. The D-pad could also reach and activate **Export recording** in Occo.
+
+With VoiceView on, a single Up or Down press moved between Home rows. Moving Right twice and Left twice in More Like This changed the selected title each time and kept it at the leading edge. On the player timeline, Right, Right, Left moved playback from 0:53 to 1:03, then 1:13 and back to 1:03. A virtual directional keypad registered with Fire OS reproduced these checks on the TV. Android input focus and the VoiceView cursor agreed on the selected controls. The maintainer also confirmed the device pass.

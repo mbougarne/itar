@@ -6,18 +6,20 @@ import type { OccoRecording } from './timeline';
 
 const pageSize = 4;
 
-function Action({
+export function TimelineAction({
   label,
   selected,
   description,
   onPress,
   disabled = false,
+  preferred = false,
 }: {
   label: string;
   selected?: boolean;
   description?: string;
   onPress: () => void;
   disabled?: boolean;
+  preferred?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
 
@@ -27,6 +29,7 @@ function Action({
       accessibilityLabel={tvControlLabel(label, description)}
       accessibilityState={{ selected, disabled }}
       disabled={disabled}
+      hasTVPreferredFocus={preferred}
       focusable={!disabled}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
@@ -69,8 +72,8 @@ function Details({ fields }: { fields: [string, string][] }) {
     <View style={styles.details}>
       {content > height && height > 0 && (
         <View style={styles.paging}>
-          <Action label="Scroll details up" onPress={() => page(-1)} />
-          <Action label="Scroll details down" onPress={() => page(1)} />
+          <TimelineAction label="Scroll details up" onPress={() => page(-1)} />
+          <TimelineAction label="Scroll details down" onPress={() => page(1)} />
         </View>
       )}
       <ScrollView
@@ -123,25 +126,25 @@ export function OccoTimeline({ recording }: { recording: OccoRecording }) {
         <View style={styles.body}>
           <View style={styles.events}>
             <View style={styles.paging}>
-              <Action
+              <TimelineAction
                 label="Earlier"
                 disabled={first === 0}
                 onPress={() => setCursor(first - pageSize)}
               />
-              <Action
+              <TimelineAction
                 label="Later"
                 disabled={first + pageSize >= events.length}
                 onPress={() => setCursor(first + pageSize)}
               />
               {lastMark >= 0 && (
-                <Action
+                <TimelineAction
                   label="Latest mark"
                   onPress={() => setCursor(lastMark)}
                 />
               )}
             </View>
             {page.map((event, offset) => (
-              <Action
+              <TimelineAction
                 key={event.seq}
                 label={eventTitle(event)}
                 description={

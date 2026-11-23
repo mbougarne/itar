@@ -87,6 +87,43 @@ internal class TargetGeometry {
         return visible.contains(remaining)
     }
 
+    // Android's ScrollView can focus a nearby child and reveal it in one arrow
+    // press. Check that only scrolling could reveal the entire card. This
+    // permits native focus search; it never grants an Itar effect or activation.
+    fun readerCanScrollTo(target: View, surface: SurfaceView): Boolean {
+        if (!target.isShown || target.width <= 0 || target.height <= 0 || !supports(target, surface)) return false
+        remaining.set(0, 0, target.width, target.height)
+        var view = target
+        var needsScroll = false
+        while (view !== surface) {
+            if (view.getClipBounds(visible) && !visible.contains(remaining)) return false
+            val parent = view.parent as? ViewGroup ?: return false
+            boundsIn(view, parent, viewport)
+            remaining.offset(viewport.left, viewport.top)
+            viewport.set(0, 0, parent.width, parent.height)
+            if (parent.clipToPadding) {
+                viewport.set(parent.paddingLeft, parent.paddingTop, parent.width - parent.paddingRight, parent.height - parent.paddingBottom)
+            }
+            val horizontal = parent is HorizontalScrollView
+            if (horizontal || parent is ScrollView) {
+                val low = if (horizontal) viewport.left else viewport.top
+                val high = if (horizontal) viewport.right else viewport.bottom
+                val start = if (horizontal) remaining.left else remaining.top
+                val end = if (horizontal) remaining.right else remaining.bottom
+                if (end - start > high - low) return false
+                val delta = if (start < low) low - start else if (end > high) high - end else 0
+                if (kotlin.math.abs(delta) > (high - low) / 2) return false
+                if (delta != 0) {
+                    if (horizontal) remaining.offset(delta, 0) else remaining.offset(0, delta)
+                    needsScroll = true
+                }
+            }
+            if ((parent.clipChildren || parent is ScrollView || horizontal) && !viewport.contains(remaining)) return false
+            view = parent
+        }
+        return needsScroll && surface.getLocalVisibleRect(visible) && visible.contains(remaining)
+    }
+
     fun measure(target: View, surface: SurfaceView, result: Rect) {
         result.setEmpty()
         if (!target.isShown || target.width <= 0 || target.height <= 0) return

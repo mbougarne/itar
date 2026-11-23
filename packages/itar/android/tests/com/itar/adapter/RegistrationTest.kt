@@ -21,7 +21,9 @@ class RegistrationTest : ActivityInstrumentationTestCase2<MainActivity>(MainActi
         }
         failure?.let { throw it }
     }
-    fun testPinnedShortRowKeepsLastCardAtSameSlotBeforeTheNextFrame() {
+    fun testPinnedShortRowKeepsLastCardAtSameSlotBeforeTheNextFrame() = pinned { run() }
+    fun testReaderCanReachOnlyNearbyScrollableCards() = pinned { readerGeometry() }
+    private fun pinned(check: PinnedRowChecks.() -> Unit) {
         instrumentation.setInTouchMode(false)
         val host = activity
         lateinit var fixture: PinnedRowChecks
@@ -29,7 +31,7 @@ class RegistrationTest : ActivityInstrumentationTestCase2<MainActivity>(MainActi
         instrumentation.waitForIdleSync()
         var failure: Throwable? = null
         instrumentation.runOnMainSync {
-            try { fixture.run() } catch (error: Throwable) { failure = error }
+            try { fixture.check() } catch (error: Throwable) { failure = error }
             finally { fixture.root.close() }
         }
         failure?.let { throw it }

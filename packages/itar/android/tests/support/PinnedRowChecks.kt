@@ -41,13 +41,27 @@ class PinnedRowChecks(context: Context) {
             {"key":"catalogue","parent":"","order":0,"scope":true,"enabled":true,"layout":2,"extent":100,"rowEntry":2},
             {"key":"row","parent":"catalogue","order":0,"scope":true,"enabled":true,"layout":1,"extent":100,"horizontalAlignment":"pinned"},$members]}"""
     }
-    fun run() {
+    private fun layout() {
         check(root.collections.dataset == 1L) { "Combined remembered-entry and pinned-alignment catalogue rejected" }
         val width = 3 * extent
         fun exact(px: Int) = View.MeasureSpec.makeMeasureSpec(px, View.MeasureSpec.EXACTLY)
         root.layout(0, 0, width, 140); catalogue.layout(0, 0, width, 140); row.layout(0, 0, width, 100)
         scroll.measure(exact(width), exact(80)); scroll.layout(0, 0, width, 80)
         catalogue.commit(); row.commit(); cards.forEach { it.commitProps() }; root.refreshGeometry()
+    }
+
+    fun readerGeometry() {
+        layout()
+        scroll.scrollTo(2 * extent, 0)
+        val previous = cards[1]
+        check(root.targetGeometry.readerCanScrollTo(previous, root)) { "One native arrow can reveal the previous card" }
+        check(!root.targetGeometry.readerCanScrollTo(cards.first(), root)) { "Distant cards cannot intercept an arrow" }
+        previous.clipBounds = android.graphics.Rect(0, 0, 5, 10)
+        check(!root.targetGeometry.readerCanScrollTo(previous, root)) { "Scrolling cannot repair a clipped card" }
+    }
+
+    fun run() {
+        layout()
         check(cards.first().requestFocus())
         for (expected in listOf(1, 2, 2)) {
             val key = KeyEvent.KEYCODE_DPAD_RIGHT

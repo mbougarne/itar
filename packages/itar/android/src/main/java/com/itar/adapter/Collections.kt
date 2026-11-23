@@ -74,6 +74,8 @@ internal class Collections(private val root: SurfaceView) {
     private var step = 0
     private var prepared = false
     private var scrolled = false
+    private var scrollHost: View? = null
+    private var scrollPosition = 0
     private var realized = false
     private var source: Mount? = null
     private var handles: Map<String, LongArray> = emptyMap()
@@ -179,7 +181,7 @@ internal class Collections(private val root: SurfaceView) {
         val logical = (list.offset(item.order) * root.resources.displayMetrics.density).roundToInt().coerceIn(0, limit)
         return if (scroll.layoutDirection == View.LAYOUT_DIRECTION_RTL) limit - logical else logical
     }
-    fun focused(view: View?) {
+    fun focused(view: View?, previous: View? = null) {
         alignment?.let { root.removeCallbacks(it) }; alignment = null
         val target = view as? TargetView ?: return
         val mount = target.mount ?: return
@@ -189,9 +191,16 @@ internal class Collections(private val root: SurfaceView) {
         val dataset = dataset
         val work = Runnable {
             alignment = null
-            if (root.closed || !root.acceptsInput || root.readerOwnsInput || this.dataset != dataset ||
-                (pending != null && (!realized || steps.lastOrNull()?.key != mount.key)) ||
-                root.live(mount, allowFocusedSource = true) !== target || root.rootView.findFocus() !== target) return@Runnable
+            if (root.closed || !root.acceptsInput || this.dataset != dataset ||
+                (pending != null && (!realized || steps.lastOrNull()?.key != mount.key))) return@Runnable
+            if (root.readerOwnsInput) {
+                // A reader's chosen card owns the viewport even when input focus differs.
+                val followingInput = previous?.isAccessibilityFocused == true && root.rootView.findFocus() === target
+                if (list.horizontalAlignment != "pinned" || (!target.isAccessibilityFocused && !followingInput) ||
+                    target.mount != mount || root.targets[mount]?.get() !== target || !target.isAttachedToWindow ||
+                    !target.isEnabled || !target.isFocusable || !root.scopeActive(target.scopeKey) ||
+                    !accepts(item.key, target.collectionDataset, false, target)) return@Runnable
+            } else if (root.rootView.findFocus() !== target || root.live(mount, allowFocusedSource = true) !== target) return@Runnable
             val scope = root.scopes[list.key]?.get() ?: return@Runnable
             var parent = target.parent
             while (parent is View && parent !== scope) {
@@ -279,6 +288,13 @@ internal class Collections(private val root: SurfaceView) {
         }
         if (!prepared) return
         val scope = root.scopes[steps[step].parent]?.get() ?: return
+        // React Native can reposition a viewport after a row is inserted or
+        // an old focused child is detached. A scroll call only starts reveal.
+        val host = scrollHost
+        if (scrolled && host != null) {
+            val position = if (host is HorizontalScrollView) host.scrollX else host.scrollY
+            if (position != scrollPosition) scrolled = false
+        }
         if (!scrolled) {
             val queue = ArrayDeque<View>()
             for (index in 0 until scope.childCount) queue.addLast(scope.getChildAt(index))
@@ -307,6 +323,8 @@ internal class Collections(private val root: SurfaceView) {
                     }
                     is ScrollView -> view.scrollTo(view.scrollX, offset.coerceAtLeast(0))
                 }
+                scrollHost = scroll
+                scrollPosition = if (scroll is HorizontalScrollView) scroll.scrollX else scroll.scrollY
                 root.geometryChanged()
             }) { return }
             root.post { if (!root.closed) { root.refreshGeometry(); advance() } }
@@ -331,6 +349,7 @@ internal class Collections(private val root: SurfaceView) {
     }
     fun release() {
         val effect = pending
+        scrollHost = null
         pending = null; steps = emptyList(); source = null; prepared = false; scrolled = false; realized = false
         effect?.let { emit(JSONObject().put("state", "release").put("request", it[3].toString()).put("effect", it[4].toString())) }
     }
