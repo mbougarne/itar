@@ -2,8 +2,8 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const {readFileSync} = require('node:fs');
 const {join} = require('node:path');
-const {eventDetails, eventTitle, parseRecording, recordingSummary} = require('../apps/probe/occo/timeline');
-const sample = readFileSync(join(__dirname, '../apps/probe/occo/synthetic-example.json'), 'utf8');
+const {eventDetails, eventTitle, parseRecording, recordingSummary} = require('../tools/occo/timeline');
+const sample = readFileSync(join(__dirname, '../tools/occo/synthetic-example.json'), 'utf8');
 const frame = (recording, index) => Object.fromEntries(eventDetails(recording, index));
 
 test('tvOS identifies VoiceOver state and shows activation observed after Select', () => {

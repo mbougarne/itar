@@ -18,7 +18,6 @@ function load(file, imports) {
 }
 const types = load('packages/itar/src/api/types.ts');
 const {FocusStore} = load('packages/itar/src/api/store.ts', () => types);
-const nodes = node => !React.isValidElement(node) ? [] : [node, ...React.Children.toArray(node.props.children).flatMap(nodes)];
 
 function fixture(platform) {
   const native = platform !== 'web';
@@ -43,7 +42,7 @@ function fixture(platform) {
     },
   };
   const contexts = load('packages/itar/src/api/contexts.ts', () => react);
-  const component = load(native ? 'packages/itar/src/react.tsx' : 'apps/probe/web/Focusable.tsx', name => {
+  const component = load(native ? 'packages/itar/src/react.tsx' : 'packages/itar/web-runtime/Focusable.tsx', name => {
     if (name === 'react') { return react; }
     if (name === 'react-native') { return {...web, Platform: {OS: platform, isTV: true}}; }
     if (name.endsWith('/types')) { return types; }
@@ -80,32 +79,6 @@ test('Android forwards checked updates, explicitly clears reused semantics and d
   assert.equal(clicks, 1);
 });
 
-test('Cinema sidebar and icon controls keep one spoken name while presenting their own artwork', () => {
-  const imports = name => {
-    if (name === 'react') return React;
-    if (name === 'react-native') return {View: 'View', Text: 'Text', Image: 'Image'};
-    if (name === '@bougarnem/itar/react') return {Focusable: 'Focusable'};
-    if (name.endsWith('/theme')) return {useDesign: () => ({s: {}, u: 1})};
-    if (name.endsWith('/tv-accessibility')) return load('apps/probe/ott/src/tv-accessibility.ts', () => ({Platform: {OS: 'android'}}));
-    if (name === './Action') return {Action};
-    throw new Error('Unexpected Cinema import ' + name);
-  };
-  const {Action} = load('apps/probe/ott/src/components/Action.tsx', imports);
-  const {SidebarButton} = load('apps/probe/ott/src/components/SidebarButton.tsx', imports);
-  const {IconAction} = load('apps/probe/ott/src/components/IconAction.tsx', imports);
-  const props = {id: 'nav-profile', title: 'Explorer', label: 'Explorer, switch profile', icon: 1, onPress() {}};
-  for (const expanded of [false, true]) {
-    const host = Action(SidebarButton({...props, expanded}).props);
-    assert.equal(host.props.accessibilityLabel, props.label);
-    assert.equal(nodes(host).filter(node => node.type === 'Image').length, 1);
-    assert.deepEqual(nodes(host).filter(node => node.type === 'Text').map(node => node.props.children),
-      expanded ? ['Explorer'] : []);
-  }
-  const like = Action(IconAction({id: 'like', icon: 1, label: 'Like', onPress() {}}).props);
-  assert.equal(like.props.accessibilityLabel, 'Like');
-  assert.equal(nodes(like).filter(node => node.type === 'Image').length, 1);
-});
-
 test('web renders real DOM switch state, clears it for a button and activates once', () => {
   const f = fixture('web');
   let clicks = 0;
@@ -136,38 +109,3 @@ test('Apple keeps its existing host semantics and incomplete switches are reject
     }
   }
 });
-
-for (const platform of ['android', 'web', 'ios']) {
-  test(`${platform} settings expose truthful Boolean controls without changing commands`, () => {
-    let presses = 0, toggles = 0;
-    const navigation = platform === 'web' ? {enabled: true, toggle: () => toggles++} : null;
-    const Settings = load('apps/probe/ott/src/Settings.tsx', name => {
-      if (name === 'react') { return {...React, useEffect() {}, useContext: context => context.value, useMemo: callback => callback(), useCallback: callback => callback, useState: () => [800, () => {}]}; }
-      if (name === 'react-native') { return {Platform: {OS: platform}, Text: 'Text', View: 'View', useWindowDimensions: () => ({width: 1920})}; }
-      if (name === '@bougarnem/itar/react') { return {occurrenceKey: types.occurrenceKey, FocusVirtualizedRails: 'Rails'}; }
-      if (name === './browser-navigation') { return {BrowserNavigation: {value: navigation}}; }
-      if (name === './development-settings') { return {DevelopmentSettings: {value: null}}; }
-      if (name === './theme') { return {useDesign: () => ({s: {}, u: 1})}; }
-      return {};
-    }).Settings;
-    const tree = Settings({id: 'settings', contrast: true, slow: false, armed: true, mode: 'fixture',
-      onContrast: () => presses++, onSlow() {}, onArm() {}, onMode() {}});
-    const items = nodes(tree).find(node => node.type === 'Rails').props.rails.map(row => row.items[0]);
-    assert.equal(items.length, platform === 'web' ? 5 : 4);
-    if (platform === 'web') {
-      const keyboard = items[4];
-      assert.equal(keyboard.accessibilityLabel, 'TV arrow-key navigation');
-      assert.equal(keyboard.accessibilityRole, 'switch');
-      assert.equal(keyboard.accessibilityState.checked, true);
-      keyboard.onPress();
-      assert.equal(toggles, 1);
-    }
-    items[0].onPress(); assert.equal(presses, 1);
-    for (let i = 0; i < 3; i++) {
-      assert.equal(items[i].accessibilityRole, platform === 'ios' ? undefined : 'switch');
-      if (platform !== 'ios') { assert.equal(items[i].accessibilityState.checked, [true, false, true][i]); }
-    }
-    assert.equal(items[3].accessibilityRole, undefined);
-    assert.equal(items[3].accessibilityLabel, 'Catalogue: Offline fixtures');
-  });
-}

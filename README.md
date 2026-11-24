@@ -8,9 +8,7 @@ Itar is a C++20 focus engine for React Native TV apps. It handles the part of re
 
 **Install the first beta with `npm install @bougarnem/itar@beta`.** Version `0.1.0-beta` includes the React Native TV adapter (`@bougarnem/itar/react`) and the browser/WebAssembly adapter (`@bougarnem/itar/web`) used on Samsung Tizen and LG webOS. The React API and host behavior can change during the beta. [Device status and open checks](docs/devices/README.md)
 
-[![Itar Cinema running in a browser with the TV guide button focused above a rail of fictional movies.](docs/images/cinema-browser.jpg)](docs/images/itar-cinema-preview.mp4)
-
-*Itar Cinema, the example app, running with the bundled catalogue.* [Watch the demo (1 min 7 sec, MP4).](docs/images/itar-cinema-preview.mp4)
+[Itar Cinema](https://github.com/mbougarne/itar-cinema) is the standalone example app. It installs the published Itar beta and includes browser and TV build instructions.
 
 ## What you can build with it
 
@@ -21,12 +19,7 @@ Itar is a C++20 focus engine for React Native TV apps. It handles the part of re
 
 ## Debug focus with Occo
 
-Occo is the opt-in focus debugger in development builds of Itar Cinema for Android TV, Apple TV and Chrome. Its timeline shows which remote input reached the app, which card Itar requested, how the TV responded, and where input focus and accessibility focus were observed. Chrome exposes only DOM input focus.
-
-Suppose you press Down expecting the next card, but the screen reader moves to the menu. Did Itar request the menu? In the included example, Itar requested the next card. The TV accepted that request, the request was cancelled, and input focus still reached the card. Accessibility focus then moved to the menu. Seeing that sequence helps you decide where to investigate next.
-
-- **Try it without a TV.** From a local checkout, open the viewer in your browser and choose the sample JSON file. Select event 13 to see the card and the menu on their respective focus channels. [Offline viewer](apps/probe/occo/viewer.html) · [Example recording](apps/probe/occo/synthetic-example.json)
-- **Record your own interaction.** In Cinema Settings, choose **Start Occo recording**, reproduce the move, then freeze and inspect the timeline. Export the recording to let another developer step through it offline. [Android TV instructions](docs/devices/android-tv.md#record-a-focus-incident-with-occo) · [Apple TV instructions](docs/devices/apple-tv.md#record-a-d-pad-or-select-interaction-with-occo) · [Chrome instructions](docs/devices/web-tv.md#record-a-chrome-interaction-with-occo)
+Occo is Itar’s focus trace tooling. Its timeline records the input, request, host outcome, and observed focus on separate channels. Open the [offline viewer](tools/occo/viewer.html) and load the [sample recording](tools/occo/synthetic-example.json) to inspect a trace. The standalone [Cinema repository](https://github.com/mbougarne/itar-cinema) uses the public package.
 
 ## Try it from a checkout
 
@@ -40,25 +33,13 @@ cmake --build build/core --parallel 2
 ctest --test-dir build/core --output-on-failure --no-tests=error --timeout 60
 ```
 
-### Open Itar Cinema in a browser
+### Run Itar Cinema
 
-Cinema is a small streaming app that exercises the engine with a remote-style keyboard, scrolling catalogues, search, details and a player. Its browser build uses React Native Web, a DOM adapter and the same C++ engine compiled to WebAssembly.
-
-1. Use Node **22.23.4** and npm **10.9.9**. Run `nvm use` if you use nvm.
-2. Install the workspace and build the TypeScript package with the commands below.
-3. Install and activate **Emscripten 6.0.13** as shown in the [Wasm toolchain guide](docs/devices/web-tv.md#desktop-browser). You also need CMake and Python 3.10+.
-4. Run `npm run web` and open `http://127.0.0.1:8080`. Choose the demo sign-in, submit the form, and select a profile. The browser starts with bundled fictional titles. Use arrows and Enter to open a card, then Escape to return to its rail. Tab and pointer input are also available.
-
-```sh
-npm ci --ignore-scripts --no-audit
-npm run build
-```
-
-For native TV behavior, use the same example on [Android TV or Fire TV](docs/devices/android-tv.md) or [Apple TV](docs/devices/apple-tv.md). The [Cinema guide](docs/ott-app.md) explains demo content, development screens and scenarios to try.
+Clone the [standalone Cinema repository](https://github.com/mbougarne/itar-cinema) and follow its README. The app uses the packaged WebAssembly engine, so its browser build does not require Emscripten.
 
 ## Use it in a React Native TV screen
 
-The example workspace already links `@bougarnem/itar`. For another app, the [integration guide](docs/guides/integration.md) covers packing a local tarball, the pinned React Native TV runtime and native setup. Import the React API from `@bougarnem/itar/react`.
+The [integration guide](docs/guides/integration.md) covers packing a local tarball, the pinned React Native TV runtime and native setup. Import the React API from `@bougarnem/itar/react`.
 
 ```tsx
 import {FocusProvider, FocusScope, Focusable, occurrenceKey} from '@bougarnem/itar/react';
@@ -115,7 +96,7 @@ The comparison follows one rail through a reorder and a return from Details. It 
 | Integrate a screen or inspect the API | [Integration guide](docs/guides/integration.md) · [React API reference](packages/itar/README.md) |
 | Understand where a remote press goes | [Architecture walkthrough](docs/guides/architecture.md) |
 | Work on a platform or report a device issue | [Device guides](docs/devices/README.md) · [contributing and reporting](CONTRIBUTING.md) |
-| Explore the implementation | [C++ engine](core/) · [React and native adapters](packages/itar/) · [example app](apps/probe/) |
+| Explore the implementation | [C++ engine](core/) · [React and native adapters](packages/itar/) · [standalone Cinema app](https://github.com/mbougarne/itar-cinema) |
 | Find a contract, a build command or a test protocol | [Documentation index](docs/README.md) |
 
-Itar is distributed under the [MIT license](LICENSE). The showcase includes separately credited [icons](apps/probe/ott/assets/cinematic/icons/README.md) and streams a [credited demo film](docs/ott-app.md#demo-playback).
+Itar is distributed under the [MIT license](LICENSE). Media and artwork credits belong to [Itar Cinema](https://github.com/mbougarne/itar-cinema).

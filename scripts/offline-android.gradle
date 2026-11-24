@@ -1,6 +1,6 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 
-// The generated probe lives two levels below the workspace that owns npm's install.
+// The generated test host is two levels below the library workspace.
 def workspace = file('../../../..')
 def appModules = file('../../node_modules')
 def installedItar = new File(appModules, '@bougarnem/itar/package.json').isFile()
@@ -20,8 +20,7 @@ react {
         extraPackagerArgs = ['--max-workers', '1']
     }
 }
-// RN tracks the app's JS/TS files by default. Metro also bundles the installed
-// Itar package (usually a workspace symlink), app data, and Cinema media.
+// RN tracks the app's JS/TS files by default. Metro also bundles the locally linked Itar package.
 tasks.configureEach { task ->
     if (task.name.startsWith('createBundle') && task.name.endsWith('JsAndAssets')) {
         task.inputs.dir(new File(installedItar.canonicalFile, 'src'))
@@ -29,8 +28,6 @@ tasks.configureEach { task ->
         task.inputs.files(new File(installedItar, 'package.json'), new File(workspace, 'package-lock.json'),
                           file('../../package.json'), file('../../app.json'))
             .withPropertyName('itarBundleManifests').withPathSensitivity(PathSensitivity.RELATIVE)
-        task.inputs.dir(file('../../ott/assets'))
-            .withPropertyName('cinemaAssets').withPathSensitivity(PathSensitivity.RELATIVE)
     }
 }
 android {

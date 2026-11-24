@@ -8,7 +8,9 @@ The [CI workflow](../.github/workflows/ci.yml) runs when a pull request is opene
 | --- | --- |
 | Repository checks | Validates workflows with actionlint, checks tracked whitespace, detects the CMake entrypoint and runs the Ruby dependency audit. |
 | C++20 | Builds the core and runs CTest on GCC/Linux, Clang/Linux with AddressSanitizer and UndefinedBehaviorSanitizer, and Apple Clang/macOS. The Apple runner also checks the Swift production boundary. |
-| RN workspace | Installs locked JS dependencies, builds the package, checks types/lint/TV formatting and runs the workspace tests. Installs and verifies a local tarball in a fresh portable consumer, builds the Android Metro bundle, generates the native shells, then compiles the Android app, JNI, instrumented-test APK and lint targets. |
-| Web / Wasm and TV artifacts | Builds the shared engine with Emscripten 6.0.13, checks web types, runs actual-Wasm and web host tests, and builds the browser, Tizen and webOS staging directories. |
+| React Native library and test host | Builds the package, checks types and lint, runs package tests, then generates an Android integration test host and compiles instrumentation and JNI. |
+| Web / Wasm and package consumer | Builds the engine with Emscripten 6.0.13, checks types, runs DOM and Wasm tests, then installs a local tarball in a fresh consumer. |
+
+The standalone [Cinema repository](https://github.com/mbougarne/itar-cinema) owns app builds.
 
 To reproduce the checks for one change, start with the [contribution guide](../CONTRIBUTING.md). The [device guides](devices/README.md) cover the remote, focus, media and accessibility behavior that requires a running host. The workflow compiles the Android instrumented-test APK. Running its cases needs a target device or emulator.

@@ -1,6 +1,6 @@
 require 'xcodeproj'
 root = File.expand_path('../../../..', __dir__)
-project = Xcodeproj::Project.open("#{root}/apps/probe/ios/ItarProbe.xcodeproj")
+project = Xcodeproj::Project.open("#{root}/build/native-consumer/ios/ItarProbe.xcodeproj")
 app = project.targets.find { |target| target.name == 'ItarProbe' }
 raise 'Missing consumer target' unless app
 raise 'Apple adapter tests already wired' if project.targets.any? { |target| target.name == 'ItarAdapterTests' }
@@ -21,7 +21,7 @@ scheme.add_build_target(app)
 scheme.add_test_target(tests)
 scheme.set_launch_target(app)
 scheme.save_as(project.path, 'ItarAdapterTests', true)
-podfile = "#{root}/apps/probe/ios/Podfile"
+podfile = "#{root}/build/native-consumer/ios/Podfile"
 source = File.read(podfile)
 needle = '  config = use_native_modules!'
 raise 'Missing native autolinking call' unless source.include?(needle)

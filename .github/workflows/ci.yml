@@ -120,7 +120,7 @@ jobs:
         run: ruby packages/itar/apple/tests/check-swift.rb build/core
 
   javascript:
-    name: RN workspace
+    name: React Native library and test host
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -133,11 +133,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit
       - run: npm run build && npm run typecheck && npm run lint && npm test
-      - name: Check TV app lint and formatting
-        run: npm run check:tv
-      - run: mkdir -p build && npm run bundle -w itar-probe
-
-      - run: npm run native:generate
+      - run: npm run native:fixture
       - name: Select installed JDK 17
         run: echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
       - name: Install pinned native tools
@@ -155,11 +151,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-v1-
       - name: Compile consumer, JNI, instrumentation and lint
-        working-directory: apps/probe/android
+        working-directory: build/native-consumer/android
         run: ./gradlew assembleDebug assembleAndroidTest lintDebug --build-cache --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a
 
   web:
-    name: Web / Wasm and TV artifacts
+    name: Web / Wasm and package consumer
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -189,11 +185,6 @@ jobs:
         env:
           ITAR_CHROME: google-chrome
         run: node scripts/check-package.cjs "$RUNNER_TEMP/itar-package-check"
-      - name: Build browser and unsigned TV artifacts
-        run: |
-          node apps/probe/web/build.cjs browser
-          node apps/probe/web/build.cjs tizen
-          node apps/probe/web/build.cjs webos
 
   required:
     name: Required checks
@@ -223,6 +214,6 @@ jobs:
             exit 1
           fi
           if [[ "$WEB_RESULT" != success ]]; then
-            echo '::error::Web engine, host tests or TV artifact builds did not succeed.'
+            echo '::error::Web engine, host tests or package checks did not succeed.'
             exit 1
           fi

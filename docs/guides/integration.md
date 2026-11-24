@@ -2,7 +2,7 @@
 
 [العربية](../ar/guides/integration.md)
 
-Use `@bougarnem/itar/react` for focus scopes, buttons, commands, and fixed-size lists. Install the beta with `npm install @bougarnem/itar@beta`. The repository includes a working TV app you can modify and a local tarball workflow for trying the package in your own app. The pinned combination is React 19.2.0 and the TV fork installed as `"react-native": "npm:react-native-tvos@0.83.0-0"`. The native components use Fabric. Browser apps use `@bougarnem/itar/web`. [TV app setup](../ott-app.md) · [Browser demo](../devices/web-tv.md)
+Use `@bougarnem/itar/react` for focus scopes, buttons, commands, and fixed-size lists. Install the beta with `npm install @bougarnem/itar@beta`. The [standalone Cinema project](https://github.com/mbougarne/itar-cinema) demonstrates the published package. This repository provides a local tarball workflow for trying library changes in your own app. The pinned combination is React 19.2.0 and the TV fork installed as `"react-native": "npm:react-native-tvos@0.83.0-0"`. The native components use Fabric. Browser apps use `@bougarnem/itar/web`. [TV app setup](../ott-app.md) · [Browser demo](../devices/web-tv.md)
 
 ## Install from your checkout
 
@@ -16,14 +16,14 @@ mkdir -p build/packages
 npm pack --workspace @bougarnem/itar --pack-destination build/packages
 ```
 
-In your TV app, install the path to that file. A fresh native build is required because Itar adds native views, codegen and a C++ library. To run the repository demo instead, its workspace dependency is already wired after `npm ci`.
+In your TV app, install the path to that file. A fresh native build is required because Itar adds native views, codegen and a C++ library.
 
 ```sh
 npm install /absolute/path/to/itar/build/packages/bougarnem-itar-0.1.0-beta.tgz
 ```
 
-- **Android TV.** Use the TV template's native-module autolinking. The library declares Android SDK 36, minimum API 24, NDK 27.1.12297006 and CMake 3.22.1. Use JDK 17 for the example build. Rebuild the Android application after installation. [Android library build](../../packages/itar/android/build.gradle)
-- **tvOS.** In your TV target in `ios/Podfile`, add the line below. The package-named podspec lets React Native autolink `ItarEngineNative`. The explicit local dependency resolves its C++ core from the same tarball. Install pods from `ios/` with `bundle exec pod install` and build the TV scheme in the resulting workspace. The podspec declares a tvOS 15.1 deployment target. On the SDK 27 / Apple Clang 21 combination, the sample also adapts the TV template’s scene lifecycle and fmt dependency. [TV shell generator](../../scripts/generate-probe.cjs) · [Apple integration](../../packages/itar/apple/README.md)
+- **Android TV.** Use the TV template's native-module autolinking. The library declares Android SDK 36, minimum API 24, NDK 27.1.12297006 and CMake 3.22.1. Use JDK 17 for the Android build. Rebuild the Android application after installation. [Android library build](../../packages/itar/android/build.gradle)
+- **tvOS.** In your TV target in `ios/Podfile`, add the line below. The package-named podspec lets React Native autolink `ItarEngineNative`. The explicit local dependency resolves its C++ core from the same tarball. Install pods from `ios/` with `bundle exec pod install` and build the TV scheme in the resulting workspace. The podspec declares a tvOS 15.1 deployment target. On the SDK 27 / Apple Clang 21 combination, the library test host adapts the TV template’s scene lifecycle and fmt dependency. [Native test host generator](../../scripts/generate-native-consumer.cjs) · [Apple integration](../../packages/itar/apple/README.md)
 
 ```ruby
 pod 'ItarEngineCore', :path => '../node_modules/@bougarnem/itar'
@@ -150,20 +150,12 @@ On Android, a mounted target can be scrolled into view before it receives D-pad 
 
 - **Returning to a menu.** Use `restoreOnEntry` for remembered directional entry to a scope. To restore explicitly, commit its active state first, then request `restoreScope(['home', 'menu'])` with the actual nested scope IDs. The engine tries valid scope history and then the declared entry policy, including `preferredKey`. Unmounting the scope discards its history.
 - **Returning from details.** Save `activation.occurrenceKey` when opening details. Once the previous route is active and the rail reports `onReady`, the Android adapter can use `restoreFocusByKey(savedKey)` for the opener. Under reader ownership, Android limits this to an already mounted, visible and eligible target. Keyed restoration concerns input focus. Apple and the browser probe currently return unavailable for that specific command.
-- **Replacing a focused route.** Commit `entryReady={false}` on the destination scope *before* removing the source. This gates automatic entry while the app prepares content. Issue explicit focus once the intended target is ready, then reopen entry after the request settles, including cancellation or failure. Retain the old scope/viewport when return history matters. [Example route handling](../../apps/probe/ott/src/Cinema.tsx)
+- **Replacing a focused route.** Commit `entryReady={false}` on the destination scope *before* removing the source. This gates automatic entry while the app prepares content. Issue explicit focus once the intended target is ready, then reopen entry after the request settles, including cancellation or failure. Retain the old scope/viewport when return history matters. [Cinema example](https://github.com/mbougarne/itar-cinema)
 - **Custom cards.** Give the outer `Focusable` an explicit size and an accessible label. Supply images and text as presentation-only children. The owned host handles semantics, native focus feedback and activation. Put independent controls beside it.
-- **Switches and sliders.** For an Android or web-probe switch use `accessibilityRole="switch"` and `accessibilityState={{checked: value}}`. Apple checked semantics remain outside this contract. For an adjustable target, use `onAdjust(delta)` with no explicit role. The app applies bounds and changes the value for `-1` or `1`. Keep `onPress` for Select. [Adjustable timeline in Cinema](../../apps/probe/ott/src/Playback.tsx)
+- **Switches and sliders.** For an Android or web-probe switch use `accessibilityRole="switch"` and `accessibilityState={{checked: value}}`. Apple checked semantics remain outside this contract. For an adjustable target, use `onAdjust(delta)` with no explicit role. The app applies bounds and changes the value for `-1` or `1`. Keep `onPress` for Select. [Cinema example](https://github.com/mbougarne/itar-cinema)
 
 For a scrollable catalogue, continue with [fixed-size lists and rails](collections.md). For the full mounted component and event contracts, see the [package reference](../../packages/itar/README.md).
 
 ## Exercise the behavior in Itar Cinema
 
-In a **native development build**, open **Settings → Open original Itar probes**. The menu keeps each experiment small enough to repeat on a remote.
-
-| Screen | Try this |
-| --- | --- |
-| **React API preview** | Focus a title in rail B, press Select and note the reported occurrence. Open the Details route and return home. Observe where focus lands and which command outcome is reported. |
-| **Virtualized list preview** | Choose **Focus start**, then **Reveal distant item**. Repeat with **Cancel delayed reveal**. In **Nested rails**, change the row-entry setting and compare the selected column after moving between rows. |
-| **Release validation** | Select the native, library or Itar implementation of the same eight mounted targets. Schedule a bounded JavaScript stall and move with the remote. Native observation or instrumentation is needed to time visible feedback while JS is busy. |
-
-The **Return to Itar Cinema** button leaves the diagnostic screens. Where physical behavior differs, include the device model, OS, app revision, input device, reader state and exact sequence in a report. [Development probe screens](../../apps/probe/ProbeApp.tsx) · [Device guide](../devices/README.md)
+Follow the run instructions in the [standalone Cinema repository](https://github.com/mbougarne/itar-cinema). It installs the published package.

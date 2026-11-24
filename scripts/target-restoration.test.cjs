@@ -77,7 +77,7 @@ test('keyed restoration preserves target eligibility and native unavailability',
 test('web exposes keyed restoration without substituting generic focus for rejection', async () => {
   const calls = [];
   const unavailable = {command: 'web', result: Promise.resolve({status: 'unavailable'}), cancel() {}};
-  const api = commands('apps/probe/web/focus-hooks.ts', {request: (key, restore) => {
+  const api = commands('packages/itar/web-runtime/focus-hooks.ts', {request: (key, restore) => {
     calls.push({key, restore}); return unavailable;
   }});
   const request = api.restoreFocusByKey('opener');

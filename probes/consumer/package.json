@@ -1,0 +1,10 @@
+{
+  "name": "itar-native-test-host",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@bougarnem/itar": "0.1.0-beta",
+    "react": "19.2.0",
+    "react-native": "npm:react-native-tvos@0.83.0-0"
+  }
+}

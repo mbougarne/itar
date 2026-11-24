@@ -18,8 +18,8 @@ Include the commit, build mode, device model or simulator, OS, runtime version, 
 | React component, public prop or collection model | [TypeScript package](packages/itar/src/) and [React reference](packages/itar/README.md) | Build the package, run typecheck and the workspace tests. Check the local tarball if exports or packaging changed. |
 | Android mount, remote event, scroll, visibility or semantics | [Kotlin/JNI adapter](packages/itar/android/) | Run the generated Android consumer checks and reproduce on the affected runtime. |
 | Apple focus update, Swift ownership or Fabric carrier | [Swift and Objective-C++ adapter](packages/itar/apple/) | Run the facade checks and the affected tvOS scenario. |
-| Browser input, DOM focus or virtual window | [Web host and Wasm binding](apps/probe/web/) | Rebuild Wasm, run web checks, then reproduce in a browser. |
-| Consumer screen, fixture or route return | [Cinema](apps/probe/ott/) | Run the app checks and exercise the interaction in the affected host. |
+| Browser input, DOM focus or virtual window | [Web host and Wasm binding](packages/itar/web-runtime/) | Rebuild Wasm, run web checks, then reproduce in a browser. |
+| Consumer screen, fixture or route return | [Cinema](https://github.com/mbougarne/itar-cinema) | Run the app checks and exercise the interaction in the affected host. |
 
 The [architecture guide](docs/guides/architecture.md) explains the implemented contracts. The [repository instructions](AGENTS.md) cover ownership, native boundaries, resource limits and accessibility. Keep policy in C++, native operations in the host, and titles, routes and presentation in the app. An effect can be accepted before native focus changes. Tests should account for delayed, rejected and cancelled operations.
 
@@ -33,7 +33,6 @@ npm run build
 npm run typecheck
 npm run lint
 npm test
-npm run check:tv
 ```
 
 For C++ changes:
@@ -50,7 +49,6 @@ For browser changes, install the [pinned Emscripten SDK](docs/devices/web-tv.md#
 npm run build:web:engine
 npm run typecheck:web
 npm run test:web
-npm run build:web
 ```
 
 For packaging changes, run `node scripts/check-package.cjs build/package-check`. It creates a local tarball, installs it in a fresh directory, checks the exported entries and runs a compiled C++/Apple facade smoke test. The [device guides](docs/devices/README.md) cover testing in a native host. Keep generated shells, local credentials, signing files and raw captures out of commits.

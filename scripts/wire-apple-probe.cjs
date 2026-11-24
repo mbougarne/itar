@@ -3,7 +3,7 @@ const {readFileSync, writeFileSync} = require('node:fs');
 const path = require('node:path');
 
 function wireAppleProbe(root) {
-  const project = path.join(root, 'apps/probe/ios');
+  const project = path.join(root, 'build/native-consumer/ios');
   const podfile = path.join(project, 'Podfile');
   const delegate = path.join(project, 'ItarProbe/AppDelegate.swift');
   const edits = [

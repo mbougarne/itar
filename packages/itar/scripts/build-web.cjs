@@ -3,8 +3,7 @@ const path = require('node:path');
 const {execFileSync} = require('node:child_process');
 const esbuild = require('esbuild');
 
-const root = path.resolve(__dirname, '../../..');
-const adapter = path.join(root, 'apps/probe/web');
+const adapter = path.resolve(__dirname, '../web-runtime');
 execFileSync(process.execPath, [path.join(adapter, 'engine/build.cjs')], {stdio: ['ignore', 2, 2]});
 esbuild.buildSync({
   entryPoints: [path.join(adapter, 'focus.tsx')],
