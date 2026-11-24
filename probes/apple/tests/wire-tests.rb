@@ -1,6 +1,6 @@
 require 'xcodeproj'
 root = File.expand_path('../../..', __dir__)
-project = Xcodeproj::Project.open("#{root}/apps/probe/ios/ItarProbe.xcodeproj")
+project = Xcodeproj::Project.open("#{root}/build/native-consumer/ios/ItarProbe.xcodeproj")
 app = project.targets.find { |target| target.name == 'ItarProbe' }
 raise 'Missing app target' unless app
 raise 'Tests already wired' if project.targets.any? { |target| target.name == 'ItarAppleTests' }
@@ -39,7 +39,7 @@ remote_scheme.add_build_target(app)
 remote_scheme.add_test_target(remote)
 remote_scheme.set_launch_target(app)
 remote_scheme.save_as(project.path, 'ItarRemoteTests', true)
-podfile = "#{root}/apps/probe/ios/Podfile"
+podfile = "#{root}/build/native-consumer/ios/Podfile"
 source = File.read(podfile)
 needle = "  pod 'ItarProbeHost', :path => '../../..'"
 raise 'Missing probe pod' unless source.include?(needle)

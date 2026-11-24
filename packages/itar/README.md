@@ -6,6 +6,8 @@ Install the npm beta with `npm install @bougarnem/itar@beta`. For a native TV ap
 
 Import the browser components from `@bougarnem/itar/web` in web apps, including Samsung Tizen and LG webOS apps. Install React and React DOM 19.2.0 plus `react-native-web@0.21.4`. Import `@bougarnem/itar/web.css` and await `initializeFocusEngine()` before rendering the first provider. The web entry embeds the compiled Wasm and works with local TV app URLs.
 
+[Itar Cinema](https://github.com/mbougarne/itar-cinema) is a standalone app that installs this package. Its repository includes browser and TV setup.
+
 ## Declare focus
 
 To migrate a card built with React Native’s `Pressable`, replace its outer `Pressable` with `Focusable`. Keep the artwork and text as children, and put `onPress` and the accessible label on `Focusable`. Props such as `focusable` and `hasTVPreferredFocus` on a plain React Native view belong to the platform focus system. Itar registers a card when its own host mounts. In an Itar virtualized list, the list creates that host for each item and calls `renderItem` for its visual content.

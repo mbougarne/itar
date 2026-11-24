@@ -12,7 +12,6 @@
     }
   },
   "include": [
-    "apps/probe/*.tsx",
     "packages/itar/src/**/*.ts",
     "packages/itar/src/**/*.tsx",
     "probes/comparison/*.ts"

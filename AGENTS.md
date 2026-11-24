@@ -4,7 +4,7 @@
 
 Start from the issue, the current checkout and the [contribution guide](CONTRIBUTING.md). The [architecture guide](docs/guides/architecture.md) explains which layer owns each decision. Maintainer checkouts can also contain a local supplement at `tickets/maintainer-workflow.md`. Follow it when present.
 
-- Keep navigation policy, identity and request state in the independent C++20 core. Kotlin/JNI connects Android views and input. Swift/UIKit owns the tvOS host, with Objective-C++ at the Fabric boundary. The browser example uses a DOM host and WebAssembly.
+- Keep navigation policy, identity and request state in the independent C++20 core. Kotlin/JNI connects Android views and input. Swift/UIKit owns the tvOS host, with Objective-C++ at the Fabric boundary. The web adapter uses a DOM host and WebAssembly. [Itar Cinema](https://github.com/mbougarne/itar-cinema) is a separate consumer.
 - Keep occurrence keys, registration generations and mount lifetimes distinct. Validate an effect against the live host before dispatch. A late callback can report a real focus change after a request is cancelled.
 - Prefer RAII and value semantics. Keep buffers and pending operations bounded. At native boundaries document who owns a resource, how long it lives and which thread can access it.
 - Preserve host ownership of native input, accessibility navigation, activation and speech. Apply focus visuals from observed host focus. Test navigation and restoration with the reader settings relevant to the affected platform.

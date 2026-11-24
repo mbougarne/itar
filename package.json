@@ -3,8 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "workspaces": [
-    "packages/*",
-    "apps/*"
+    "packages/*"
   ],
   "packageManager": "npm@10.9.9",
   "engines": {
@@ -13,22 +12,13 @@
   },
   "scripts": {
     "typecheck": "node scripts/prepare-tv-types.cjs && tsc --noEmit",
-    "lint": "eslint apps packages scripts --ext .js,.cjs,.ts,.tsx",
-    "lint:tv": "npm run lint -w itar-probe",
-    "format:tv": "npm run format -w itar-probe",
-    "check:tv": "npm run check -w itar-probe",
+    "lint": "eslint packages scripts --ext .js,.cjs,.ts,.tsx",
     "test": "node --test scripts/*.test.cjs",
     "build": "npm run build -w @bougarnem/itar",
-    "native:generate": "node scripts/generate-probe.cjs",
-    "build:web:engine": "node apps/probe/web/engine/build.cjs",
-    "build:web": "npm run build:web:engine && node apps/probe/web/build.cjs browser",
-    "build:tizen": "npm run build:web:engine && node apps/probe/web/build.cjs tizen",
-    "build:webos": "npm run build:web:engine && node apps/probe/web/build.cjs webos",
-    "typecheck:web": "node scripts/prepare-tv-types.cjs && tsc --noEmit -p apps/probe/web/tsconfig.json",
-    "test:web:engine": "node --test apps/probe/web/engine/*.test.mjs",
-    "test:web": "node --test apps/probe/web/engine/*.test.mjs apps/probe/web/tests/*.test.cjs",
-    "web:serve": "python3 -m http.server 8080 --bind 127.0.0.1 --directory build/probe-web/browser",
-    "web": "npm run build:web && npm run web:serve"
+    "native:fixture": "node scripts/generate-native-consumer.cjs",
+    "build:web:engine": "node packages/itar/web-runtime/engine/build.cjs",
+    "typecheck:web": "node scripts/prepare-tv-types.cjs && tsc --noEmit -p tsconfig.web.json",
+    "test:web": "node --test packages/itar/web-runtime/engine/*.test.mjs packages/itar/web-runtime/tests/*.test.cjs"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",
@@ -46,6 +36,10 @@
     "esbuild": "0.28.2",
     "eslint": "8.57.1",
     "prettier": "2.8.8",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "npm:react-native-tvos@0.83.0-0",
+    "react-native-web": "0.21.4",
     "typescript": "5.8.3"
   }
 }

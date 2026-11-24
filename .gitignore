@@ -43,8 +43,6 @@ node_modules/
 /packages/itar/lib/
 /packages/itar/cpp/
 /packages/itar/LICENSE
-/apps/probe/android/
-/apps/probe/ios/
 .bundle/
 vendor/bundle/
 *.tgz

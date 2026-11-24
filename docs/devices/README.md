@@ -13,17 +13,11 @@ Choose the runtime on your device. The same TV brand can ship Android TV, Fire O
 | [Samsung Tizen](web-tv.md#samsung-tizen) | Unsigned web app staging directory with Samsung manifest | Cinema remote navigation passed on a physical TV with Voice Guide enabled. |
 | [LG webOS TV](web-tv.md#lg-webos-tv) | Web app staging directory with LG manifest | Cinema remote navigation passed on a physical TV with Audio Guidance enabled. |
 
-### Prepare the native example
+### Run the standalone app
 
-Start in a fresh checkout with Node 22.23.4 and npm 10.9.9. Both native guides use the same React 19.2.0 and React Native TV 0.83.0-0 example. Run these commands once from the repository root.
+Use the [Itar Cinema repository](https://github.com/mbougarne/itar-cinema) to build the app and test a device. The observations below were made on the specific builds noted in each guide.
 
-```sh
-npm ci --ignore-scripts --no-audit
-npm run build
-npm run native:generate
-```
-
-The generator creates both native projects under `apps/probe/` and wires the host packages. It refuses to overwrite an existing project. Keep hand-written changes in the package or generator so fresh checkouts pick them up. Select a platform above for the build and launch steps.
+To compile the library’s Android instrumentation test host from this checkout, run `npm run native:fixture`. The generated test project is in `build/native-consumer/`.
 
 ### Report a device result
 

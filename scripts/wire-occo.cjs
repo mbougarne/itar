@@ -3,7 +3,7 @@ const {appendFileSync, readFileSync, writeFileSync} = require('node:fs');
 const path = require('node:path');
 
 function wireOcco(root) {
-  const project = path.join(root, 'apps/probe/android');
+  const project = path.join(root, 'build/native-consumer/android');
   const rootBuild = path.join(project, 'build.gradle');
   if (!readFileSync(rootBuild, 'utf8').includes('ext.itarOccoCaptureDir')) {
     appendFileSync(rootBuild, "\next.itarOccoCaptureDir = file('../occo/android/capture').absolutePath\n");
